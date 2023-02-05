@@ -493,7 +493,7 @@ test "Block.process" {
 
     // Try u32 differentiation
     {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, false);
+        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
         defer test_sample_mux.deinit();
         var sample_mux = test_sample_mux.sampleMux();
 
@@ -511,7 +511,7 @@ test "Block.process" {
 
     // Try u8 differentiation
     {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, false);
+        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
         defer test_sample_mux.deinit();
         var sample_mux = test_sample_mux.sampleMux();
 
@@ -529,7 +529,7 @@ test "Block.process" {
 
     // Try u16 differentiation
     {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, false);
+        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
         defer test_sample_mux.deinit();
         var sample_mux = test_sample_mux.sampleMux();
 

@@ -202,21 +202,26 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
     return struct {
         const Self = @This();
 
+        pub const Options = struct {
+            single_input_samples: bool = false,
+            single_output_samples: bool = false,
+        };
+
         input_buffers: [num_inputs][]const u8,
         input_buffer_indices: [num_inputs]usize = .{0x00} ** num_inputs,
         output_buffers: [num_outputs][]u8,
         output_buffer_indices: [num_outputs]usize = .{0x00} ** num_outputs,
-        single_samples: bool,
+        options: Options,
         eof: bool = false,
 
-        pub fn init(input_buffers: [num_inputs][]const u8, single_samples: bool) !Self {
+        pub fn init(input_buffers: [num_inputs][]const u8, options: Options) !Self {
             var output_buffers: [num_outputs][]u8 = undefined;
             inline for (output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 1048576);
 
             return .{
                 .input_buffers = input_buffers,
                 .output_buffers = output_buffers,
-                .single_samples = single_samples,
+                .options = options,
             };
         }
 
@@ -232,6 +237,10 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
             return std.mem.bytesAsSlice(T, @alignCast(std.meta.alignment(T), self.output_buffers[index][0..self.output_buffer_indices[index]]));
         }
 
+        pub fn getNumOutputSamples(self: *Self, comptime T: type, index: usize) usize {
+            return self.output_buffer_indices[index] / @sizeOf(T);
+        }
+
         ////////////////////////////////////////////////////////////////////////////
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
@@ -241,20 +250,23 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
                 return error.EndOfFile;
             }
 
-            for (input_buffers) |_, i| {
+            for (self.input_buffer_indices) |_, i| {
                 if (self.input_buffer_indices[i] == self.input_buffers[i].len) {
                     return error.EndOfFile;
-                } else if (self.single_samples) {
+                } else if (self.options.single_input_samples) {
                     input_buffers[i] = self.input_buffers[i][self.input_buffer_indices[i] .. self.input_buffer_indices[i] + input_element_sizes[i]];
                 } else {
                     input_buffers[i] = self.input_buffers[i][self.input_buffer_indices[i]..];
                 }
             }
 
-            for (output_buffers) |_, i| {
-                output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i]..];
+            for (self.output_buffer_indices) |_, i| {
+                if (self.options.single_output_samples) {
+                    output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i] .. self.output_buffer_indices[i] + output_element_sizes[i]];
+                } else {
+                    output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i]..];
+                }
             }
-            _ = output_element_sizes;
         }
 
         pub fn updateBuffers(self: *Self, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
@@ -284,7 +296,7 @@ test "TestSampleMux multiple input, single output" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, false);
+    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
@@ -328,11 +340,11 @@ test "TestSampleMux multiple input, single output" {
     try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
 }
 
-test "TestSampleMux single samples" {
+test "TestSampleMux single input samples" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, true);
+    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{ .single_input_samples = true });
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
@@ -366,11 +378,32 @@ test "TestSampleMux single samples" {
     try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
 }
 
+test "TestSampleMux single output samples" {
+    var test_sample_mux = try TestSampleMux(0, 1).init([0][]const u8{}, .{ .single_output_samples = true });
+    defer test_sample_mux.deinit();
+
+    var sample_mux = test_sample_mux.sampleMux();
+
+    var buffers = try sample_mux.getBuffers(&[0]type{}, &[1]type{u32});
+
+    try std.testing.expectEqual(@as(usize, 0), buffers.inputs.len);
+    try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
+    try std.testing.expect(buffers.outputs[0].len == 1);
+
+    sample_mux.updateBuffers(&[0]type{}, &[0]usize{}, &[1]type{u32}, &[1]usize{1});
+
+    buffers = try sample_mux.getBuffers(&[0]type{}, &[1]type{u32});
+
+    try std.testing.expectEqual(@as(usize, 0), buffers.inputs.len);
+    try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
+    try std.testing.expect(buffers.outputs[0].len == 1);
+}
+
 test "TestSampleMux eof" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, false);
+    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();

@@ -91,7 +91,7 @@ pub const BlockTester = struct {
             try self.instance.initialize();
 
             // Create sample mux
-            var tester_sample_mux = try TestSampleMux(input_data_types.len, output_data_types.len).init(input_buffers, single_samples);
+            var tester_sample_mux = try TestSampleMux(input_data_types.len, output_data_types.len).init(input_buffers, .{ .single_input_samples = single_samples });
             defer tester_sample_mux.deinit();
 
             // Run block
