@@ -110,6 +110,48 @@ pub const BlockTester = struct {
             }
         }
     }
+
+    pub fn checkSource(self: *BlockTester, comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
+        // Differentiate block
+        try self.instance.differentiate(&[0]RuntimeDataType{}, 0);
+
+        // Validate block output data types
+        inline for (output_data_types) |t, i| {
+            if (try self.instance.getOutputType(i) != comptime RuntimeDataType.map(t)) {
+                return BlockTesterError.DataTypeMismatch;
+            }
+        }
+
+        // Test entire output vector at a time, followed by one sample at a time
+        for (&[2]bool{ false, true }) |single_samples| {
+            // Initialize block
+            try self.instance.initialize();
+
+            // Create sample mux
+            var tester_sample_mux = try TestSampleMux(0, output_data_types.len).init([0][]const u8{}, .{ .single_output_samples = single_samples });
+            defer tester_sample_mux.deinit();
+
+            // Run block
+            var sample_mux = tester_sample_mux.sampleMux();
+            blk: while (true) {
+                const process_result = try self.instance.process(&sample_mux);
+                if (process_result.eof) {
+                    break;
+                }
+                inline for (output_data_types) |_, i| {
+                    if (tester_sample_mux.getNumOutputSamples(output_data_types[i], i) >= output_vectors[i].len) {
+                        break :blk;
+                    }
+                }
+            }
+
+            // Compare output vectors
+            inline for (output_data_types) |data_type, i| {
+                const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
+                try expectEqualVectors(data_type, output_vectors[i], actual_vector[0..output_vectors[i].len], i, self.epsilon, self.silent);
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +219,7 @@ const TestBlock = struct {
     }
 };
 
-test "BlockTester" {
+test "BlockTester for Block" {
     var block = TestBlock.init();
 
     var tester = BlockTester.init(&block.block, 0.1);
@@ -224,4 +266,63 @@ test "BlockTester" {
     // Test vector mismatch with epsilon
     try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
     try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
+}
+
+const TestSource = struct {
+    block: Block,
+    counter: usize = 1,
+    error_on_initialize: bool = false,
+
+    pub fn init() TestSource {
+        return .{ .block = Block.init(@This()) };
+    }
+
+    pub fn setRate(_: *TestSource, _: f64) !f64 {
+        return 8000;
+    }
+
+    pub fn initialize(self: *TestSource) !void {
+        if (self.error_on_initialize) {
+            return error.NotImplemented;
+        }
+        self.counter = 1;
+    }
+
+    pub fn process(self: *TestSource, z: []f32) !ProcessResult {
+        for (z) |*e| {
+            e.* = @intToFloat(f32, self.counter);
+            self.counter += 1;
+        }
+
+        return ProcessResult.init(&[0]usize{}, &[1]usize{z.len});
+    }
+};
+
+test "BlockTester for Source" {
+    var block = TestSource.init();
+
+    var tester = BlockTester.init(&block.block, 0.1);
+
+    // Test output data type count mismatch
+    try std.testing.expectError(BlockError.OutputNotFound, tester.checkSource(&[2]type{ f32, f32 }, .{ &[_]f32{ 3, 5, 7 }, &[_]f32{ 3, 5, 7 } }));
+
+    // Test output data type mismatch
+    try std.testing.expectError(BlockTesterError.DataTypeMismatch, tester.checkSource(&[1]type{u32}, .{&[_]u32{ 3, 5, 7 }}));
+
+    // Test initialization error
+    block.error_on_initialize = true;
+    try std.testing.expectError(error.NotImplemented, tester.checkSource(&[1]type{f32}, .{&[_]f32{2}}));
+    block.error_on_initialize = false;
+
+    // Test success
+    try tester.checkSource(&[1]type{f32}, .{&[_]f32{ 1, 2, 3 }});
+
+    // Silence output on block tester for error tests
+    tester.silent = true;
+
+    // Test vector mismatch
+    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 2, 3, 4 }}));
+
+    // Test vector mismatch with epsilon
+    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 1, 2.5, 3 }}));
 }
