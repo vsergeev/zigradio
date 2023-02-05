@@ -171,9 +171,12 @@ pub const Block = struct {
     _rate: ?usize = null,
 
     pub fn init(comptime block_type: type) Block {
+        // Split full name (may include parent packages), until we get the type
         var it = std.mem.split(u8, @typeName(block_type), ".");
-        _ = it.first();
-        const name = it.next() orelse unreachable;
+        var name: []const u8 = "";
+        while (it.next()) |val| {
+            name = val;
+        }
 
         return Block{
             .name = name,
