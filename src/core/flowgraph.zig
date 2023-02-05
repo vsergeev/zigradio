@@ -219,9 +219,7 @@ pub const Flowgraph = struct {
         try self.block_set.put(dst, {});
     }
 
-    pub fn _differentiate(self: *Flowgraph) !std.AutoArrayHashMap(*Block, void) {
-        // FIXME collapse differentiate into initialize?
-
+    pub fn _initialize(self: *Flowgraph) !void {
         // For each block in the block set
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |k| {
@@ -236,7 +234,7 @@ pub const Flowgraph = struct {
 
         // Build the evaluation order
         var evaluation_order = try buildEvaluationOrder(self.allocator, &self.connections, &self.block_set);
-        errdefer evaluation_order.deinit();
+        defer evaluation_order.deinit();
 
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
@@ -265,11 +263,6 @@ pub const Flowgraph = struct {
             }
         }
 
-        // Return the evaluation order
-        return evaluation_order;
-    }
-
-    pub fn _initialize(_: *Flowgraph, evaluation_order: *std.AutoArrayHashMap(*Block, void)) !void {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Initialize the block
@@ -280,12 +273,8 @@ pub const Flowgraph = struct {
     pub fn start(self: *Flowgraph) !void {
         if (self.run_state != null) return FlowgraphError.AlreadyRunning;
 
-        // Differentiate blocks
-        var evaluation_order = try self._differentiate();
-        defer evaluation_order.deinit();
-
-        // Initialize blocks
-        try self._initialize(&evaluation_order);
+        // Differentiate and initialize blocks
+        try self._initialize();
 
         // Build run state
         self.run_state = try FlowgraphRunState.init(self.allocator, &self.connections, &self.block_set);
@@ -629,8 +618,7 @@ test "Flowgraph differentiate (input validation)" {
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1"); // c
 
-    var evaluation_order1 = try top1._differentiate();
-    evaluation_order1.deinit();
+    try top1._initialize();
 
     //
     //          a        c
@@ -645,7 +633,7 @@ test "Flowgraph differentiate (input validation)" {
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
     try top2.connectPort(&b3.block, "out1", &b4.block, "in1"); // c
 
-    try std.testing.expectError(FlowgraphError.InputPortUnconnected, top2._differentiate());
+    try std.testing.expectError(FlowgraphError.InputPortUnconnected, top2._initialize());
 }
 
 test "Flowgraph differentiate (type signature)" {
@@ -681,8 +669,7 @@ test "Flowgraph differentiate (type signature)" {
     try top1.connectPort(&b5.block, "out1", &b8.block, "in1"); // g f32
     try top1.connectPort(&b8.block, "out1", &b9.block, "in1"); // h u32
 
-    var evaluation_order1 = try top1._differentiate();
-    defer evaluation_order1.deinit();
+    try top1._initialize();
 
     try std.testing.expectEqual(b1.block._differentiation, &b1.block.differentiations[0]);
     try std.testing.expectEqual(b2.block._differentiation, &b2.block.differentiations[0]);
@@ -723,7 +710,7 @@ test "Flowgraph differentiate (type signature)" {
     try top2.connectPort(&b5.block, "out1", &b8.block, "in1"); // g f32
     try top2.connectPort(&b8.block, "out1", &b9.block, "in1"); // h u32
 
-    try std.testing.expectError(BlockError.TypeSignatureNotFound, top2._differentiate());
+    try std.testing.expectError(BlockError.TypeSignatureNotFound, top2._initialize());
 }
 
 test "Flowgraph differentiate (rate validation)" {
@@ -747,8 +734,7 @@ test "Flowgraph differentiate (rate validation)" {
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1"); // c
 
-    var evaluation_order1 = try top1._differentiate();
-    defer evaluation_order1.deinit();
+    try top1._initialize();
 
     //
     //          a        d
@@ -774,7 +760,7 @@ test "Flowgraph differentiate (rate validation)" {
     try top2.connect(&b6.block, &b7.block); // c
     try top2.connect(&b8.block, &b9.block); // d
 
-    try std.testing.expectError(FlowgraphError.RateMismatch, top2._differentiate());
+    try std.testing.expectError(FlowgraphError.RateMismatch, top2._initialize());
 }
 
 test "Flowgraph initialize blocks" {
@@ -803,9 +789,7 @@ test "Flowgraph initialize blocks" {
     try std.testing.expectEqual(false, b3.initialized);
     try std.testing.expectEqual(false, b4.initialized);
 
-    var evaluation_order1 = try top1._differentiate();
-    defer evaluation_order1.deinit();
-    try top1._initialize(&evaluation_order1);
+    try top1._initialize();
 
     try std.testing.expectEqual(true, b1.initialized);
     try std.testing.expectEqual(true, b2.initialized);
@@ -834,9 +818,7 @@ test "Flowgraph initialize blocks" {
     try std.testing.expectEqual(false, b5.initialized);
     try std.testing.expectEqual(false, b7.initialized);
 
-    var evaluation_order2 = try top2._differentiate();
-    defer evaluation_order2.deinit();
-    try std.testing.expectError(error.NotImplemented, top2._initialize(&evaluation_order2));
+    try std.testing.expectError(error.NotImplemented, top2._initialize());
 
     try std.testing.expectEqual(true, b5.initialized);
     try std.testing.expectEqual(false, b7.initialized);
