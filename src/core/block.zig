@@ -49,7 +49,7 @@ pub const ProcessResult = struct {
 
 pub const RuntimeDifferentiation = struct {
     type_signature: RuntimeTypeSignature,
-    set_rate_fn: *const fn (self: *Block, upstream_rate: usize) anyerror!usize,
+    set_rate_fn: *const fn (self: *Block, upstream_rate: f64) anyerror!f64,
     initialize_fn: *const fn (self: *Block) anyerror!void,
     process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
@@ -103,10 +103,10 @@ fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: 
     }
 }
 
-fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anytype) fn (self: *Block, upstream_rate: usize) anyerror!usize {
+fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anytype) fn (self: *Block, upstream_rate: f64) anyerror!f64 {
     if (@TypeOf(set_rate_fn) != @TypeOf(null)) {
         const impl = struct {
-            fn setRate(block: *Block, upstream_rate: usize) anyerror!usize {
+            fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
                 const self = @fieldParentPtr(block_type, "block", block);
 
                 return try set_rate_fn(self, upstream_rate);
@@ -115,7 +115,7 @@ fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anyty
         return impl.setRate;
     } else {
         const impl = struct {
-            fn setRate(block: *Block, upstream_rate: usize) anyerror!usize {
+            fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
                 _ = block;
 
                 // Default setRate() retains upstream rate
@@ -168,7 +168,7 @@ pub const Block = struct {
     name: []const u8,
     differentiations: []const RuntimeDifferentiation,
     _differentiation: ?*const RuntimeDifferentiation = null,
-    _rate: ?usize = null,
+    _rate: ?f64 = null,
 
     pub fn init(comptime block_type: type) Block {
         // Split full name (may include parent packages), until we get the type
@@ -186,7 +186,7 @@ pub const Block = struct {
 
     // Primary Block API
 
-    pub fn differentiate(self: *Block, data_types: []const RuntimeDataType, rate: usize) !void {
+    pub fn differentiate(self: *Block, data_types: []const RuntimeDataType, rate: f64) !void {
         for (self.differentiations) |differentiation, i| {
             if (differentiation.type_signature.inputs.len != data_types.len)
                 std.debug.panic("Attempted differentiation with invalid number of input types for block", .{});
@@ -216,9 +216,9 @@ pub const Block = struct {
 
     // Getters
 
-    pub fn getRate(self: *Block) BlockError!usize {
+    pub fn getRate(self: *Block, comptime T: type) BlockError!T {
         if (self._differentiation == null) return BlockError.NotDifferentiated;
-        return self._rate.?;
+        return std.math.lossyCast(T, self._rate.?);
     }
 
     pub fn getNumInputs(self: *Block) usize {
@@ -300,7 +300,7 @@ const TestBlock = struct {
         return .{ .block = Block.init(@This()), .init_u32_called = false, .init_f32_called = false };
     }
 
-    pub fn setRate(_: *TestBlock, upstream_rate: usize) !usize {
+    pub fn setRate(_: *TestBlock, upstream_rate: f64) !f64 {
         if (upstream_rate < 8000) return error.Unsupported;
         return upstream_rate / 2;
     }
@@ -364,7 +364,7 @@ const TestSource = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn setRate(_: *TestSource, _: usize) !usize {
+    pub fn setRate(_: *TestSource, _: f64) !f64 {
         return 8000;
     }
 
@@ -412,7 +412,7 @@ test "Block getters" {
     try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(0));
     try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputName(0));
     try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputType(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getRate());
+    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getRate(usize));
 
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
     try std.testing.expectEqualSlices(u8, "in1", try test_block.block.getInputName(0));
@@ -421,7 +421,7 @@ test "Block getters" {
     try std.testing.expectEqual(RuntimeDataType.Unsigned8, try test_block.block.getInputType(1));
     try std.testing.expectEqualSlices(u8, "out1", try test_block.block.getOutputName(0));
     try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate());
+    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
 
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
     try std.testing.expectEqualSlices(u8, "in1", try test_block.block.getInputName(0));
@@ -430,7 +430,7 @@ test "Block getters" {
     try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_block.block.getInputType(1));
     try std.testing.expectEqualSlices(u8, "out1", try test_block.block.getOutputName(0));
     try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate());
+    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
 
     try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputName(2));
     try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputType(2));
@@ -452,7 +452,7 @@ test "Block getters" {
     try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputType(0));
     try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputName(1));
     try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputType(1));
-    try std.testing.expectEqual(@as(usize, 8000), try test_source.block.getRate());
+    try std.testing.expectEqual(@as(usize, 8000), try test_source.block.getRate(usize));
 }
 
 test "Block.differentiate" {

@@ -83,7 +83,7 @@ const TestSource = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn setRate(_: *TestSource, _: usize) !usize {
+    pub fn setRate(_: *TestSource, _: f64) !f64 {
         return 8000;
     }
 
@@ -139,7 +139,7 @@ const TestSource2 = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn setRate(_: *TestSource2, _: usize) !usize {
+    pub fn setRate(_: *TestSource2, _: f64) !f64 {
         return 8000;
     }
 

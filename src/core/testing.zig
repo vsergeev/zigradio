@@ -64,7 +64,7 @@ pub const BlockTester = struct {
         return .{ .instance = instance, .epsilon = epsilon, .silent = false };
     }
 
-    pub fn check(self: *BlockTester, rate: usize, comptime input_data_types: []const type, input_vectors: util.makeTupleConstSliceTypes(input_data_types), comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
+    pub fn check(self: *BlockTester, rate: f64, comptime input_data_types: []const type, input_vectors: util.makeTupleConstSliceTypes(input_data_types), comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
         // Create runtime data types
         comptime var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
         inline for (input_data_types) |t, i| {
