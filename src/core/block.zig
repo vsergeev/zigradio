@@ -50,7 +50,7 @@ pub const ProcessResult = struct {
 pub const RuntimeDifferentiation = struct {
     type_signature: RuntimeTypeSignature,
     set_rate_fn: *const fn (self: *Block, upstream_rate: f64) anyerror!f64,
-    initialize_fn: *const fn (self: *Block) anyerror!void,
+    initialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
     process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
     pub fn derive(comptime block_type: anytype) []RuntimeDifferentiation {
@@ -83,20 +83,21 @@ pub const RuntimeDifferentiation = struct {
     }
 };
 
-fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: anytype) fn (self: *Block) anyerror!void {
+fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: anytype) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
     if (@TypeOf(initialize_fn) != @TypeOf(null)) {
         const impl = struct {
-            fn initialize(block: *Block) anyerror!void {
+            fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
                 const self = @fieldParentPtr(block_type, "block", block);
 
-                try initialize_fn(self);
+                try initialize_fn(self, allocator);
             }
         };
         return impl.initialize;
     } else {
         const impl = struct {
-            fn initialize(block: *Block) anyerror!void {
+            fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
                 _ = block;
+                _ = allocator;
             }
         };
         return impl.initialize;
@@ -206,8 +207,8 @@ pub const Block = struct {
         return BlockError.TypeSignatureNotFound;
     }
 
-    pub fn initialize(self: *Block) !void {
-        try self._differentiation.?.initialize_fn(self);
+    pub fn initialize(self: *Block, allocator: std.mem.Allocator) !void {
+        try self._differentiation.?.initialize_fn(self, allocator);
     }
 
     pub fn process(self: *Block, sample_mux: *SampleMux) !ProcessResult {
@@ -305,7 +306,7 @@ const TestBlock = struct {
         return upstream_rate / 2;
     }
 
-    pub fn initializeUnsigned32(self: *TestBlock) !void {
+    pub fn initializeUnsigned32(self: *TestBlock, _: std.mem.Allocator) !void {
         self.init_u32_called = true;
     }
 
@@ -313,7 +314,7 @@ const TestBlock = struct {
         return ProcessResult.init(&[2]usize{ 0, 0 }, &[1]usize{0});
     }
 
-    pub fn initializeFloat32(self: *TestBlock) !void {
+    pub fn initializeFloat32(self: *TestBlock, _: std.mem.Allocator) !void {
         self.init_f32_called = true;
     }
 
@@ -321,7 +322,7 @@ const TestBlock = struct {
         return ProcessResult.init(&[2]usize{ 0, 0 }, &[1]usize{0});
     }
 
-    pub fn initializeUnsigned8(_: *TestBlock) !void {
+    pub fn initializeUnsigned8(_: *TestBlock, _: std.mem.Allocator) !void {
         return error.Unsupported;
     }
 
@@ -473,16 +474,16 @@ test "Block.initialize" {
 
     try std.testing.expectEqual(false, test_block.init_u32_called);
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
-    try test_block.block.initialize();
+    try test_block.block.initialize(std.testing.allocator);
     try std.testing.expectEqual(true, test_block.init_u32_called);
 
     try std.testing.expectEqual(false, test_block.init_f32_called);
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
-    try test_block.block.initialize();
+    try test_block.block.initialize(std.testing.allocator);
     try std.testing.expectEqual(true, test_block.init_f32_called);
 
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned8, RuntimeDataType.Unsigned8 }, 8000);
-    try std.testing.expectError(error.Unsupported, test_block.block.initialize());
+    try std.testing.expectError(error.Unsupported, test_block.block.initialize(std.testing.allocator));
 }
 
 test "Block.process" {

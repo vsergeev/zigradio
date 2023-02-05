@@ -266,7 +266,7 @@ pub const Flowgraph = struct {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Initialize the block
-            try block.initialize();
+            try block.initialize(self.allocator);
         }
     }
 
@@ -341,7 +341,7 @@ const TestSource = struct {
         return 8000;
     }
 
-    pub fn initialize(self: *TestSource) !void {
+    pub fn initialize(self: *TestSource, _: std.mem.Allocator) !void {
         self.initialized = true;
     }
 
@@ -374,7 +374,7 @@ const TestSink = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(self: *TestSink) !void {
+    pub fn initialize(self: *TestSink, _: std.mem.Allocator) !void {
         self.initialized = true;
     }
 
@@ -415,7 +415,7 @@ const TestAddBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(self: *TestAddBlock) !void {
+    pub fn initialize(self: *TestAddBlock, _: std.mem.Allocator) !void {
         self.initialized = true;
     }
 
@@ -435,7 +435,7 @@ const TestErrorBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(_: *TestErrorBlock) !void {
+    pub fn initialize(_: *TestErrorBlock, _: std.mem.Allocator) !void {
         return error.NotImplemented;
     }
 

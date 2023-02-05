@@ -88,7 +88,7 @@ pub const BlockTester = struct {
         // Test input vectors entire vector at a time, followed by one sample at a time
         for (&[2]bool{ false, true }) |single_samples| {
             // Initialize block
-            try self.instance.initialize();
+            try self.instance.initialize(std.testing.allocator);
 
             // Create sample mux
             var tester_sample_mux = try TestSampleMux(input_data_types.len, output_data_types.len).init(input_buffers, .{ .single_input_samples = single_samples });
@@ -125,7 +125,7 @@ pub const BlockTester = struct {
         // Test entire output vector at a time, followed by one sample at a time
         for (&[2]bool{ false, true }) |single_samples| {
             // Initialize block
-            try self.instance.initialize();
+            try self.instance.initialize(std.testing.allocator);
 
             // Create sample mux
             var tester_sample_mux = try TestSampleMux(0, output_data_types.len).init([0][]const u8{}, .{ .single_output_samples = single_samples });
@@ -166,7 +166,7 @@ const TestBlock = struct {
         return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn initialize1(self: *TestBlock) !void {
+    pub fn initialize1(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 1;
     }
 
@@ -177,7 +177,7 @@ const TestBlock = struct {
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
 
-    pub fn initialize2(self: *TestBlock) !void {
+    pub fn initialize2(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 2;
     }
 
@@ -188,7 +188,7 @@ const TestBlock = struct {
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
 
-    pub fn initialize3(_: *TestBlock) !void {
+    pub fn initialize3(_: *TestBlock, _: std.mem.Allocator) !void {
         return error.NotImplemented;
     }
 
@@ -196,7 +196,7 @@ const TestBlock = struct {
         return error.NotImplemented;
     }
 
-    pub fn initialize4(self: *TestBlock) !void {
+    pub fn initialize4(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 4;
     }
 
@@ -207,7 +207,7 @@ const TestBlock = struct {
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
 
-    pub fn initialize5(self: *TestBlock) !void {
+    pub fn initialize5(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 5;
     }
 
@@ -281,7 +281,7 @@ const TestSource = struct {
         return 8000;
     }
 
-    pub fn initialize(self: *TestSource) !void {
+    pub fn initialize(self: *TestSource, _: std.mem.Allocator) !void {
         if (self.error_on_initialize) {
             return error.NotImplemented;
         }
