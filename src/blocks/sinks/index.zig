@@ -5,3 +5,4 @@ test {
 
 pub const PrintSink = @import("print.zig").PrintSink;
 pub const BenchmarkSink = @import("benchmark.zig").BenchmarkSink;
+pub const PulseAudioSink = @import("pulseaudio.zig").PulseAudioSink;
