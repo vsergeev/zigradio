@@ -8,3 +8,4 @@ pub const FrequencyTranslatorBlock = @import("frequencytranslator.zig").Frequenc
 pub const FrequencyDiscriminatorBlock = @import("frequencydiscriminator.zig").FrequencyDiscriminatorBlock;
 pub const FIRFilterBlock = @import("firfilter.zig").FIRFilterBlock;
 pub const IIRFilterBlock = @import("iirfilter.zig").IIRFilterBlock;
+pub const SinglepoleLowpassFilterBlock = @import("singlepolelowpassfilter.zig").SinglepoleLowpassFilterBlock;
