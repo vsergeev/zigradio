@@ -89,6 +89,7 @@ pub const BlockTester = struct {
         for (&[2]bool{ false, true }) |single_samples| {
             // Initialize block
             try self.instance.initialize(std.testing.allocator);
+            defer self.instance.deinitialize(std.testing.allocator);
 
             // Create sample mux
             var tester_sample_mux = try TestSampleMux(input_data_types.len, output_data_types.len).init(input_buffers, .{ .single_input_samples = single_samples });
@@ -126,6 +127,7 @@ pub const BlockTester = struct {
         for (&[2]bool{ false, true }) |single_samples| {
             // Initialize block
             try self.instance.initialize(std.testing.allocator);
+            defer self.instance.deinitialize(std.testing.allocator);
 
             // Create sample mux
             var tester_sample_mux = try TestSampleMux(0, output_data_types.len).init([0][]const u8{}, .{ .single_output_samples = single_samples });
@@ -170,6 +172,10 @@ const TestBlock = struct {
         self.initialized = 1;
     }
 
+    pub fn deinitialize1(self: *TestBlock, _: std.mem.Allocator) void {
+        self.initialized += 10;
+    }
+
     pub fn process1(_: *TestBlock, x: []const u32, y: []const u16, z: []u32) !ProcessResult {
         for (x) |_, i| {
             z[i] = x[i] + y[i];
@@ -179,6 +185,10 @@ const TestBlock = struct {
 
     pub fn initialize2(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 2;
+    }
+
+    pub fn deinitialize2(self: *TestBlock, _: std.mem.Allocator) void {
+        self.initialized += 20;
     }
 
     pub fn process2(_: *TestBlock, x: []const u8, y: []const u16, z: []u16) !ProcessResult {
@@ -200,6 +210,10 @@ const TestBlock = struct {
         self.initialized = 4;
     }
 
+    pub fn deinitialize4(self: *TestBlock, _: std.mem.Allocator) void {
+        self.initialized += 40;
+    }
+
     pub fn process4(_: *TestBlock, x: []const f32, y: []const f32, z: []f32) !ProcessResult {
         for (x) |_, i| {
             z[i] = x[i] + y[i];
@@ -209,6 +223,10 @@ const TestBlock = struct {
 
     pub fn initialize5(self: *TestBlock, _: std.mem.Allocator) !void {
         self.initialized = 5;
+    }
+
+    pub fn deinitialize5(self: *TestBlock, _: std.mem.Allocator) void {
+        self.initialized += 50;
     }
 
     pub fn process5(_: *TestBlock, x: []const std.math.Complex(f32), y: []const std.math.Complex(f32), z: []std.math.Complex(f32)) !ProcessResult {
@@ -238,21 +256,21 @@ test "BlockTester for Block" {
 
     // Test success
     try tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }});
-    try std.testing.expectEqual(@as(usize, 1), block.initialized);
+    try std.testing.expectEqual(@as(usize, 11), block.initialized);
     try tester.check(8000, &[2]type{ u8, u16 }, .{ &[_]u8{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u16}, .{&[_]u16{ 5, 8, 11 }});
-    try std.testing.expectEqual(@as(usize, 2), block.initialized);
+    try std.testing.expectEqual(@as(usize, 22), block.initialized);
 
     // Test success with floats
     try tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.4, 6.6 }});
-    try std.testing.expectEqual(@as(usize, 4), block.initialized);
+    try std.testing.expectEqual(@as(usize, 44), block.initialized);
     try tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.15, 4.45, 6.55 }});
-    try std.testing.expectEqual(@as(usize, 4), block.initialized);
+    try std.testing.expectEqual(@as(usize, 44), block.initialized);
 
     // Test success with complex floats
     try tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.75, 3.75), std.math.Complex(f32).init(4.25, 5.25) }});
-    try std.testing.expectEqual(@as(usize, 5), block.initialized);
+    try std.testing.expectEqual(@as(usize, 55), block.initialized);
     try tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.45, 1.55), std.math.Complex(f32).init(2.70, 3.80), std.math.Complex(f32).init(4.20, 5.30) }});
-    try std.testing.expectEqual(@as(usize, 5), block.initialized);
+    try std.testing.expectEqual(@as(usize, 55), block.initialized);
 
     // Silence output on block tester for error tests
     tester.silent = true;
@@ -288,6 +306,10 @@ const TestSource = struct {
         self.counter = 1;
     }
 
+    pub fn deinitialize(self: *TestSource, _: std.mem.Allocator) void {
+        self.counter = 123;
+    }
+
     pub fn process(self: *TestSource, z: []f32) !ProcessResult {
         for (z) |*e| {
             e.* = @intToFloat(f32, self.counter);
@@ -316,6 +338,7 @@ test "BlockTester for Source" {
 
     // Test success
     try tester.checkSource(&[1]type{f32}, .{&[_]f32{ 1, 2, 3 }});
+    try std.testing.expectEqual(@as(usize, 123), block.counter);
 
     // Silence output on block tester for error tests
     tester.silent = true;

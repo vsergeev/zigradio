@@ -270,6 +270,14 @@ pub const Flowgraph = struct {
         }
     }
 
+    pub fn _deinitialize(self: *Flowgraph) void {
+        // Deinitialize blocks
+        var block_it = self.block_set.keyIterator();
+        while (block_it.next()) |block| {
+            block.*.deinitialize(self.allocator);
+        }
+    }
+
     pub fn start(self: *Flowgraph) !void {
         if (self.run_state != null) return FlowgraphError.AlreadyRunning;
 
@@ -296,6 +304,9 @@ pub const Flowgraph = struct {
         // Free run state
         self.run_state.?.deinit();
         self.run_state = null;
+
+        // Deinitialize
+        self._deinitialize();
     }
 
     pub fn stop(self: *Flowgraph) !void {
@@ -345,6 +356,10 @@ const TestSource = struct {
         self.initialized = true;
     }
 
+    pub fn deinitialize(self: *TestSource, _: std.mem.Allocator) void {
+        self.initialized = false;
+    }
+
     pub fn process(_: *TestSource, _: []u32) !ProcessResult {
         return ProcessResult.init(&[0]usize{}, &[1]usize{1});
     }
@@ -376,6 +391,10 @@ const TestSink = struct {
 
     pub fn initialize(self: *TestSink, _: std.mem.Allocator) !void {
         self.initialized = true;
+    }
+
+    pub fn deinitialize(self: *TestSink, _: std.mem.Allocator) void {
+        self.initialized = false;
     }
 
     pub fn processUnsigned32(_: *TestSink, _: []const u32) !ProcessResult {
@@ -417,6 +436,10 @@ const TestAddBlock = struct {
 
     pub fn initialize(self: *TestAddBlock, _: std.mem.Allocator) !void {
         self.initialized = true;
+    }
+
+    pub fn deinitialize(self: *TestAddBlock, _: std.mem.Allocator) void {
+        self.initialized = false;
     }
 
     pub fn processUnsigned32(_: *TestAddBlock, _: []const u32, _: []const u32, _: []u32) !ProcessResult {
@@ -763,7 +786,7 @@ test "Flowgraph differentiate (rate validation)" {
     try std.testing.expectError(FlowgraphError.RateMismatch, top2._initialize());
 }
 
-test "Flowgraph initialize blocks" {
+test "Flowgraph initialize and deinitialize blocks" {
     //
     //          a        c
     //    [ 1 ] -> [ 3 ] -> [ 4 ]
@@ -795,6 +818,13 @@ test "Flowgraph initialize blocks" {
     try std.testing.expectEqual(true, b2.initialized);
     try std.testing.expectEqual(true, b3.initialized);
     try std.testing.expectEqual(true, b4.initialized);
+
+    top1._deinitialize();
+
+    try std.testing.expectEqual(false, b1.initialized);
+    try std.testing.expectEqual(false, b2.initialized);
+    try std.testing.expectEqual(false, b3.initialized);
+    try std.testing.expectEqual(false, b4.initialized);
 
     var foo = try FlowgraphRunState.init(top1.allocator, &top1.connections, &top1.block_set);
     defer foo.deinit();
