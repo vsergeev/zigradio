@@ -5,3 +5,4 @@ test {
 
 pub const DownsamplerBlock = @import("downsampler.zig").DownsamplerBlock;
 pub const FrequencyTranslatorBlock = @import("frequencytranslator.zig").FrequencyTranslatorBlock;
+pub const FrequencyDiscriminatorBlock = @import("frequencydiscriminator.zig").FrequencyDiscriminatorBlock;
