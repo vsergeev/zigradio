@@ -2,3 +2,5 @@
 test {
     @import("std").testing.refAllDecls(@This());
 }
+
+pub const ZeroSource = @import("zero.zig").ZeroSource;
