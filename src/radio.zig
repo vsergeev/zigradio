@@ -5,6 +5,8 @@ pub const Flowgraph = @import("core/flowgraph.zig").Flowgraph;
 
 // Subpackages
 pub const testing = @import("core/testing.zig");
+pub const utils = @import("utils/index.zig");
+pub const blocks = @import("blocks/index.zig");
 
 // Pull in all tests
 test {
