@@ -10,3 +10,4 @@ pub const FIRFilterBlock = @import("firfilter.zig").FIRFilterBlock;
 pub const IIRFilterBlock = @import("iirfilter.zig").IIRFilterBlock;
 pub const SinglepoleLowpassFilterBlock = @import("singlepolelowpassfilter.zig").SinglepoleLowpassFilterBlock;
 pub const FMDeemphasisFilterBlock = @import("fmdeemphasisfilter.zig").FMDeemphasisFilterBlock;
+pub const LowpassFilterBlock = @import("lowpassfilter.zig").LowpassFilterBlock;
