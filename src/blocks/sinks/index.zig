@@ -4,3 +4,4 @@ test {
 }
 
 pub const PrintSink = @import("print.zig").PrintSink;
+pub const BenchmarkSink = @import("benchmark.zig").BenchmarkSink;
