@@ -4,3 +4,4 @@ test {
 }
 
 pub const ZeroSource = @import("zero.zig").ZeroSource;
+pub const SignalSource = @import("signal.zig").SignalSource;
