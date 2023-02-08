@@ -74,6 +74,11 @@ pub const RuntimeDifferentiation = struct {
                 comptime var deinitialize_fn = if (@hasDecl(block_type, deinitialize_fn_name)) @field(block_type, deinitialize_fn_name) else if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
 
                 const type_signature = ComptimeTypeSignature.init(process_fn);
+
+                if (type_signature.inputs.len == 0 and @TypeOf(set_rate_fn) == @TypeOf(null)) {
+                    @compileError("Source block " ++ @typeName(block_type) ++ " is missing the setRate() method.");
+                }
+
                 runtime_differentiations[count].type_signature = comptime RuntimeTypeSignature.init(type_signature);
                 runtime_differentiations[count].set_rate_fn = wrapSetRateFunction(block_type, set_rate_fn);
                 runtime_differentiations[count].initialize_fn = wrapInitializeFunction(block_type, initialize_fn);
