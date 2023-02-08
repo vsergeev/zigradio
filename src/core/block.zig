@@ -196,6 +196,19 @@ fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anyt
 // Block
 ////////////////////////////////////////////////////////////////////////////////
 
+fn extractBlockName(comptime block_type: type) []const u8 {
+    // Split ( for generic blocks
+    comptime var it = std.mem.split(u8, @typeName(block_type), "(");
+    comptime var first = it.first();
+    comptime var suffix = it.rest();
+    // Split . backwards for block name
+    comptime var it_back = std.mem.splitBackwards(u8, first, ".");
+    comptime var prefix = it_back.first();
+
+    // Concatenate prefix and suffix
+    return prefix ++ (if (suffix.len > 0) "(" else "") ++ suffix;
+}
+
 pub const Block = struct {
     name: []const u8,
     differentiations: []const RuntimeDifferentiation,
@@ -203,15 +216,8 @@ pub const Block = struct {
     _rate: ?f64 = null,
 
     pub fn init(comptime block_type: type) Block {
-        // Split full name (may include parent packages), until we get the type
-        var it = std.mem.split(u8, @typeName(block_type), ".");
-        var name: []const u8 = "";
-        while (it.next()) |val| {
-            name = val;
-        }
-
         return Block{
-            .name = name,
+            .name = comptime extractBlockName(block_type),
             .differentiations = RuntimeDifferentiation.derive(block_type),
         };
     }
