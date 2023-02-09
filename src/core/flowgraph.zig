@@ -270,6 +270,11 @@ pub const Flowgraph = struct {
             }
         }
 
+        // Dump flow graph if debug is enabled
+        if (self.options.debug) {
+            self._dump(&evaluation_order);
+        }
+
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Initialize the block
@@ -282,6 +287,49 @@ pub const Flowgraph = struct {
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |block| {
             block.*.deinitialize(self.allocator);
+        }
+    }
+
+    fn _dump(self: *Flowgraph, evaluation_order: *std.AutoArrayHashMap(*Block, void)) void {
+        std.debug.print("[Flowgraph] Flow graph:\n", .{});
+
+        // For each block in the evaluation order
+        for (evaluation_order.keys()) |block| {
+            std.debug.print("[Flowgraph]    {s} [{d} Hz]\n", .{ block.name, block.getRate(f64) catch unreachable });
+
+            // For each input port
+            var i: usize = 0;
+            while (i < block.getNumInputs()) : (i += 1) {
+                const output_port = self.connections.get(Port{ .block = block, .index = i }).?;
+                const input_port_name = block.getInputName(i) catch unreachable;
+                const input_port_type = block.getInputType(i) catch unreachable;
+                const output_port_name = output_port.block.getOutputName(output_port.index) catch unreachable;
+                std.debug.print("[Flowgraph]        .{s} [{any}] <- {s}.{s}\n", .{ input_port_name, input_port_type, output_port.block.name, output_port_name });
+            }
+
+            // For each output port
+            i = 0;
+            while (i < block.getNumOutputs()) : (i += 1) {
+                const output_port_name = block.getOutputName(i) catch unreachable;
+                const output_port_type = block.getOutputType(i) catch unreachable;
+
+                std.debug.print("[Flowgraph]        .{s} [{any}] -> ", .{ output_port_name, output_port_type });
+
+                // Find all connected input ports (quadratic, but this is a debug dump)
+                var it = self.connections.keyIterator();
+                var print_separator = false;
+                while (it.next()) |input_port| {
+                    const output_port = self.connections.get(input_port.*).?;
+                    if (output_port.block == block and output_port.index == i) {
+                        const input_port_name = input_port.block.getInputName(input_port.index) catch unreachable;
+                        if (print_separator) std.debug.print(", ", .{});
+                        std.debug.print("{s}.{s}", .{ input_port.block.name, input_port_name });
+                        print_separator = true;
+                    }
+                }
+
+                std.debug.print("\n", .{});
+            }
         }
     }
 
