@@ -1,11 +1,6 @@
 const std = @import("std");
 
-const Example = struct {
-    name: []const u8,
-    path: []const u8,
-};
-
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.build.Builder) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -22,14 +17,13 @@ pub fn build(b: *std.build.Builder) void {
     lib.linkLibC();
     lib.install();
 
-    // FIXME discover
-    const examples = [_]Example{
-        .{ .name = "example-rtlsdr_wbfm_mono", .path = "examples/rtlsdr_wbfm_mono.zig" },
-        .{ .name = "example-play_tone", .path = "examples/play_tone.zig" },
-    };
+    var examples_dir = try std.fs.cwd().openIterableDir("examples", .{});
+    var examples_it = examples_dir.iterate();
+    while (try examples_it.next()) |entry| {
+        const example_name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ "example-", entry.name[0..std.mem.indexOfScalar(u8, entry.name, '.').?] });
+        const example_path = b.pathJoin(&.{ "examples", entry.name });
 
-    for (examples) |example| {
-        const exe = b.addExecutable(example.name, example.path);
+        const exe = b.addExecutable(example_name, example_path);
         exe.setTarget(target);
         exe.setBuildMode(mode);
         exe.addPackage(.{
