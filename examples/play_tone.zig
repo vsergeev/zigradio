@@ -8,7 +8,7 @@ pub fn main() !void {
     var source = radio.blocks.SignalSource.init(radio.blocks.SignalSource.WaveformFunction.Cosine, 440, 44100, .{});
     var sink = radio.blocks.PulseAudioSink.init();
 
-    var top = radio.Flowgraph.init(gpa.allocator());
+    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &sink.block);
 

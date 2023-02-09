@@ -175,14 +175,21 @@ const FlowgraphRunState = struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const Flowgraph = struct {
+    pub const Options = struct {
+        debug: bool = false,
+    };
+
     allocator: std.mem.Allocator,
+    options: Options,
+
     connections: std.AutoHashMap(Port, Port),
     block_set: std.AutoHashMap(*Block, void),
     run_state: ?FlowgraphRunState = null,
 
-    pub fn init(allocator: std.mem.Allocator) Flowgraph {
+    pub fn init(allocator: std.mem.Allocator, options: Options) Flowgraph {
         return .{
             .allocator = allocator,
+            .options = options,
             .connections = std.AutoHashMap(Port, Port).init(allocator),
             .block_set = std.AutoHashMap(*Block, void).init(allocator),
         };
@@ -474,7 +481,7 @@ test "buildEvaluationOrder" {
     //        [6] -- [7] \- [8] -- [9]
     //
 
-    var top = Flowgraph.init(std.testing.allocator);
+    var top = Flowgraph.init(std.testing.allocator, .{});
     defer top.deinit();
 
     var b1 = TestSource.init();
@@ -530,7 +537,7 @@ test "Flowgraph connect" {
 
     // Connect by port
 
-    var top1 = Flowgraph.init(std.testing.allocator);
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
     var b1 = TestSource.init();
@@ -574,7 +581,7 @@ test "Flowgraph connect" {
 
     // Connect linear
 
-    var top2 = Flowgraph.init(std.testing.allocator);
+    var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
     try top2.connect(&b3.block, &b4.block);
@@ -608,7 +615,7 @@ test "Flowgraph connect" {
 
     // Connect errors
 
-    var top3 = Flowgraph.init(std.testing.allocator);
+    var top3 = Flowgraph.init(std.testing.allocator, .{});
     defer top3.deinit();
 
     try std.testing.expectError(FlowgraphError.InvalidPortCount, top3.connect(&b7.block, &b4.block));
@@ -629,7 +636,7 @@ test "Flowgraph differentiate (input validation)" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator);
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
     var b1 = TestSource.init();
@@ -650,7 +657,7 @@ test "Flowgraph differentiate (input validation)" {
     //               |
     //               x
 
-    var top2 = Flowgraph.init(std.testing.allocator);
+    var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
@@ -670,7 +677,7 @@ test "Flowgraph differentiate (type signature)" {
 
     // Connect by port
 
-    var top1 = Flowgraph.init(std.testing.allocator);
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
     var b1 = TestSource.init();
@@ -722,7 +729,7 @@ test "Flowgraph differentiate (type signature)" {
     //             [ 2 ]             [ 5 ] -> [ 8 ] -> [ 9 ]
     //
 
-    var top2 = Flowgraph.init(std.testing.allocator);
+    var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a u32
@@ -745,7 +752,7 @@ test "Flowgraph differentiate (rate validation)" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator);
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
     var b1 = TestSource.init();
@@ -769,7 +776,7 @@ test "Flowgraph differentiate (rate validation)" {
     //             c |
     //             [ 6 ]
 
-    var top2 = Flowgraph.init(std.testing.allocator);
+    var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
     var b5 = TestSource.init();
@@ -795,7 +802,7 @@ test "Flowgraph initialize and deinitialize blocks" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator);
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
     var b1 = TestSource.init();
@@ -835,7 +842,7 @@ test "Flowgraph initialize and deinitialize blocks" {
     //
     //
 
-    var top2 = Flowgraph.init(std.testing.allocator);
+    var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
     var b5 = TestSource.init();
@@ -949,7 +956,7 @@ test "Flowgraph run to completion" {
     }
 
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator);
+    var top = Flowgraph.init(std.testing.allocator, .{});
     defer top.deinit();
 
     var source_block = TestBufferSource.init(&test_vector);
@@ -969,7 +976,7 @@ test "Flowgraph run to completion" {
 
 test "Flowgraph start, stop" {
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator);
+    var top = Flowgraph.init(std.testing.allocator, .{});
     defer top.deinit();
 
     var source_block = TestRandomSource.init(123);

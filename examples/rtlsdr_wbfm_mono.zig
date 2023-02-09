@@ -26,7 +26,7 @@ pub fn main() !void {
     var af_downsampler = radio.blocks.DownsamplerBlock(f32).init(5);
     var sink = radio.blocks.PulseAudioSink.init();
 
-    var top = radio.Flowgraph.init(gpa.allocator());
+    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &if_translator.block);
     try top.connect(&if_translator.block, &if_filter.block);
