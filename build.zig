@@ -17,6 +17,7 @@ pub fn build(b: *std.build.Builder) !void {
     lib.linkLibC();
     lib.install();
 
+    const examples_step = b.step("examples", "Build examples");
     var examples_dir = try std.fs.cwd().openIterableDir("examples", .{});
     var examples_it = examples_dir.iterate();
     while (try examples_it.next()) |entry| {
@@ -34,7 +35,8 @@ pub fn build(b: *std.build.Builder) !void {
         exe.linkSystemLibrary("pulse-simple");
         exe.linkSystemLibrary("pulse");
         exe.linkSystemLibrary("rtlsdr");
-        exe.install();
+
+        examples_step.dependOn(&b.addInstallArtifact(exe).step);
     }
 
     const tests = b.addTest("src/radio.zig");
