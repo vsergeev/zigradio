@@ -45,4 +45,8 @@ pub fn build(b: *std.build.Builder) !void {
 
     const test_step = b.step("test", "Run framework tests");
     test_step.dependOn(&tests.step);
+
+    const generate_step = b.step("generate", "Generate test vectors");
+    const generate_cmd = b.addSystemCommand(&[_][]const u8{ "python3", "generate.py" });
+    generate_step.dependOn(&generate_cmd.step);
 }
