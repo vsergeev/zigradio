@@ -1,3 +1,6 @@
+// Version
+pub const version = @import("std").SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
+
 // Top-level
 pub const Block = @import("core/block.zig").Block;
 pub const ProcessResult = @import("core/block.zig").ProcessResult;
