@@ -1,5 +1,16 @@
 const std = @import("std");
 
+const Example = struct {
+    name: []const u8,
+    path: []const u8,
+    libs: []const []const u8,
+};
+
+const examples = [_]Example{
+    .{ .name = "example-rtlsdr_wbfm_mono", .path = "examples/rtlsdr_wbfm_mono.zig", .libs = &.{ "pulse-simple", "pulse", "rtlsdr" } },
+    .{ .name = "example-play_tone", .path = "examples/play_tone.zig", .libs = &.{ "pulse-simple", "pulse" } },
+};
+
 // Adapted from private std.build.Builder.execPkgConfigList()
 // FIXME not exactly portable or stable
 fn getPlatformPackages(self: *std.build.Builder) ![]const []const u8 {
@@ -32,13 +43,8 @@ pub fn build(b: *std.build.Builder) !void {
     platform_options.addOption([]const []const u8, "packages", try getPlatformPackages(b));
 
     const examples_step = b.step("examples", "Build examples");
-    var examples_dir = try std.fs.cwd().openIterableDir("examples", .{});
-    var examples_it = examples_dir.iterate();
-    while (try examples_it.next()) |entry| {
-        const example_name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ "example-", entry.name[0..std.mem.indexOfScalar(u8, entry.name, '.').?] });
-        const example_path = b.pathJoin(&.{ "examples", entry.name });
-
-        const exe = b.addExecutable(example_name, example_path);
+    for (examples) |example| {
+        const exe = b.addExecutable(example.name, example.path);
         exe.setTarget(target);
         exe.setBuildMode(mode);
         exe.addPackage(.{
@@ -47,9 +53,7 @@ pub fn build(b: *std.build.Builder) !void {
             .dependencies = &.{platform_options.getPackage("platform_options")},
         });
         exe.linkLibC();
-        exe.linkSystemLibrary("pulse-simple");
-        exe.linkSystemLibrary("pulse");
-        exe.linkSystemLibrary("rtlsdr");
+        for (example.libs) |libname| exe.linkSystemLibrary(libname);
 
         examples_step.dependOn(&b.addInstallArtifact(exe).step);
     }
