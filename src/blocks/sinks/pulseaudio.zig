@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
+const platform = @import("../../radio.zig").platform;
 const pulse_simple = @cImport({
     @cInclude("pulse/simple.h");
     @cInclude("pulse/error.h");
@@ -24,6 +25,7 @@ pub const PulseAudioSink = struct {
     pa_conn: ?*pulse_simple.pa_simple = null,
 
     pub fn init() PulseAudioSink {
+        if (!comptime platform.hasPackage("libpulse-simple")) @compileError("Platform is missing libpulse-simple library.");
         return .{ .block = Block.init(@This()) };
     }
 
