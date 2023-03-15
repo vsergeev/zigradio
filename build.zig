@@ -11,11 +11,6 @@ pub fn build(b: *std.build.Builder) !void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const lib = b.addStaticLibrary("radio", "src/radio.zig");
-    lib.setTarget(target);
-    lib.setBuildMode(mode);
-    lib.linkLibC();
-    lib.install();
 
     const examples_step = b.step("examples", "Build examples");
     var examples_dir = try std.fs.cwd().openIterableDir("examples", .{});
@@ -31,7 +26,7 @@ pub fn build(b: *std.build.Builder) !void {
             .name = "radio",
             .source = .{ .path = "src/radio.zig" },
         });
-        exe.linkLibrary(lib);
+        exe.linkLibC();
         exe.linkSystemLibrary("pulse-simple");
         exe.linkSystemLibrary("pulse");
         exe.linkSystemLibrary("rtlsdr");
