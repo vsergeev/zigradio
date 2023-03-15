@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
+const platform = @import("../../radio.zig").platform;
 const rtlsdr = @cImport({
     @cInclude("rtl-sdr.h");
 });
@@ -48,6 +49,7 @@ pub const RtlSdrSource = struct {
     dev: ?*rtlsdr.rtlsdr_dev_t = null,
 
     pub fn init(frequency: f64, rate: f64, options: Options) RtlSdrSource {
+        if (!comptime platform.hasPackage("librtlsdr")) @compileError("Platform is missing librtlsdr library.");
         return .{ .block = Block.init(@This()), .frequency = frequency, .rate = rate, .options = options };
     }
 
