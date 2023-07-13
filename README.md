@@ -54,7 +54,7 @@ Check out some more [examples](examples) of what you can build with ZigRadio.
 ## Building
 
 ```
-git clone https://github.com/vsergeev/zigradio.git
+$ git clone https://github.com/vsergeev/zigradio.git
 $ cd zigradio
 ```
 
