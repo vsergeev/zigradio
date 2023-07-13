@@ -1,4 +1,4 @@
-# ZigRadio
+# ZigRadio [![Tests Status](https://github.com/vsergeev/zigradio/actions/workflows/tests.yml/badge.svg)](https://github.com/vsergeev/zigradio/actions/workflows/tests.yml) [![GitHub release](https://img.shields.io/github/release/vsergeev/zigradio.svg?maxAge=7200)](https://github.com/vsergeev/zigradio) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/vsergeev/zigradio/blob/master/LICENSE)
 
 **ZigRadio** is a lightweight flow graph signal processing framework for
 software-defined radio. It provides a suite of source, sink, and processing
