@@ -50,7 +50,7 @@ pub fn expectEqualVectors(comptime T: type, expected: []const T, actual: []const
     }
 
     // Compare vector values
-    for (expected) |_, i| {
+    for (expected, 0..) |_, i| {
         try expectEqualValue(T, expected[i], actual[i], i, epsilon, silent);
     }
 }
@@ -67,7 +67,7 @@ pub const BlockTester = struct {
     pub fn check(self: *BlockTester, rate: f64, comptime input_data_types: []const type, input_vectors: util.makeTupleConstSliceTypes(input_data_types), comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
         // Create runtime data types
         comptime var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
-        inline for (input_data_types) |t, i| {
+        inline for (input_data_types, 0..) |t, i| {
             runtime_data_types[i] = comptime RuntimeDataType.map(t);
         }
 
@@ -75,7 +75,7 @@ pub const BlockTester = struct {
         try self.instance.differentiate(&runtime_data_types, rate);
 
         // Validate block output data types
-        inline for (output_data_types) |t, i| {
+        inline for (output_data_types, 0..) |t, i| {
             if (try self.instance.getOutputType(i) != comptime RuntimeDataType.map(t)) {
                 return BlockTesterError.DataTypeMismatch;
             }
@@ -83,7 +83,7 @@ pub const BlockTester = struct {
 
         // Convert input vectors to byte buffers
         var input_buffers: [input_data_types.len][]const u8 = undefined;
-        inline for (input_data_types) |_, i| input_buffers[i] = std.mem.sliceAsBytes(input_vectors[i][0..]);
+        inline for (input_data_types, 0..) |_, i| input_buffers[i] = std.mem.sliceAsBytes(input_vectors[i][0..]);
 
         // Test input vectors entire vector at a time, followed by one sample at a time
         for (&[2]bool{ false, true }) |single_samples| {
@@ -105,7 +105,7 @@ pub const BlockTester = struct {
             }
 
             // Compare output vectors
-            inline for (output_data_types) |data_type, i| {
+            inline for (output_data_types, 0..) |data_type, i| {
                 const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
                 try expectEqualVectors(data_type, output_vectors[i], actual_vector, i, self.epsilon, self.silent);
             }
@@ -117,7 +117,7 @@ pub const BlockTester = struct {
         try self.instance.differentiate(&[0]RuntimeDataType{}, 0);
 
         // Validate block output data types
-        inline for (output_data_types) |t, i| {
+        inline for (output_data_types, 0..) |t, i| {
             if (try self.instance.getOutputType(i) != comptime RuntimeDataType.map(t)) {
                 return BlockTesterError.DataTypeMismatch;
             }
@@ -140,7 +140,7 @@ pub const BlockTester = struct {
                 if (process_result.eof) {
                     break;
                 }
-                inline for (output_data_types) |_, i| {
+                inline for (output_data_types, 0..) |_, i| {
                     if (tester_sample_mux.getNumOutputSamples(output_data_types[i], i) >= output_vectors[i].len) {
                         break :blk;
                     }
@@ -148,7 +148,7 @@ pub const BlockTester = struct {
             }
 
             // Compare output vectors
-            inline for (output_data_types) |data_type, i| {
+            inline for (output_data_types, 0..) |data_type, i| {
                 const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
                 try expectEqualVectors(data_type, output_vectors[i], actual_vector[0..output_vectors[i].len], i, self.epsilon, self.silent);
             }
@@ -189,7 +189,7 @@ const TestBlock = struct {
     }
 
     pub fn process1(_: *TestBlock, x: []const u32, y: []const u16, z: []u32) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
@@ -204,7 +204,7 @@ const TestBlock = struct {
     }
 
     pub fn process2(_: *TestBlock, x: []const u8, y: []const u16, z: []u16) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] + y[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
@@ -227,7 +227,7 @@ const TestBlock = struct {
     }
 
     pub fn process4(_: *TestBlock, x: []const f32, y: []const f32, z: []f32) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
@@ -242,7 +242,7 @@ const TestBlock = struct {
     }
 
     pub fn process5(_: *TestBlock, x: []const std.math.Complex(f32), y: []const std.math.Complex(f32), z: []std.math.Complex(f32)) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i].sub(y[i]);
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
@@ -324,7 +324,7 @@ const TestSource = struct {
 
     pub fn process(self: *TestSource, z: []f32) !ProcessResult {
         for (z) |*e| {
-            e.* = @intToFloat(f32, self.counter);
+            e.* = @as(f32, @floatFromInt(self.counter));
             self.counter += 1;
         }
 

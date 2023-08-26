@@ -59,7 +59,7 @@ pub const RtlSdrSource = struct {
 
     pub fn initialize(self: *RtlSdrSource, allocator: std.mem.Allocator) !void {
         // Open device
-        var ret = rtlsdr.rtlsdr_open(&self.dev, @intCast(u32, self.options.device_index));
+        var ret = rtlsdr.rtlsdr_open(&self.dev, @as(u32, @intCast(self.options.device_index)));
         if (ret != 0) {
             std.debug.print("rtlsdr_open(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
@@ -68,7 +68,7 @@ pub const RtlSdrSource = struct {
         // Dump debug info
         if (self.options.debug) {
             // Look up device name
-            const device_name = rtlsdr.rtlsdr_get_device_name(@intCast(u32, self.options.device_index));
+            const device_name = rtlsdr.rtlsdr_get_device_name(@as(u32, @intCast(self.options.device_index)));
 
             // Look up USB device strings
             var usb_manufacturer: [256]u8 = undefined;
@@ -81,9 +81,9 @@ pub const RtlSdrSource = struct {
             }
 
             std.debug.print("[RtlSdrSource] Device name:       {s}\n", .{device_name});
-            std.debug.print("[RtlSdrSource] USB Manufacturer:  {s}\n", .{std.mem.span(@ptrCast([*:0]u8, &usb_manufacturer))});
-            std.debug.print("[RtlSdrSource] USB Product:       {s}\n", .{std.mem.span(@ptrCast([*:0]u8, &usb_product))});
-            std.debug.print("[RtlSdrSource] USB Serial:        {s}\n", .{std.mem.span(@ptrCast([*:0]u8, &usb_serial))});
+            std.debug.print("[RtlSdrSource] USB Manufacturer:  {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_manufacturer)))});
+            std.debug.print("[RtlSdrSource] USB Product:       {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_product)))});
+            std.debug.print("[RtlSdrSource] USB Serial:        {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_serial)))});
         }
 
         // Turn on bias tee if required, ignore if not required
@@ -119,7 +119,7 @@ pub const RtlSdrSource = struct {
                 std.debug.print("rtlsdr_set_agc_mode(): {d}\n", .{ret});
                 return RtlSdrError.InitializationError;
             }
-        } else |rf_gain| {
+        } else {
             // Disable autogain
             ret = rtlsdr.rtlsdr_set_tuner_gain_mode(self.dev, 1);
             if (ret != 0) {
@@ -135,7 +135,7 @@ pub const RtlSdrSource = struct {
             }
 
             // Set RF gain
-            ret = rtlsdr.rtlsdr_set_tuner_gain(self.dev, @floatToInt(c_int, rf_gain * 10.0));
+            ret = rtlsdr.rtlsdr_set_tuner_gain(self.dev, @as(c_int, @intFromFloat(self.options.rf_gain.? * 10.0)));
             if (ret != 0) {
                 std.debug.print("rtlsdr_set_tuner_gain(): {d}\n", .{ret});
                 return RtlSdrError.InitializationError;
@@ -147,28 +147,28 @@ pub const RtlSdrSource = struct {
         }
 
         // Set frequency correction
-        ret = rtlsdr.rtlsdr_set_freq_correction(self.dev, @intCast(c_int, self.options.freq_correction));
+        ret = rtlsdr.rtlsdr_set_freq_correction(self.dev, @as(c_int, @intCast(self.options.freq_correction)));
         if (ret != 0 and ret != -2) {
             std.debug.print("rtlsdr_set_freq_correction(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
         // Set frequency
-        ret = rtlsdr.rtlsdr_set_center_freq64(self.dev, @floatToInt(u64, self.frequency));
+        ret = rtlsdr.rtlsdr_set_center_freq64(self.dev, @as(u64, @intFromFloat(self.frequency)));
         if (ret != 0) {
             std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
         // Set sample rate
-        ret = rtlsdr.rtlsdr_set_sample_rate(self.dev, @floatToInt(u32, self.rate));
+        ret = rtlsdr.rtlsdr_set_sample_rate(self.dev, @as(u32, @intFromFloat(self.rate)));
         if (ret != 0) {
             std.debug.print("rtlsdr_set_sample_rate(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
         // Set bandwidth
-        ret = rtlsdr.rtlsdr_set_tuner_bandwidth(self.dev, if (self.options.bandwidth) |bandwidth| @floatToInt(u32, bandwidth) else 0);
+        ret = rtlsdr.rtlsdr_set_tuner_bandwidth(self.dev, if (self.options.bandwidth) |bandwidth| @as(u32, @intFromFloat(bandwidth)) else 0);
         if (ret != 0) {
             std.debug.print("rtlsdr_set_tuner_bandwidth(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
@@ -213,7 +213,7 @@ pub const RtlSdrSource = struct {
 
     pub fn process(self: *RtlSdrSource, z: []std.math.Complex(f32)) !ProcessResult {
         // Compute minimum read length
-        const len = std.math.min(self.buf.len, z.len & ~@as(usize, MIN_BLOCK_SIZE - 1));
+        const len = @min(self.buf.len, z.len & ~@as(usize, MIN_BLOCK_SIZE - 1));
 
         // Check read length is non-zero (i.e. there is sufficient space in output buffer)
         if (len == 0) {
@@ -222,17 +222,17 @@ pub const RtlSdrSource = struct {
 
         // Read samples
         var num_read: c_int = 0;
-        const ret = rtlsdr.rtlsdr_read_sync(self.dev, self.buf.ptr, @intCast(c_int, len), &num_read);
+        const ret = rtlsdr.rtlsdr_read_sync(self.dev, self.buf.ptr, @as(c_int, @intCast(len)), &num_read);
         if (ret != 0) {
             std.debug.print("rtlsdr_read_sync(): {d}\n", .{ret});
             return RtlSdrError.ReadError;
         }
 
         // Convert complex u8 samples to complex float samples
-        const num_samples: usize = @divExact(@intCast(usize, num_read), 2);
+        const num_samples: usize = @divExact(@as(usize, @intCast(num_read)), 2);
         var i: usize = 0;
         while (i < num_samples) : (i += 1) {
-            z[i] = std.math.Complex(f32).init((@intToFloat(f32, self.buf[2 * i]) - 127.5) * (1.0 / 127.5), (@intToFloat(f32, self.buf[2 * i + 1]) - 127.5) * (1.0 / 127.5));
+            z[i] = std.math.Complex(f32).init((@as(f32, @floatFromInt(self.buf[2 * i])) - 127.5) * (1.0 / 127.5), (@as(f32, @floatFromInt(self.buf[2 * i + 1])) - 127.5) * (1.0 / 127.5));
         }
 
         return ProcessResult.init(&[0]usize{}, &[1]usize{num_samples});

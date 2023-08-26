@@ -964,7 +964,7 @@ const TestInverterBlock = struct {
     }
 
     pub fn process(_: *TestInverterBlock, x: []const u8, z: []u8) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = ~x[i];
         }
 
@@ -999,7 +999,7 @@ test "Flowgraph run to completion" {
 
     // Expected output vector
     var expected_output_vector: [8192]u8 = .{0x00} ** 8192;
-    for (test_vector) |_, i| {
+    for (test_vector, 0..) |_, i| {
         expected_output_vector[i] = ~test_vector[i];
     }
 

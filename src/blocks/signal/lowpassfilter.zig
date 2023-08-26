@@ -42,7 +42,7 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/lowpassfilter.zig");
 

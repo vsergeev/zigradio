@@ -32,7 +32,7 @@ pub fn ZeroSource(comptime T: type) type {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 test "ZeroSource" {
     // ComplexFloat32

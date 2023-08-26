@@ -19,7 +19,7 @@ pub const ComptimeTypeSignature = struct {
     outputs: []const ComptimeOutput,
 
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
-        const process_args = @typeInfo(@TypeOf(process_fn)).Fn.args[1..];
+        const process_args = @typeInfo(@TypeOf(process_fn)).Fn.params[1..];
 
         comptime var comptime_inputs: [process_args.len]ComptimeInput = undefined;
         comptime var comptime_outputs: [process_args.len]ComptimeOutput = undefined;
@@ -27,17 +27,17 @@ pub const ComptimeTypeSignature = struct {
         comptime var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
-            comptime var arg_is_input = @typeInfo(arg.arg_type orelse unreachable).Pointer.is_const;
+            comptime var arg_is_input = @typeInfo(arg.type orelse unreachable).Pointer.is_const;
             if (arg_is_input) {
                 comptime_inputs[num_inputs] = ComptimeInput{
                     .name = comptime std.fmt.comptimePrint("in{d}", .{num_inputs + 1}),
-                    .data_type = @typeInfo(arg.arg_type orelse unreachable).Pointer.child,
+                    .data_type = @typeInfo(arg.type orelse unreachable).Pointer.child,
                 };
                 num_inputs += 1;
             } else {
                 comptime_outputs[num_outputs] = ComptimeOutput{
                     .name = comptime std.fmt.comptimePrint("out{d}", .{num_outputs + 1}),
-                    .data_type = @typeInfo(arg.arg_type orelse unreachable).Pointer.child,
+                    .data_type = @typeInfo(arg.type orelse unreachable).Pointer.child,
                 };
                 num_outputs += 1;
             }
@@ -52,7 +52,7 @@ pub const ComptimeTypeSignature = struct {
     pub fn getInputTypes(comptime self: *const ComptimeTypeSignature) []const type {
         comptime var data_types: [self.inputs.len]type = undefined;
 
-        inline for (self.inputs) |input, i| {
+        inline for (self.inputs, 0..) |input, i| {
             data_types[i] = input.data_type;
         }
 
@@ -62,7 +62,7 @@ pub const ComptimeTypeSignature = struct {
     pub fn getOutputTypes(comptime self: *const ComptimeTypeSignature) []const type {
         comptime var data_types: [self.outputs.len]type = undefined;
 
-        inline for (self.outputs) |output, i| {
+        inline for (self.outputs, 0..) |output, i| {
             data_types[i] = output.data_type;
         }
 
@@ -125,14 +125,14 @@ pub const RuntimeTypeSignature = struct {
         comptime var runtime_inputs: [type_signature.inputs.len]RuntimeInput = undefined;
         comptime var runtime_outputs: [type_signature.outputs.len]RuntimeOutput = undefined;
 
-        inline for (type_signature.inputs) |input, i| {
+        inline for (type_signature.inputs, 0..) |input, i| {
             runtime_inputs[i] = RuntimeInput{
                 .name = input.name,
                 .data_type = comptime RuntimeDataType.map(input.data_type),
             };
         }
 
-        inline for (type_signature.outputs) |output, i| {
+        inline for (type_signature.outputs, 0..) |output, i| {
             runtime_outputs[i] = RuntimeOutput{
                 .name = output.name,
                 .data_type = comptime RuntimeDataType.map(output.data_type),
@@ -257,7 +257,7 @@ test "RuntimeDataType.map" {
 
 fn expectEqualPorts(comptime T: type, expected: []const T, actual: []const T) anyerror!void {
     try std.testing.expectEqual(expected.len, actual.len);
-    for (expected) |exp, i| {
+    for (expected, 0..) |exp, i| {
         try std.testing.expectEqualSlices(u8, exp.name, actual[i].name);
         try std.testing.expectEqual(exp.data_type, actual[i].data_type);
     }

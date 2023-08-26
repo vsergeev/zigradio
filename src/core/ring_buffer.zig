@@ -25,7 +25,7 @@ const CopiedMemoryImpl = struct {
     }
 
     pub fn alias(self: *CopiedMemoryImpl, dest: usize, src: usize, count: usize) void {
-        std.mem.copy(u8, self.buf[dest .. dest + count], self.buf[src .. src + count]);
+        @memcpy(self.buf[dest .. dest + count], self.buf[src .. src + count]);
     }
 };
 
@@ -50,11 +50,11 @@ const MappedMemoryImpl = struct {
         errdefer std.os.munmap(mapping1);
 
         // Remap second region to first
-        const mapping2 = try std.os.mmap(@alignCast(std.mem.page_size, mapping1.ptr + capacity), capacity, std.os.PROT.READ | std.os.PROT.WRITE, std.os.MAP.SHARED | std.os.MAP.FIXED, fd, 0);
+        const mapping2 = try std.os.mmap(@alignCast(mapping1.ptr + capacity), capacity, std.os.PROT.READ | std.os.PROT.WRITE, std.os.MAP.SHARED | std.os.MAP.FIXED, fd, 0);
         errdefer std.os.munmap(mapping2);
 
         // Validate mapping is adjacent
-        if (@ptrToInt(mapping2.ptr) < @ptrToInt(mapping1.ptr) or @ptrToInt(mapping2.ptr) - @ptrToInt(mapping1.ptr) != capacity) {
+        if (@intFromPtr(mapping2.ptr) < @intFromPtr(mapping1.ptr) or @intFromPtr(mapping2.ptr) - @intFromPtr(mapping1.ptr) != capacity) {
             return MappingError.MappingNotAdjacent;
         }
 
@@ -170,7 +170,7 @@ fn RingBuffer(comptime MemoryImpl: type) type {
             var min_weight: usize = std.math.maxInt(usize);
             var min_index: usize = 0;
 
-            for (self.read_index[0..self.num_readers]) |read_index, i| {
+            for (self.read_index[0..self.num_readers], 0..) |read_index, i| {
                 const weight = if (read_index <= self.write_index) read_index + self.capacity else read_index;
                 if (weight < min_weight) {
                     min_weight = weight;
@@ -316,7 +316,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
 
             pub fn write(self: *@This(), data: []const u8) void {
                 std.debug.assert(self.getAvailable() >= data.len);
-                std.mem.copy(u8, self.getBuffer(data.len), data);
+                @memcpy(self.getBuffer(data.len), data);
                 self.update(data.len);
             }
         };
@@ -364,7 +364,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
 
             pub fn read(self: *@This(), data: []u8) []u8 {
                 std.debug.assert(self.getAvailable() catch unreachable >= data.len);
-                std.mem.copy(u8, data, self.getBuffer(data.len));
+                @memcpy(data, self.getBuffer(data.len));
                 self.update(data.len);
                 return data;
             }
@@ -399,7 +399,7 @@ test "RingBuffer single writer, single reader" {
 
         _ = ring_buffer.addReader();
 
-        std.mem.copy(u8, ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
+        @memcpy(ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
 
         // Initial state
         try std.testing.expectEqual(@as(usize, 0), ring_buffer.write_index);
@@ -441,7 +441,7 @@ test "RingBuffer single writer, single reader" {
         try std.testing.expectEqualSlices(u8, &[_]u8{ 0x06, 0x07 }, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
 
         // Write 3
-        std.mem.copy(u8, ring_buffer.getWriteBuffer(3), &[_]u8{ 0xa8, 0xa9, 0xaa });
+        @memcpy(ring_buffer.getWriteBuffer(3), &[_]u8{ 0xa8, 0xa9, 0xaa });
         ring_buffer.updateWriteIndex(3);
         try std.testing.expectEqual(@as(usize, 2), ring_buffer.write_index);
         try std.testing.expectEqual(@as(usize, 5), ring_buffer.read_index[0]);
@@ -456,7 +456,7 @@ test "RingBuffer single writer, single reader" {
         try std.testing.expectEqualSlices(u8, &[_]u8{ 0xa9, 0xaa, 0x03 }, ring_buffer.memory.buf[0..3]);
 
         // Write 2
-        std.mem.copy(u8, ring_buffer.getWriteBuffer(2), &[_]u8{ 0xb1, 0xb2 });
+        @memcpy(ring_buffer.getWriteBuffer(2), &[_]u8{ 0xb1, 0xb2 });
         ring_buffer.updateWriteIndex(2);
         try std.testing.expectEqual(@as(usize, 4), ring_buffer.write_index);
         try std.testing.expectEqual(@as(usize, 5), ring_buffer.read_index[0]);
@@ -481,7 +481,7 @@ test "RingBuffer single writer, single reader" {
         try std.testing.expectEqualSlices(u8, &[_]u8{ 0xb1, 0xb2 }, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
 
         // Write 5
-        std.mem.copy(u8, ring_buffer.getWriteBuffer(5), &[_]u8{ 0xc1, 0xc2, 0xc3, 0xc4, 0xc5 });
+        @memcpy(ring_buffer.getWriteBuffer(5), &[_]u8{ 0xc1, 0xc2, 0xc3, 0xc4, 0xc5 });
         ring_buffer.updateWriteIndex(5);
         try std.testing.expectEqual(@as(usize, 1), ring_buffer.write_index);
         try std.testing.expectEqual(@as(usize, 2), ring_buffer.read_index[0]);
@@ -512,7 +512,7 @@ test "RingBuffer single writer, multiple readers" {
         _ = ring_buffer.addReader();
         _ = ring_buffer.addReader();
 
-        std.mem.copy(u8, ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
+        @memcpy(ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
 
         // Initial state
         try std.testing.expectEqual(@as(usize, 7), ring_buffer.getWriteAvailable());
@@ -631,7 +631,7 @@ test "RingBuffer eof" {
         _ = ring_buffer.addReader();
         _ = ring_buffer.addReader();
 
-        std.mem.copy(u8, ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
+        @memcpy(ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
 
         // Initial state
         try std.testing.expectEqual(@as(usize, 7), ring_buffer.getWriteAvailable());
@@ -867,9 +867,9 @@ test "MappedMemoryImpl" {
     prng.fill(&buf3);
 
     // Fill upper region
-    std.mem.copy(u8, memory1.buf[capacity..], &buf1);
-    std.mem.copy(u8, memory2.buf[capacity..], &buf2);
-    std.mem.copy(u8, memory3.buf[capacity..], &buf3);
+    @memcpy(memory1.buf[capacity..], &buf1);
+    @memcpy(memory2.buf[capacity..], &buf2);
+    @memcpy(memory3.buf[capacity..], &buf3);
 
     // Validate lower
     try std.testing.expectEqualSlices(u8, memory1.buf[0..capacity], &buf1);
@@ -877,9 +877,9 @@ test "MappedMemoryImpl" {
     try std.testing.expectEqualSlices(u8, memory3.buf[0..capacity], &buf3);
 
     // Fill lower region
-    std.mem.copy(u8, memory1.buf[0..capacity], &buf3);
-    std.mem.copy(u8, memory2.buf[0..capacity], &buf1);
-    std.mem.copy(u8, memory3.buf[0..capacity], &buf2);
+    @memcpy(memory1.buf[0..capacity], &buf3);
+    @memcpy(memory2.buf[0..capacity], &buf1);
+    @memcpy(memory3.buf[0..capacity], &buf2);
 
     // Validate upper
     try std.testing.expectEqualSlices(u8, memory1.buf[capacity..], &buf3);

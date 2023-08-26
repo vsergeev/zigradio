@@ -27,10 +27,10 @@ pub fn BenchmarkSink(comptime T: type) type {
 
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
             self.count = 0;
-            self.tic_ms = @intCast(u64, std.time.milliTimestamp());
+            self.tic_ms = @as(u64, @intCast(std.time.milliTimestamp()));
         }
 
-        fn normalize(amount: f32) std.meta.Tuple(&[2]type{ f32, []const u8 }) {
+        fn normalize(amount: f32) struct { f32, []const u8 } {
             if (amount > 1e9) {
                 return .{ amount / 1e9, "G" };
             } else if (amount > 1e6) {
@@ -45,11 +45,11 @@ pub fn BenchmarkSink(comptime T: type) type {
         pub fn process(self: *Self, x: []const T) !ProcessResult {
             self.count += x.len;
 
-            const toc_ms = @intCast(u64, std.time.milliTimestamp());
+            const toc_ms = @as(u64, @intCast(std.time.milliTimestamp()));
 
             if (toc_ms - self.tic_ms > self.options.report_period_ms) {
                 // Compute rate
-                const sps = @intToFloat(f32, 1000 * self.count) / @intToFloat(f32, toc_ms - self.tic_ms);
+                const sps = @as(f32, @floatFromInt(1000 * self.count)) / @as(f32, @floatFromInt(toc_ms - self.tic_ms));
                 const bps = sps * @sizeOf(T);
 
                 // Normalize rates with unit prefix

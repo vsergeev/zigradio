@@ -31,8 +31,8 @@ pub const ProcessResult = struct {
 
     pub fn init(consumed: []const usize, produced: []const usize) ProcessResult {
         var self = ProcessResult{};
-        std.mem.copy(usize, &self.samples_consumed, consumed[0..]);
-        std.mem.copy(usize, &self.samples_produced, produced[0..]);
+        @memcpy(self.samples_consumed[0..consumed.len], consumed);
+        @memcpy(self.samples_produced[0..produced.len], produced);
         return self;
     }
 
@@ -175,7 +175,7 @@ fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anyt
             };
 
             // Process buffers
-            const process_result = try @call(.{}, process_fn, .{self} ++ buffers.inputs ++ buffers.outputs);
+            const process_result = try @call(.auto, process_fn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
             // Update buffers
             sample_mux.updateBuffers(type_signature.getInputTypes(), &process_result.samples_consumed, type_signature.getOutputTypes(), &process_result.samples_produced);
@@ -225,11 +225,11 @@ pub const Block = struct {
     // Primary Block API
 
     pub fn differentiate(self: *Block, data_types: []const RuntimeDataType, rate: f64) !void {
-        for (self.differentiations) |differentiation, i| {
+        for (self.differentiations, 0..) |differentiation, i| {
             if (differentiation.type_signature.inputs.len != data_types.len)
                 std.debug.panic("Attempted differentiation with invalid number of input types for block", .{});
 
-            const match = for (data_types) |_, j| {
+            const match = for (data_types, 0..) |_, j| {
                 if (data_types[j] != differentiation.type_signature.inputs[j].data_type)
                     break false;
             } else true;
@@ -268,7 +268,7 @@ pub const Block = struct {
     }
 
     pub fn getInputIndex(self: *Block, name: []const u8) BlockError!usize {
-        for (self.differentiations[0].type_signature.inputs) |input, index| {
+        for (self.differentiations[0].type_signature.inputs, 0..) |input, index| {
             if (std.mem.eql(u8, input.name[0..], name[0..])) {
                 return index;
             }
@@ -295,7 +295,7 @@ pub const Block = struct {
     }
 
     pub fn getOutputIndex(self: *Block, name: []const u8) BlockError!usize {
-        for (self.differentiations[0].type_signature.outputs) |output, index| {
+        for (self.differentiations[0].type_signature.outputs, 0..) |output, index| {
             if (std.mem.eql(u8, output.name[0..], name[0..])) {
                 return index;
             }
@@ -327,7 +327,7 @@ const RuntimeOutput = @import("type_signature.zig").RuntimeOutput;
 
 fn expectEqualPorts(comptime T: type, expected: []const T, actual: []const T) anyerror!void {
     try std.testing.expectEqual(expected.len, actual.len);
-    for (expected) |exp, i| {
+    for (expected, 0..) |exp, i| {
         try std.testing.expectEqualSlices(u8, exp.name, actual[i].name);
         try std.testing.expectEqual(exp.data_type, actual[i].data_type);
     }
@@ -388,14 +388,14 @@ const TestAddBlock = struct {
     }
 
     pub fn processUnsigned32(_: *TestAddBlock, x: []const u32, y: []const u32, z: []u32) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
 
     pub fn processUnsigned8(_: *TestAddBlock, x: []const u8, y: []const u8, z: []u8) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
@@ -617,8 +617,8 @@ test "Block.process read eof" {
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned32 }, 8000);
 
     // Preload buffers
-    std.mem.copy(u8, input1_ring_buffer.impl.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x10, 0x20, 0x30, 0x40 });
-    std.mem.copy(u8, input2_ring_buffer.impl.memory.buf, &[_]u8{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 });
+    @memcpy(input1_ring_buffer.impl.memory.buf[0..8], &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x10, 0x20, 0x30, 0x40 });
+    @memcpy(input2_ring_buffer.impl.memory.buf[0..8], &[_]u8{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 });
 
     // Load 1 sample
     input1_writer.update(4);

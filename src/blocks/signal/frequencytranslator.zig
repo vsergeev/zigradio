@@ -23,7 +23,7 @@ pub const FrequencyTranslatorBlock = struct {
     }
 
     pub fn process(self: *FrequencyTranslatorBlock, x: []const std.math.Complex(f32), z: []std.math.Complex(f32)) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i].mul(.{ .re = std.math.cos(self.phase), .im = std.math.sin(self.phase) });
             self.phase += self.omega;
         }
@@ -40,7 +40,7 @@ pub const FrequencyTranslatorBlock = struct {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/frequencytranslator.zig");
 

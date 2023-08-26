@@ -92,7 +92,7 @@ const TestSource = struct {
             return ProcessResult.eof();
         }
 
-        z[0] = @intCast(u16, self.count);
+        z[0] = @as(u16, @intCast(self.count));
         self.count += 1;
 
         return ProcessResult.init(&[0]usize{}, &[1]usize{1});
@@ -107,7 +107,7 @@ const TestBlock = struct {
     }
 
     pub fn process(_: *TestBlock, x: []const u16, z: []u16) !ProcessResult {
-        for (x) |_, i| {
+        for (x, 0..) |_, i| {
             z[i] = x[i] * 2;
         }
 
@@ -125,7 +125,7 @@ const TestSink = struct {
     }
 
     pub fn process(self: *TestSink, x: []const u16) !ProcessResult {
-        std.mem.copy(u16, self.buf[self.count .. self.count + x.len], x[0..]);
+        @memcpy(self.buf[self.count .. self.count + x.len], x);
         self.count += x.len;
 
         return ProcessResult.init(&[1]usize{x.len}, &[0]usize{});
@@ -144,8 +144,8 @@ const TestSource2 = struct {
     }
 
     pub fn process(_: *TestSource2, z: []u16) !ProcessResult {
-        for (z) |*e, i| {
-            e.* = @truncate(u16, i);
+        for (z, 0..) |*e, i| {
+            e.* = @as(u16, @truncate(i));
         }
         return ProcessResult.init(&[0]usize{}, &[1]usize{z.len});
     }
@@ -212,7 +212,7 @@ test "ThreadedBlockRunner finite run" {
 
     // Check results in test sink
     try std.testing.expectEqual(@as(usize, 100), test_sink.count);
-    for (test_sink.buf[0..100]) |e, i| {
+    for (test_sink.buf[0..100], 0..) |e, i| {
         try std.testing.expectEqual(i * 2, e);
     }
 }

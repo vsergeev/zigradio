@@ -19,7 +19,7 @@ pub const FMDeemphasisFilterBlock = struct {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/fmdeemphasisfilter.zig");
 

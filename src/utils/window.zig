@@ -15,10 +15,10 @@ pub const WindowFunction = enum {
 pub fn window(comptime N: comptime_int, func: WindowFunction, periodic: bool) [N]f32 {
     var w: [N]f32 = undefined;
 
-    const M = @intToFloat(f32, if (periodic) @as(usize, N) + 1 else @as(usize, N));
+    const M = @as(f32, @floatFromInt(if (periodic) @as(usize, N) + 1 else @as(usize, N)));
 
-    for (w) |_, i| {
-        const index = @intToFloat(f32, i);
+    for (w, 0..) |_, i| {
+        const index = @as(f32, @floatFromInt(i));
         w[i] = switch (func) {
             WindowFunction.Rectangular => 1.0,
             WindowFunction.Hamming => 0.54 - 0.46 * std.math.cos((2 * std.math.pi * index) / (M - 1)),
@@ -35,7 +35,7 @@ pub fn window(comptime N: comptime_int, func: WindowFunction, periodic: bool) [N
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const expectEqualVectors = @import("radio").testing.expectEqualVectors;
+const expectEqualVectors = @import("../core/testing.zig").expectEqualVectors;
 
 const vectors = @import("../vectors/utils/window.zig");
 

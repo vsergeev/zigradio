@@ -24,7 +24,7 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            for (self.state) |*e| e.* = zero(T);
+            for (&self.state) |*e| e.* = zero(T);
 
             if (Context != void) {
                 return Context.initialize(self, allocator);
@@ -32,9 +32,9 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
         }
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
-            for (x) |_, i| {
+            for (x, 0..) |_, i| {
                 // Shift the input state samples down
-                for (self.state[1..]) |_, j| self.state[N - 1 - j] = self.state[N - 2 - j];
+                for (self.state[1..], 0..) |_, j| self.state[N - 1 - j] = self.state[N - 2 - j];
                 // Insert input sample into input state
                 self.state[0] = x[i];
 
@@ -51,7 +51,7 @@ pub fn FIRFilterBlock(comptime T: type, comptime N: comptime_int) type {
     return struct {
         pub fn init(taps: [N]f32) _FIRFilterBlock(T, N, void) {
             var block = _FIRFilterBlock(T, N, void).init(void{});
-            std.mem.copy(f32, &block.taps, &taps);
+            @memcpy(&block.taps, &taps);
             return block;
         }
     };
@@ -61,7 +61,7 @@ pub fn FIRFilterBlock(comptime T: type, comptime N: comptime_int) type {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/firfilter.zig");
 

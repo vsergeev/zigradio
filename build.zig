@@ -11,9 +11,9 @@ const examples = [_]Example{
     .{ .name = "example-play_tone", .path = "examples/play_tone.zig", .libs = &.{ "pulse-simple", "pulse" } },
 };
 
-// Adapted from private std.build.Builder.execPkgConfigList()
+// Adapted from private std.Build.execPkgConfigList()
 // FIXME not exactly portable or stable
-fn getPlatformPackages(self: *std.build.Builder) ![]const []const u8 {
+fn getPlatformPackages(self: *std.Build) ![]const []const u8 {
     var code: u8 = undefined;
     const stdout = try self.execAllowFail(&[_][]const u8{ "pkg-config", "--list-all" }, &code, .Ignore);
     var list = std.ArrayList([]const u8).init(self.allocator);
@@ -27,45 +27,53 @@ fn getPlatformPackages(self: *std.build.Builder) ![]const []const u8 {
     return list.toOwnedSlice();
 }
 
-pub fn build(b: *std.build.Builder) !void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-
-    // Standard release options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const mode = b.standardReleaseOptions();
+    const optimize = b.standardOptimizeOption(.{});
 
     // Create platform options with packages list
     const platform_options = b.addOptions();
     platform_options.addOption([]const []const u8, "packages", try getPlatformPackages(b));
 
+    // Create platform options module
+    const platform_options_module = platform_options.createModule();
+
+    // Create radio module
+    const radio_module = b.addModule("radio", .{
+        .source_file = .{ .path = "src/radio.zig" },
+        .dependencies = &.{
+            .{ .name = "platform_options", .module = platform_options_module },
+        },
+    });
+    try radio_module.dependencies.put("radio", radio_module);
+
+    // Build examples
     const examples_step = b.step("examples", "Build examples");
     for (examples) |example| {
-        const exe = b.addExecutable(example.name, example.path);
-        exe.setTarget(target);
-        exe.setBuildMode(mode);
-        exe.addPackage(.{
-            .name = "radio",
-            .source = .{ .path = "src/radio.zig" },
-            .dependencies = &.{platform_options.getPackage("platform_options")},
+        const exe = b.addExecutable(.{
+            .name = example.name,
+            .root_source_file = .{ .path = example.path },
+            .target = target,
+            .optimize = optimize,
         });
+        exe.addModule("radio", radio_module);
         exe.linkLibC();
         for (example.libs) |libname| exe.linkSystemLibrary(libname);
 
-        examples_step.dependOn(&b.addInstallArtifact(exe).step);
+        examples_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
     }
 
-    const tests = b.addTest("src/radio.zig");
-    tests.addPackagePath("radio", "src/radio.zig");
-    tests.addOptions("platform_options", platform_options);
-    tests.setBuildMode(mode);
-
+    // Run unit tests
+    const tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/radio.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run framework tests");
-    test_step.dependOn(&tests.step);
+    test_step.dependOn(&run_tests.step);
 
+    // Generate test vectors
     const generate_step = b.step("generate", "Generate test vectors");
     const generate_cmd = b.addSystemCommand(&[_][]const u8{ "python3", "generate.py" });
     generate_step.dependOn(&generate_cmd.step);

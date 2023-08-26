@@ -32,8 +32,8 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            for (self.input_state) |*e| e.* = zero(T);
-            for (self.output_state) |*e| e.* = zero(T);
+            for (&self.input_state) |*e| e.* = zero(T);
+            for (&self.output_state) |*e| e.* = zero(T);
 
             if (Context != void) {
                 return Context.initialize(self, allocator);
@@ -41,9 +41,9 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
         }
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
-            for (x) |_, i| {
+            for (x, 0..) |_, i| {
                 // Shift the input state samples down
-                for (self.input_state[1..]) |_, j| self.input_state[N - 1 - j] = self.input_state[N - 2 - j];
+                for (self.input_state[1..], 0..) |_, j| self.input_state[N - 1 - j] = self.input_state[N - 2 - j];
                 // Insert input sample into input state
                 self.input_state[0] = x[i];
 
@@ -51,7 +51,7 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
                 y[i] = scalarDiv(T, sub(T, innerProduct(T, &self.input_state, &self.b_taps), innerProduct(T, &self.output_state, self.a_taps[1..])), self.a_taps[0]);
 
                 // Shift the output state samples down
-                for (self.output_state[1..]) |_, j| self.output_state[M - 2 - j] = self.output_state[M - 3 - j];
+                for (self.output_state[1..], 0..) |_, j| self.output_state[M - 2 - j] = self.output_state[M - 3 - j];
                 // Insert output sample into output state
                 self.output_state[0] = y[i];
             }
@@ -65,8 +65,8 @@ pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: co
     return struct {
         pub fn init(b_taps: [N]f32, a_taps: [M]f32) _IIRFilterBlock(T, N, M, void) {
             var block = _IIRFilterBlock(T, N, M, void).init(void{});
-            std.mem.copy(f32, &block.b_taps, &b_taps);
-            std.mem.copy(f32, &block.a_taps, &a_taps);
+            @memcpy(&block.b_taps, &b_taps);
+            @memcpy(&block.a_taps, &a_taps);
             return block;
         }
     };
@@ -76,7 +76,7 @@ pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: co
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/iirfilter.zig");
 

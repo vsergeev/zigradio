@@ -7,7 +7,7 @@ const std = @import("std");
 pub fn dataTypeSizes(comptime data_types: []const type) []const usize {
     comptime var data_type_sizes: [data_types.len]usize = undefined;
 
-    inline for (data_types) |data_type, i| {
+    inline for (data_types, 0..) |data_type, i| {
         data_type_sizes[i] = @sizeOf(data_type);
     }
 
@@ -17,7 +17,7 @@ pub fn dataTypeSizes(comptime data_types: []const type) []const usize {
 pub fn makeTupleConstSliceTypes(comptime data_types: []const type) type {
     comptime var slice_data_types: [data_types.len]type = undefined;
 
-    inline for (data_types) |data_type, i| {
+    inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = []const data_type;
     }
 
@@ -27,7 +27,7 @@ pub fn makeTupleConstSliceTypes(comptime data_types: []const type) type {
 pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
     comptime var slice_data_types: [data_types.len]type = undefined;
 
-    inline for (data_types) |data_type, i| {
+    inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = []data_type;
     }
 
@@ -37,7 +37,7 @@ pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
 pub fn makeTuplePointerSliceTypes(comptime data_types: []const type) type {
     comptime var slice_data_types: [data_types.len]type = undefined;
 
-    inline for (data_types) |data_type, i| {
+    inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = *[]const data_type;
     }
 
@@ -47,7 +47,7 @@ pub fn makeTuplePointerSliceTypes(comptime data_types: []const type) type {
 pub fn dereferenceTuplePointerSlices(comptime data_types: []const type, inputs: makeTuplePointerSliceTypes(data_types)) makeTupleConstSliceTypes(data_types) {
     var dereferenced_inputs: makeTupleConstSliceTypes(data_types) = undefined;
 
-    inline for (data_types) |_, i| {
+    inline for (data_types, 0..) |_, i| {
         dereferenced_inputs[i] = inputs[i].*;
     }
 

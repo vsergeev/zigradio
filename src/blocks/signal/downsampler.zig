@@ -20,7 +20,7 @@ pub fn DownsamplerBlock(comptime T: type) type {
         }
 
         pub fn setRate(self: *Self, upstream_rate: f64) !f64 {
-            return upstream_rate / @intToFloat(f64, self.factor);
+            return upstream_rate / @as(f64, @floatFromInt(self.factor));
         }
 
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
@@ -46,7 +46,7 @@ pub fn DownsamplerBlock(comptime T: type) type {
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-const BlockTester = @import("radio").testing.BlockTester;
+const BlockTester = @import("../../radio.zig").testing.BlockTester;
 
 const vectors = @import("../../vectors/blocks/signal/downsampler.zig");
 

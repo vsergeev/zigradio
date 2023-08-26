@@ -21,9 +21,9 @@ pub fn SampleBuffers(comptime input_data_types: []const type, comptime output_da
 
 pub const SampleMux = struct {
     ptr: *anyopaque,
-    getBuffersFn: std.meta.FnPtr(fn (ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void),
-    updateBuffersFn: std.meta.FnPtr(fn (ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void),
-    setEOFFn: std.meta.FnPtr(fn (ptr: *anyopaque) void),
+    getBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void,
+    updateBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void,
+    setEOFFn: *const fn (ptr: *anyopaque) void,
 
     pub fn init(pointer: anytype, comptime getBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void, comptime updateBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void, comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void) SampleMux {
         const Ptr = @TypeOf(pointer);
@@ -33,20 +33,17 @@ pub const SampleMux = struct {
 
         const gen = struct {
             fn getBuffers(ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void {
-                const alignment = @typeInfo(Ptr).Pointer.alignment;
-                const self = @ptrCast(Ptr, @alignCast(alignment, ptr));
+                const self: Ptr = @ptrCast(@alignCast(ptr));
                 try getBuffersFn(self, input_element_sizes, input_buffers, output_element_sizes, output_buffers);
             }
 
             fn updateBuffers(ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
-                const alignment = @typeInfo(Ptr).Pointer.alignment;
-                const self = @ptrCast(Ptr, @alignCast(alignment, ptr));
+                const self: Ptr = @ptrCast(@alignCast(ptr));
                 updateBuffersFn(self, input_element_sizes, samples_consumed, output_element_sizes, samples_produced);
             }
 
             fn setEOF(ptr: *anyopaque) void {
-                const alignment = @typeInfo(Ptr).Pointer.alignment;
-                const self = @ptrCast(Ptr, @alignCast(alignment, ptr));
+                const self: Ptr = @ptrCast(@alignCast(ptr));
                 setEOFFn(self);
             }
         };
@@ -67,11 +64,11 @@ pub const SampleMux = struct {
         // Translate into typed buffers
         var input_buffers: util.makeTupleConstSliceTypes(input_data_types) = undefined;
         var output_buffers: util.makeTupleSliceTypes(output_data_types) = undefined;
-        inline for (input_data_types) |_, i| {
-            input_buffers[i] = std.mem.bytesAsSlice(input_data_types[i], @alignCast(std.meta.alignment(input_data_types[i]), input_buffers_raw[i]));
+        inline for (input_data_types, 0..) |_, i| {
+            input_buffers[i] = @alignCast(std.mem.bytesAsSlice(input_data_types[i], input_buffers_raw[i]));
         }
-        inline for (output_data_types) |_, i| {
-            output_buffers[i] = std.mem.bytesAsSlice(output_data_types[i], @alignCast(std.meta.alignment(output_data_types[i]), output_buffers_raw[i]));
+        inline for (output_data_types, 0..) |_, i| {
+            output_buffers[i] = @alignCast(std.mem.bytesAsSlice(output_data_types[i], output_buffers_raw[i]));
         }
 
         // Return typed input and output buffers
@@ -102,7 +99,7 @@ pub fn RingBufferSampleMux(comptime RingBuffer: type) type {
         readers: std.ArrayList(RingBuffer.Reader),
         writers: std.ArrayList(RingBuffer.Writer),
 
-        pub fn init(allocator: std.mem.Allocator, inputs: []*ThreadSafeRingBuffer, outputs: []*ThreadSafeRingBuffer) !Self {
+        pub fn init(allocator: std.mem.Allocator, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !Self {
             var readers = std.ArrayList(RingBuffer.Reader).init(allocator);
             for (inputs) |ring_buffer| try readers.append(ring_buffer.reader());
 
@@ -137,10 +134,10 @@ pub fn RingBufferSampleMux(comptime RingBuffer: type) type {
 
             while (min_samples_available == 0) {
                 // Get input and output samples available across all inputs and outputs
-                for (self.readers.items) |*reader, i| {
+                for (self.readers.items, 0..) |*reader, i| {
                     input_samples_available[i] = try reader.getAvailable() / input_element_sizes[i];
                 }
-                for (self.writers.items) |*writer, i| {
+                for (self.writers.items, 0..) |*writer, i| {
                     output_samples_available[i] = writer.getAvailable() / output_element_sizes[i];
                 }
 
@@ -165,19 +162,19 @@ pub fn RingBufferSampleMux(comptime RingBuffer: type) type {
             }
 
             // Get buffers for inputs and outputs
-            for (self.readers.items) |*reader, i| {
+            for (self.readers.items, 0..) |*reader, i| {
                 input_buffers[i] = reader.getBuffer(min_samples_available * input_element_sizes[i]);
             }
-            for (self.writers.items) |*writer, i| {
+            for (self.writers.items, 0..) |*writer, i| {
                 output_buffers[i] = writer.getBuffer(output_samples_available[i] * output_element_sizes[i]);
             }
         }
 
         pub fn updateBuffers(self: *Self, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
-            for (self.readers.items) |*reader, i| {
+            for (self.readers.items, 0..) |*reader, i| {
                 reader.update(samples_consumed[i] * input_element_sizes[i]);
             }
-            for (self.writers.items) |*writer, i| {
+            for (self.writers.items, 0..) |*writer, i| {
                 writer.update(samples_produced[i] * output_element_sizes[i]);
             }
         }
@@ -216,7 +213,7 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
 
         pub fn init(input_buffers: [num_inputs][]const u8, options: Options) !Self {
             var output_buffers: [num_outputs][]u8 = undefined;
-            inline for (output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 1048576);
+            inline for (&output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 1048576);
 
             return .{
                 .input_buffers = input_buffers,
@@ -234,7 +231,7 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
         ////////////////////////////////////////////////////////////////////////////
 
         pub fn getOutputVector(self: *Self, comptime T: type, index: usize) []const T {
-            return std.mem.bytesAsSlice(T, @alignCast(std.meta.alignment(T), self.output_buffers[index][0..self.output_buffer_indices[index]]));
+            return @alignCast(std.mem.bytesAsSlice(T, self.output_buffers[index][0..self.output_buffer_indices[index]]));
         }
 
         pub fn getNumOutputSamples(self: *Self, comptime T: type, index: usize) usize {
@@ -250,7 +247,7 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
                 return error.EndOfFile;
             }
 
-            for (self.input_buffer_indices) |_, i| {
+            for (self.input_buffer_indices, 0..) |_, i| {
                 if (self.input_buffer_indices[i] == self.input_buffers[i].len) {
                     return error.EndOfFile;
                 } else if (self.options.single_input_samples) {
@@ -260,7 +257,7 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
                 }
             }
 
-            for (self.output_buffer_indices) |_, i| {
+            for (self.output_buffer_indices, 0..) |_, i| {
                 if (self.options.single_output_samples) {
                     output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i] .. self.output_buffer_indices[i] + output_element_sizes[i]];
                 } else {
@@ -270,8 +267,8 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
         }
 
         pub fn updateBuffers(self: *Self, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
-            inline for (self.input_buffer_indices) |*input_buffer_index, i| input_buffer_index.* += samples_consumed[i] * input_element_sizes[i];
-            inline for (self.output_buffer_indices) |*output_buffer_index, i| output_buffer_index.* += samples_produced[i] * output_element_sizes[i];
+            inline for (&self.input_buffer_indices, 0..) |*input_buffer_index, i| input_buffer_index.* += samples_consumed[i] * input_element_sizes[i];
+            inline for (&self.output_buffer_indices, 0..) |*output_buffer_index, i| output_buffer_index.* += samples_produced[i] * output_element_sizes[i];
         }
 
         pub fn setEOF(self: *Self) void {
@@ -314,7 +311,7 @@ test "TestSampleMux multiple input, single output" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x11223344), buffers.inputs[1][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x55667788), buffers.inputs[1][1]);
 
-    std.mem.copy(u16, buffers.outputs[0], &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 });
+    @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 });
 
     sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 1 }, &[1]type{u16}, &[1]usize{4});
 
@@ -331,7 +328,7 @@ test "TestSampleMux multiple input, single output" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0xabcdeeff), buffers.inputs[0][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x55667788), buffers.inputs[1][0]);
 
-    std.mem.copy(u16, buffers.outputs[0], &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 });
+    @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 });
 
     sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 0 }, &[1]type{u16}, &[1]usize{4});
 
@@ -434,7 +431,7 @@ test "RingBufferSampleMux single input, single output" {
     var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[_]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 

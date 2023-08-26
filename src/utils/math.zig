@@ -34,9 +34,9 @@ pub fn innerProduct(comptime T: type, x: []const T, y: []const f32) T {
     std.debug.assert(x.len == y.len);
 
     if (T == std.math.Complex(f32)) {
-        for (x) |_, i| acc = acc.add(.{ .re = x[i].re * y[i], .im = x[i].im * y[i] });
+        for (x, 0..) |_, i| acc = acc.add(.{ .re = x[i].re * y[i], .im = x[i].im * y[i] });
     } else if (T == f32) {
-        for (x) |_, i| acc += x[i] * y[i];
+        for (x, 0..) |_, i| acc += x[i] * y[i];
     } else unreachable;
 
     return acc;
