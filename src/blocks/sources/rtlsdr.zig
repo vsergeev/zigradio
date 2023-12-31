@@ -154,7 +154,7 @@ pub const RtlSdrSource = struct {
         }
 
         // Set frequency
-        ret = rtlsdr.rtlsdr_set_center_freq64(self.dev, @as(u64, @intFromFloat(self.frequency)));
+        ret = rtlsdr.rtlsdr_set_center_freq(self.dev, @as(u32, @intFromFloat(self.frequency)));
         if (ret != 0) {
             std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
@@ -176,7 +176,7 @@ pub const RtlSdrSource = struct {
 
         if (self.options.debug) {
             // Get configured frequency
-            const frequency = rtlsdr.rtlsdr_get_center_freq64(self.dev);
+            const frequency = rtlsdr.rtlsdr_get_center_freq(self.dev);
             // Get configured sample rate
             const sample_rate = rtlsdr.rtlsdr_get_sample_rate(self.dev);
 
