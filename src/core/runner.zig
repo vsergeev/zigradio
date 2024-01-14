@@ -73,7 +73,7 @@ const builtin = @import("builtin");
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-const RingBufferSampleMux = @import("sample_mux.zig").RingBufferSampleMux;
+const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 const TestSource = struct {
     block: Block,
@@ -183,11 +183,11 @@ test "ThreadedBlockRunner finite run" {
     defer ring_buffer2.deinit();
 
     // Create ring buffer sample muxes
-    var test_source_ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    var test_source_ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
     defer test_source_ring_buffer_sample_mux.deinit();
-    var test_block_ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    var test_block_ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
     defer test_block_ring_buffer_sample_mux.deinit();
-    var test_sink_ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer2}, &[0]*ThreadSafeRingBuffer{});
+    var test_sink_ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer2}, &[0]*ThreadSafeRingBuffer{});
     defer test_sink_ring_buffer_sample_mux.deinit();
 
     // Differentiate blocks
@@ -232,9 +232,9 @@ test "ThreadedBlockRunner infinite run" {
     defer ring_buffer.deinit();
 
     // Create ring buffer sample muxes
-    var test_source_ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});
+    var test_source_ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});
     defer test_source_ring_buffer_sample_mux.deinit();
-    var test_sink_ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    var test_sink_ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer}, &[0]*ThreadSafeRingBuffer{});
     defer test_sink_ring_buffer_sample_mux.deinit();
 
     // Differentiate blocks

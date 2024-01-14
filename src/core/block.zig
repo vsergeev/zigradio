@@ -7,7 +7,7 @@ const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-const RingBufferSampleMux = @import("sample_mux.zig").RingBufferSampleMux;
+const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Block Errors
@@ -608,7 +608,7 @@ test "Block.process read eof" {
     var output1_reader = output1_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -664,7 +664,7 @@ test "Block.process write eof" {
     var output1_reader = output1_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 

@@ -89,10 +89,10 @@ pub const SampleMux = struct {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// RingBufferSampleMux
+// ThreadSafeRingBufferSampleMux
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn RingBufferSampleMux(comptime RingBuffer: type) type {
+pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
     return struct {
         const Self = @This();
 
@@ -420,7 +420,7 @@ test "TestSampleMux eof" {
     try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
 }
 
-test "RingBufferSampleMux single input, single output" {
+test "ThreadSafeRingBufferSampleMux single input, single output" {
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input_ring_buffer.deinit();
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -431,7 +431,7 @@ test "RingBufferSampleMux single input, single output" {
     var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[_]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[_]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -520,7 +520,7 @@ test "RingBufferSampleMux single input, single output" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x33, 0x33, 0x33, 0x33 }, output_reader.read(b[0..]));
 }
 
-test "RingBufferSampleMux multiple input, multiple output" {
+test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -537,7 +537,7 @@ test "RingBufferSampleMux multiple input, multiple output" {
     var output2_reader = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -594,7 +594,7 @@ test "RingBufferSampleMux multiple input, multiple output" {
     try std.testing.expectEqualSlices(u8, &[_]u8{0xee}, output2_reader.read(b[0..1]));
 }
 
-test "RingBufferSampleMux only inputs" {
+test "ThreadSafeRingBufferSampleMux only inputs" {
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -605,7 +605,7 @@ test "RingBufferSampleMux only inputs" {
     var input2_writer = input2_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[0]*ThreadSafeRingBuffer{});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[0]*ThreadSafeRingBuffer{});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -654,7 +654,7 @@ test "RingBufferSampleMux only inputs" {
     try std.testing.expectEqual(@as(u16, 0x44), buffers.inputs[1][0]);
 }
 
-test "RingBufferSampleMux only outputs" {
+test "ThreadSafeRingBufferSampleMux only outputs" {
     var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer output1_ring_buffer.deinit();
     var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -665,7 +665,7 @@ test "RingBufferSampleMux only outputs" {
     var output2_reader = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -701,7 +701,7 @@ test "RingBufferSampleMux only outputs" {
     try std.testing.expectEqualSlices(u8, &[_]u8{0xee}, output2_reader.read(b[0..1]));
 }
 
-test "RingBufferSampleMux read eof" {
+test "ThreadSafeRingBufferSampleMux read eof" {
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -715,7 +715,7 @@ test "RingBufferSampleMux read eof" {
     var output1_reader = output1_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -786,7 +786,7 @@ test "RingBufferSampleMux read eof" {
     try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u16, u8 }, &[1]type{u32}));
 }
 
-test "RingBufferSampleMux write eof" {
+test "ThreadSafeRingBufferSampleMux write eof" {
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input_ring_buffer.deinit();
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -797,7 +797,7 @@ test "RingBufferSampleMux write eof" {
     var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -842,7 +842,7 @@ test "RingBufferSampleMux write eof" {
     try std.testing.expectError(error.EndOfFile, output_reader.getAvailable());
 }
 
-test "RingBufferSampleMux blocking read" {
+test "ThreadSafeRingBufferSampleMux blocking read" {
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -857,7 +857,7 @@ test "RingBufferSampleMux blocking read" {
     var input2_writer = input2_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -915,7 +915,7 @@ test "RingBufferSampleMux blocking read" {
     try std.testing.expectEqual(@as(usize, 3), output2_ring_buffer.impl.getReadAvailable(0));
 }
 
-test "RingBufferSampleMux blocking write" {
+test "ThreadSafeRingBufferSampleMux blocking write" {
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -932,7 +932,7 @@ test "RingBufferSampleMux blocking write" {
     var output2_writer = output2_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try RingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 

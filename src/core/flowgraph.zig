@@ -5,7 +5,7 @@ const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-const RingBufferSampleMux = @import("sample_mux.zig").RingBufferSampleMux;
+const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
@@ -81,7 +81,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, connections: *const std.Au
 
 const FlowgraphRunState = struct {
     ring_buffers: std.AutoHashMap(Port, ThreadSafeRingBuffer),
-    sample_muxes: std.AutoHashMap(*Block, RingBufferSampleMux(ThreadSafeRingBuffer)),
+    sample_muxes: std.AutoHashMap(*Block, ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer)),
     block_runners: std.ArrayList(ThreadedBlockRunner),
 
     const RING_BUFFER_SIZE = 2 * 1048576;
@@ -95,7 +95,7 @@ const FlowgraphRunState = struct {
             ring_buffers.deinit();
         }
         // Allocate sample mux map
-        var sample_muxes = std.AutoHashMap(*Block, RingBufferSampleMux(ThreadSafeRingBuffer)).init(allocator);
+        var sample_muxes = std.AutoHashMap(*Block, ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer)).init(allocator);
         errdefer {
             var sample_muxes_it = sample_muxes.valueIterator();
             while (sample_muxes_it.next()) |sample_mux| sample_mux.deinit();
@@ -139,7 +139,7 @@ const FlowgraphRunState = struct {
             }
 
             // Create sample mux
-            try sample_muxes.put(block.*, try RingBufferSampleMux(ThreadSafeRingBuffer).init(allocator, input_ring_buffers.items, output_ring_buffers.items));
+            try sample_muxes.put(block.*, try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(allocator, input_ring_buffers.items, output_ring_buffers.items));
         }
 
         // For each block, create a block runner
