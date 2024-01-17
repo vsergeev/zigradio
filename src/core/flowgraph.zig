@@ -226,7 +226,7 @@ pub const Flowgraph = struct {
         try self.block_set.put(dst, {});
     }
 
-    pub fn _initialize(self: *Flowgraph) !void {
+    pub fn _validate(self: *Flowgraph) !void {
         // For each block in the block set
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |k| {
@@ -238,6 +238,11 @@ pub const Flowgraph = struct {
                 }
             }
         }
+    }
+
+    pub fn _initialize(self: *Flowgraph) !void {
+        // Validate flowgraph
+        try self._validate();
 
         // Build the evaluation order
         var evaluation_order = try buildEvaluationOrder(self.allocator, &self.connections, &self.block_set);
@@ -675,7 +680,7 @@ test "Flowgraph connect" {
     try std.testing.expectError(FlowgraphError.InputPortAlreadyConnected, top3.connectPort(&b4.block, "out1", &b8.block, "in1"));
 }
 
-test "Flowgraph differentiate (input validation)" {
+test "Flowgraph validate" {
     //
     //          a        c
     //    [ 1 ] -> [ 3 ] -> [ 4 ]
@@ -711,7 +716,7 @@ test "Flowgraph differentiate (input validation)" {
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
     try top2.connectPort(&b3.block, "out1", &b4.block, "in1"); // c
 
-    try std.testing.expectError(FlowgraphError.InputPortUnconnected, top2._initialize());
+    try std.testing.expectError(FlowgraphError.InputPortUnconnected, top2._validate());
 }
 
 test "Flowgraph differentiate (type signature)" {
