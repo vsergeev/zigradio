@@ -200,7 +200,7 @@ fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anyt
 // Block
 ////////////////////////////////////////////////////////////////////////////////
 
-fn extractBlockName(comptime block_type: type) []const u8 {
+pub fn extractBlockName(comptime block_type: type) []const u8 {
     // Split ( for generic blocks
     comptime var it = std.mem.split(u8, @typeName(block_type), "(");
     comptime var first = it.first();
@@ -215,14 +215,26 @@ fn extractBlockName(comptime block_type: type) []const u8 {
 
 pub const Block = struct {
     name: []const u8,
+    inputs: []const []const u8,
+    outputs: []const []const u8,
     differentiations: []const RuntimeDifferentiation,
+
     _differentiation: ?*const RuntimeDifferentiation = null,
     _rate: ?f64 = null,
 
     pub fn init(comptime block_type: type) Block {
-        return Block{
+        comptime var differentiations = RuntimeDifferentiation.derive(block_type);
+        comptime var inputs: [differentiations[0].type_signature.inputs.len][]const u8 = undefined;
+        comptime var outputs: [differentiations[0].type_signature.outputs.len][]const u8 = undefined;
+
+        inline for (differentiations[0].type_signature.inputs, 0..) |_, i| inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
+        inline for (differentiations[0].type_signature.outputs, 0..) |_, i| outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
+
+        return .{
             .name = comptime extractBlockName(block_type),
-            .differentiations = RuntimeDifferentiation.derive(block_type),
+            .inputs = inputs[0..],
+            .outputs = outputs[0..],
+            .differentiations = differentiations,
         };
     }
 
@@ -234,13 +246,14 @@ pub const Block = struct {
                 std.debug.panic("Attempted differentiation with invalid number of input types for block", .{});
 
             const match = for (data_types, 0..) |_, j| {
-                if (data_types[j] != differentiation.type_signature.inputs[j].data_type)
+                if (data_types[j] != differentiation.type_signature.inputs[j])
                     break false;
             } else true;
 
             if (match) {
                 self._differentiation = &self.differentiations[i];
                 self._rate = try self._differentiation.?.set_rate_fn(self, rate);
+
                 return;
             }
         }
@@ -260,82 +273,29 @@ pub const Block = struct {
         return try self._differentiation.?.process_fn(self, sample_mux);
     }
 
-    // Getters
-
-    pub fn getRate(self: *Block, comptime T: type) BlockError!T {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-        return std.math.lossyCast(T, self._rate.?);
-    }
-
-    pub fn getNumInputs(self: *Block) usize {
-        return self.differentiations[0].type_signature.inputs.len;
-    }
-
-    pub fn getInputIndex(self: *Block, name: []const u8) BlockError!usize {
-        for (self.differentiations[0].type_signature.inputs, 0..) |input, index| {
-            if (std.mem.eql(u8, input.name[0..], name[0..])) {
-                return index;
-            }
-        }
-        return BlockError.InputNotFound;
-    }
-
-    pub fn getInputName(self: *Block, index: usize) BlockError![]const u8 {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-        if (index >= self._differentiation.?.type_signature.inputs.len) return BlockError.InputNotFound;
-
-        return self._differentiation.?.type_signature.inputs[index].name;
-    }
-
     pub fn getInputType(self: *Block, index: usize) BlockError!RuntimeDataType {
         if (self._differentiation == null) return BlockError.NotDifferentiated;
         if (index >= self._differentiation.?.type_signature.inputs.len) return BlockError.InputNotFound;
 
-        return self._differentiation.?.type_signature.inputs[index].data_type;
-    }
-
-    pub fn getNumOutputs(self: *Block) usize {
-        return self.differentiations[0].type_signature.outputs.len;
-    }
-
-    pub fn getOutputIndex(self: *Block, name: []const u8) BlockError!usize {
-        for (self.differentiations[0].type_signature.outputs, 0..) |output, index| {
-            if (std.mem.eql(u8, output.name[0..], name[0..])) {
-                return index;
-            }
-        }
-        return BlockError.OutputNotFound;
-    }
-
-    pub fn getOutputName(self: *Block, index: usize) BlockError![]const u8 {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-        if (index >= self._differentiation.?.type_signature.outputs.len) return BlockError.OutputNotFound;
-
-        return self._differentiation.?.type_signature.outputs[index].name;
+        return self._differentiation.?.type_signature.inputs[index];
     }
 
     pub fn getOutputType(self: *Block, index: usize) BlockError!RuntimeDataType {
         if (self._differentiation == null) return BlockError.NotDifferentiated;
         if (index >= self._differentiation.?.type_signature.outputs.len) return BlockError.OutputNotFound;
 
-        return self._differentiation.?.type_signature.outputs[index].data_type;
+        return self._differentiation.?.type_signature.outputs[index];
+    }
+
+    pub fn getRate(self: *Block, comptime T: type) BlockError!T {
+        if (self._differentiation == null) return BlockError.NotDifferentiated;
+        return std.math.lossyCast(T, self._rate.?);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // Block Tests
 ////////////////////////////////////////////////////////////////////////////////
-
-const RuntimeInput = @import("type_signature.zig").RuntimeInput;
-const RuntimeOutput = @import("type_signature.zig").RuntimeOutput;
-
-fn expectEqualPorts(comptime T: type, expected: []const T, actual: []const T) anyerror!void {
-    try std.testing.expectEqual(expected.len, actual.len);
-    for (expected, 0..) |exp, i| {
-        try std.testing.expectEqualSlices(u8, exp.name, actual[i].name);
-        try std.testing.expectEqual(exp.data_type, actual[i].data_type);
-    }
-}
 
 const TestBlock = struct {
     block: Block,
@@ -440,86 +400,61 @@ test "Block.init" {
     try std.testing.expectEqualSlices(u8, test_block.block.name, "TestBlock");
     try std.testing.expectEqual(test_block.block.differentiations.len, 3);
 
-    try expectEqualPorts(RuntimeInput, &[2]RuntimeInput{ RuntimeInput{ .name = "in1", .data_type = RuntimeDataType.Unsigned32 }, RuntimeInput{ .name = "in2", .data_type = RuntimeDataType.Unsigned8 } }, test_block.block.differentiations[0].type_signature.inputs);
-    try expectEqualPorts(RuntimeOutput, &[1]RuntimeOutput{RuntimeOutput{ .name = "out1", .data_type = RuntimeDataType.Unsigned32 }}, test_block.block.differentiations[0].type_signature.outputs);
+    try std.testing.expectEqual(@as(usize, 2), test_block.block.inputs.len);
+    try std.testing.expectEqual(@as(usize, 1), test_block.block.outputs.len);
 
-    try expectEqualPorts(RuntimeInput, &[2]RuntimeInput{ RuntimeInput{ .name = "in1", .data_type = RuntimeDataType.Float32 }, RuntimeInput{ .name = "in2", .data_type = RuntimeDataType.Unsigned16 } }, test_block.block.differentiations[1].type_signature.inputs);
-    try expectEqualPorts(RuntimeOutput, &[1]RuntimeOutput{RuntimeOutput{ .name = "out1", .data_type = RuntimeDataType.Float32 }}, test_block.block.differentiations[1].type_signature.outputs);
+    try std.testing.expectEqualSlices(u8, "in1", test_block.block.inputs[0]);
+    try std.testing.expectEqualSlices(u8, "in2", test_block.block.inputs[1]);
+    try std.testing.expectEqualSlices(u8, "out1", test_block.block.outputs[0]);
 
-    try expectEqualPorts(RuntimeInput, &[2]RuntimeInput{ RuntimeInput{ .name = "in1", .data_type = RuntimeDataType.Unsigned8 }, RuntimeInput{ .name = "in2", .data_type = RuntimeDataType.Unsigned8 } }, test_block.block.differentiations[2].type_signature.inputs);
-    try expectEqualPorts(RuntimeOutput, &[1]RuntimeOutput{RuntimeOutput{ .name = "out1", .data_type = RuntimeDataType.Unsigned8 }}, test_block.block.differentiations[2].type_signature.outputs);
-}
+    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, test_block.block.differentiations[0].type_signature.inputs);
+    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned32}, test_block.block.differentiations[0].type_signature.outputs);
 
-test "Block getters" {
-    var test_block = TestBlock.init();
-    try std.testing.expectEqual(@as(usize, 2), test_block.block.getNumInputs());
-    try std.testing.expectEqual(@as(usize, 1), test_block.block.getNumOutputs());
-    try std.testing.expectEqual(@as(usize, 0), try test_block.block.getInputIndex("in1"));
-    try std.testing.expectEqual(@as(usize, 1), try test_block.block.getInputIndex("in2"));
-    try std.testing.expectEqual(@as(usize, 0), try test_block.block.getOutputIndex("out1"));
-    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputIndex("out1"));
-    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputIndex("in3"));
-    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputIndex("in1"));
-    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputIndex("out2"));
+    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, test_block.block.differentiations[1].type_signature.inputs);
+    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Float32}, test_block.block.differentiations[1].type_signature.outputs);
 
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputName(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputName(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputType(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getRate(usize));
-
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
-    try std.testing.expectEqualSlices(u8, "in1", try test_block.block.getInputName(0));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getInputType(0));
-    try std.testing.expectEqualSlices(u8, "in2", try test_block.block.getInputName(1));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned8, try test_block.block.getInputType(1));
-    try std.testing.expectEqualSlices(u8, "out1", try test_block.block.getOutputName(0));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
-
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
-    try std.testing.expectEqualSlices(u8, "in1", try test_block.block.getInputName(0));
-    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getInputType(0));
-    try std.testing.expectEqualSlices(u8, "in2", try test_block.block.getInputName(1));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_block.block.getInputType(1));
-    try std.testing.expectEqualSlices(u8, "out1", try test_block.block.getOutputName(0));
-    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
-
-    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputName(2));
-    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputType(2));
-    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputName(1));
-    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputType(1));
-
-    var test_source = TestSource.init();
-    try std.testing.expectEqual(@as(usize, 0), test_source.block.getNumInputs());
-    try std.testing.expectEqual(@as(usize, 1), test_source.block.getNumOutputs());
-    try std.testing.expectEqual(@as(usize, 0), try test_source.block.getOutputIndex("out1"));
-    try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputIndex("in1"));
-    try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputIndex("in1"));
-    try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputIndex("out2"));
-
-    try test_source.block.differentiate(&[0]RuntimeDataType{}, 0);
-    try std.testing.expectEqualSlices(u8, "out1", try test_block.block.getOutputName(0));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_source.block.getOutputType(0));
-    try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputName(0));
-    try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputType(0));
-    try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputName(1));
-    try std.testing.expectError(BlockError.OutputNotFound, test_source.block.getOutputType(1));
-    try std.testing.expectEqual(@as(usize, 8000), try test_source.block.getRate(usize));
+    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Unsigned8, RuntimeDataType.Unsigned8 }, test_block.block.differentiations[2].type_signature.inputs);
+    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned8}, test_block.block.differentiations[2].type_signature.outputs);
 }
 
 test "Block.differentiate" {
     var test_block = TestBlock.init();
 
+    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getRate(usize));
+    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(0));
+    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(1));
+    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputType(0));
+
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
     try std.testing.expectEqual(test_block.block._differentiation, &test_block.block.differentiations[0]);
+    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getInputType(0));
+    try std.testing.expectEqual(RuntimeDataType.Unsigned8, try test_block.block.getInputType(1));
+    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getOutputType(0));
+    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
+
+    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputType(2));
+    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputType(1));
 
     try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
     try std.testing.expectEqual(test_block.block._differentiation, &test_block.block.differentiations[1]);
+    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getInputType(0));
+    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_block.block.getInputType(1));
+    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getOutputType(0));
+    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
 
     try std.testing.expectError(BlockError.TypeSignatureNotFound, test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Float32 }, 8000));
     try std.testing.expectError(error.Unsupported, test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 2000));
+
+    var test_source = TestSource.init();
+
+    try std.testing.expectError(BlockError.NotDifferentiated, test_source.block.getRate(usize));
+    try std.testing.expectError(BlockError.NotDifferentiated, test_source.block.getOutputType(0));
+
+    try test_source.block.differentiate(&[0]RuntimeDataType{}, 0);
+    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_source.block.getOutputType(0));
+    try std.testing.expectEqual(@as(usize, 8000), try test_source.block.getRate(usize));
+
+    try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputType(0));
 }
 
 test "Block.initialize and Block.deinitialize" {
