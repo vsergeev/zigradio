@@ -55,23 +55,23 @@ pub const RuntimeDifferentiation = struct {
     process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
     pub fn derive(comptime block_type: anytype) []RuntimeDifferentiation {
-        comptime var declarations = std.meta.declarations(block_type);
+        const declarations = std.meta.declarations(block_type);
 
         comptime var runtime_differentiations: [declarations.len]RuntimeDifferentiation = undefined;
         comptime var count: usize = 0;
 
         inline for (declarations) |decl| {
             if (comptime std.mem.startsWith(u8, decl.name, "process")) {
-                comptime var process_fn = @field(block_type, decl.name);
+                const process_fn = @field(block_type, decl.name);
 
-                comptime var set_rate_fn_name = "setRate";
-                comptime var set_rate_fn = if (@hasDecl(block_type, set_rate_fn_name)) @field(block_type, set_rate_fn_name) else null;
+                const set_rate_fn_name = "setRate";
+                const set_rate_fn = if (@hasDecl(block_type, set_rate_fn_name)) @field(block_type, set_rate_fn_name) else null;
 
-                comptime var initialize_fn_name = "initialize" ++ decl.name[7..];
-                comptime var initialize_fn = if (@hasDecl(block_type, initialize_fn_name)) @field(block_type, initialize_fn_name) else if (@hasDecl(block_type, "initialize")) @field(block_type, "initialize") else null;
+                const initialize_fn_name = "initialize" ++ decl.name[7..];
+                const initialize_fn = if (@hasDecl(block_type, initialize_fn_name)) @field(block_type, initialize_fn_name) else if (@hasDecl(block_type, "initialize")) @field(block_type, "initialize") else null;
 
-                comptime var deinitialize_fn_name = "deinitialize" ++ decl.name[7..];
-                comptime var deinitialize_fn = if (@hasDecl(block_type, deinitialize_fn_name)) @field(block_type, deinitialize_fn_name) else if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
+                const deinitialize_fn_name = "deinitialize" ++ decl.name[7..];
+                const deinitialize_fn = if (@hasDecl(block_type, deinitialize_fn_name)) @field(block_type, deinitialize_fn_name) else if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
 
                 const type_signature = ComptimeTypeSignature.init(process_fn);
 
@@ -87,6 +87,10 @@ pub const RuntimeDifferentiation = struct {
 
                 count += 1;
             }
+        }
+
+        if (count == 0) {
+            @compileError("Block " ++ @typeName(block_type) ++ " is missing a process() method.");
         }
 
         return runtime_differentiations[0..count];
