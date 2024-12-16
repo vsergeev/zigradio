@@ -3,6 +3,7 @@ pub const version = @import("std").SemanticVersion{ .major = 0, .minor = 1, .pat
 
 // Top-level
 pub const Block = @import("core/block.zig").Block;
+pub const CompositeBlock = @import("core/composite.zig").CompositeBlock;
 pub const ProcessResult = @import("core/block.zig").ProcessResult;
 pub const Flowgraph = @import("core/flowgraph.zig").Flowgraph;
 

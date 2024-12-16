@@ -3,12 +3,11 @@ const std = @import("std");
 const util = @import("util.zig");
 
 const Block = @import("block.zig").Block;
-const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
+const CompositeBlock = @import("composite.zig").CompositeBlock;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
-
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,9 +16,9 @@ const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
 pub const FlowgraphError = error{
     InvalidPortCount,
-    InputPortNotFound,
-    OutputPortNotFound,
-    InputPortAlreadyConnected,
+    PortNotFound,
+    UnderlyingPortNotFound,
+    PortAlreadyConnected,
     InputPortUnconnected,
     CyclicDependency,
     RateMismatch,
@@ -31,12 +30,31 @@ pub const FlowgraphError = error{
 // Port
 ////////////////////////////////////////////////////////////////////////////////
 
-const InputPort = struct {
+const BlockVariant = union(enum) {
     block: *Block,
+    composite: *CompositeBlock,
+
+    pub fn wrap(element: anytype) BlockVariant {
+        return if (@TypeOf(element) == *Block) BlockVariant{ .block = element } else BlockVariant{ .composite = element };
+    }
+};
+
+const InputPort = struct {
+    block: BlockVariant,
     index: usize,
 };
 
 const OutputPort = struct {
+    block: BlockVariant,
+    index: usize,
+};
+
+const BlockInputPort = struct {
+    block: *Block,
+    index: usize,
+};
+
+const BlockOutputPort = struct {
     block: *Block,
     index: usize,
 };
@@ -45,7 +63,7 @@ const OutputPort = struct {
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn buildEvaluationOrder(allocator: std.mem.Allocator, connections: *const std.AutoHashMap(InputPort, OutputPort), block_set: *const std.AutoHashMap(*Block, void)) !std.AutoArrayHashMap(*Block, void) {
+fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !std.AutoArrayHashMap(*Block, void) {
     var block_set_copy = try block_set.cloneWithAllocator(allocator);
     defer block_set_copy.deinit();
 
@@ -61,7 +79,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, connections: *const std.Au
             var index: usize = 0;
             while (index < k.*.inputs.len) : (index += 1) {
                 // Check if upstream block is already in our evaluation order
-                var upstream_block = connections.get(InputPort{ .block = k.*, .index = index }).?.block;
+                var upstream_block = flattened_connections.get(BlockInputPort{ .block = k.*, .index = index }).?.block;
                 if (!evaluation_order.contains(upstream_block)) {
                     // Continue to next block
                     continue :outer;
@@ -71,7 +89,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, connections: *const std.Au
             break k.*;
         } orelse null;
 
-        // If we couldn't find a block to add, there is a depdendency cyle
+        // If we couldn't find a block to add, there is a dependency cycle
         if (next_block == null) return FlowgraphError.CyclicDependency;
 
         // Move the block from our set to our evaluation order
@@ -87,15 +105,15 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, connections: *const std.Au
 ////////////////////////////////////////////////////////////////////////////////
 
 const FlowgraphRunState = struct {
-    ring_buffers: std.AutoHashMap(OutputPort, ThreadSafeRingBuffer),
+    ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
     sample_muxes: std.AutoHashMap(*Block, ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer)),
     block_runners: std.ArrayList(ThreadedBlockRunner),
 
     const RING_BUFFER_SIZE = 2 * 1048576;
 
-    pub fn init(allocator: std.mem.Allocator, connections: *std.AutoHashMap(InputPort, OutputPort), block_set: *std.AutoHashMap(*Block, void)) !FlowgraphRunState {
+    pub fn init(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !FlowgraphRunState {
         // Allocate ring buffer map
-        var ring_buffers = std.AutoHashMap(OutputPort, ThreadSafeRingBuffer).init(allocator);
+        var ring_buffers = std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer).init(allocator);
         errdefer {
             var ring_buffers_it = ring_buffers.valueIterator();
             while (ring_buffers_it.next()) |ring_buffer| ring_buffer.deinit();
@@ -113,7 +131,7 @@ const FlowgraphRunState = struct {
         errdefer block_runners.deinit();
 
         // For each connection, create an output ring buffer
-        var output_it = connections.valueIterator();
+        var output_it = flattened_connections.valueIterator();
         while (output_it.next()) |output| {
             if (ring_buffers.contains(output.*)) continue;
             try ring_buffers.put(output.*, try ThreadSafeRingBuffer.init(allocator, RING_BUFFER_SIZE));
@@ -135,14 +153,14 @@ const FlowgraphRunState = struct {
             // Collect input ring buffers
             var input_index: usize = 0;
             while (input_index < block.*.inputs.len) : (input_index += 1) {
-                const output = connections.get(InputPort{ .block = block.*, .index = input_index }).?;
+                const output = flattened_connections.get(BlockInputPort{ .block = block.*, .index = input_index }).?;
                 try input_ring_buffers.append(ring_buffers.getPtr(output).?);
             }
 
             // Collect output ring buffers
             var output_index: usize = 0;
             while (output_index < block.*.outputs.len) : (output_index += 1) {
-                try output_ring_buffers.append(ring_buffers.getPtr(OutputPort{ .block = block.*, .index = output_index }).?);
+                try output_ring_buffers.append(ring_buffers.getPtr(BlockOutputPort{ .block = block.*, .index = output_index }).?);
             }
 
             // Create sample mux
@@ -189,48 +207,140 @@ pub const Flowgraph = struct {
     allocator: std.mem.Allocator,
     options: Options,
 
+    input_aliases: std.AutoHashMap(InputPort, std.ArrayList(InputPort)),
+    output_aliases: std.AutoHashMap(OutputPort, OutputPort),
     connections: std.AutoHashMap(InputPort, OutputPort),
+    flattened_connections: std.AutoHashMap(BlockInputPort, BlockOutputPort),
     block_set: std.AutoHashMap(*Block, void),
+    composite_set: std.AutoHashMap(*CompositeBlock, void),
     run_state: ?FlowgraphRunState = null,
 
     pub fn init(allocator: std.mem.Allocator, options: Options) Flowgraph {
         return .{
             .allocator = allocator,
             .options = options,
+            .input_aliases = std.AutoHashMap(InputPort, std.ArrayList(InputPort)).init(allocator),
+            .output_aliases = std.AutoHashMap(OutputPort, OutputPort).init(allocator),
             .connections = std.AutoHashMap(InputPort, OutputPort).init(allocator),
+            .flattened_connections = std.AutoHashMap(BlockInputPort, BlockOutputPort).init(allocator),
             .block_set = std.AutoHashMap(*Block, void).init(allocator),
+            .composite_set = std.AutoHashMap(*CompositeBlock, void).init(allocator),
         };
     }
 
     pub fn deinit(self: *Flowgraph) void {
         if (self.run_state) |*run_state| run_state.deinit();
+
+        self.composite_set.deinit();
         self.block_set.deinit();
+        self.flattened_connections.deinit();
         self.connections.deinit();
+
+        self.output_aliases.deinit();
+        var input_aliases_it = self.input_aliases.valueIterator();
+        while (input_aliases_it.next()) |input_aliases| input_aliases.deinit();
+        self.input_aliases.deinit();
     }
 
-    pub fn connect(self: *Flowgraph, src: *Block, dst: *Block) !void {
+    pub fn _connect(self: *Flowgraph, src_port: OutputPort, dst_port: InputPort) !void {
+        if (self.connections.contains(dst_port)) return FlowgraphError.PortAlreadyConnected;
+
+        try self.connections.put(dst_port, src_port);
+
+        switch (src_port.block) {
+            BlockVariant.block => try self.block_set.put(src_port.block.block, {}),
+            BlockVariant.composite => {
+                if (!self.composite_set.contains(src_port.block.composite)) {
+                    try self.composite_set.put(src_port.block.composite, {});
+                    try src_port.block.composite.*.connect(self);
+                }
+            },
+        }
+
+        switch (dst_port.block) {
+            BlockVariant.block => try self.block_set.put(dst_port.block.block, {}),
+            BlockVariant.composite => {
+                if (!self.composite_set.contains(dst_port.block.composite)) {
+                    try self.composite_set.put(dst_port.block.composite, {});
+                    try dst_port.block.composite.*.connect(self);
+                }
+            },
+        }
+
+        // Crawl aliases for underlying source port
+        var underlying_src_port = src_port;
+        while (underlying_src_port.block != BlockVariant.block) {
+            underlying_src_port = self.output_aliases.get(underlying_src_port) orelse return FlowgraphError.UnderlyingPortNotFound;
+        }
+
+        // Crawl aliases for underlying destination ports
+        var underlying_dst_ports = std.ArrayList(InputPort).init(self.allocator);
+        defer underlying_dst_ports.deinit();
+        try underlying_dst_ports.append(dst_port);
+
+        while (underlying_dst_ports.items.len > 0) {
+            const next_dst_port = underlying_dst_ports.pop();
+
+            if (next_dst_port.block == BlockVariant.block) {
+                // Add flattened connection from underlying source port to underlying destination port
+                try self.flattened_connections.put(BlockInputPort{ .block = next_dst_port.block.block, .index = next_dst_port.index }, BlockOutputPort{ .block = underlying_src_port.block.block, .index = underlying_src_port.index });
+            } else {
+                const aliased_ports = self.input_aliases.get(next_dst_port) orelse return FlowgraphError.UnderlyingPortNotFound;
+                try underlying_dst_ports.appendSlice(aliased_ports.items);
+            }
+        }
+    }
+
+    pub fn connect(self: *Flowgraph, src: anytype, dst: anytype) !void {
+        if (@TypeOf(src) != *Block and @TypeOf(src) != *CompositeBlock) @compileError("Unsupported src type, expected *Block or *CompositeBlock");
+        if (@TypeOf(dst) != *Block and @TypeOf(dst) != *CompositeBlock) @compileError("Unsupported dst type, expected *Block or *CompositeBlock");
+
         if (src.outputs.len != 1) return FlowgraphError.InvalidPortCount;
         if (dst.inputs.len != 1) return FlowgraphError.InvalidPortCount;
 
-        const src_port = OutputPort{ .block = src, .index = 0 };
-        const dst_port = InputPort{ .block = dst, .index = 0 };
+        const src_port = OutputPort{ .block = BlockVariant.wrap(src), .index = 0 };
+        const dst_port = InputPort{ .block = BlockVariant.wrap(dst), .index = 0 };
 
-        if (self.connections.contains(dst_port)) return FlowgraphError.InputPortAlreadyConnected;
-
-        try self.connections.put(dst_port, src_port);
-        try self.block_set.put(src, {});
-        try self.block_set.put(dst, {});
+        try self._connect(src_port, dst_port);
     }
 
-    pub fn connectPort(self: *Flowgraph, src: *Block, src_port_name: []const u8, dst: *Block, dst_port_name: []const u8) !void {
-        const src_port = OutputPort{ .block = src, .index = util.indexOfString(src.outputs, src_port_name) orelse return FlowgraphError.OutputPortNotFound };
-        const dst_port = InputPort{ .block = dst, .index = util.indexOfString(dst.inputs, dst_port_name) orelse return FlowgraphError.InputPortNotFound };
+    pub fn connectPort(self: *Flowgraph, src: anytype, src_port_name: []const u8, dst: anytype, dst_port_name: []const u8) !void {
+        if (@TypeOf(src) != *Block and @TypeOf(src) != *CompositeBlock) @compileError("Unsupported src type, expected *Block or *CompositeBlock");
+        if (@TypeOf(dst) != *Block and @TypeOf(dst) != *CompositeBlock) @compileError("Unsupported dst type, expected *Block or *CompositeBlock");
 
-        if (self.connections.contains(dst_port)) return FlowgraphError.InputPortAlreadyConnected;
+        const src_port = OutputPort{ .block = BlockVariant.wrap(src), .index = util.indexOfString(src.outputs, src_port_name) orelse return FlowgraphError.PortNotFound };
+        const dst_port = InputPort{ .block = BlockVariant.wrap(dst), .index = util.indexOfString(dst.inputs, dst_port_name) orelse return FlowgraphError.PortNotFound };
 
-        try self.connections.put(dst_port, src_port);
-        try self.block_set.put(src, {});
-        try self.block_set.put(dst, {});
+        try self._connect(src_port, dst_port);
+    }
+
+    pub fn alias(self: *Flowgraph, composite: *CompositeBlock, port_name: []const u8, aliased_block: anytype, aliased_port_name: []const u8) !void {
+        if (@TypeOf(aliased_block) != *Block and @TypeOf(aliased_block) != *CompositeBlock) @compileError("Unsupported aliased_block type, expected *Block or *CompositeBlock");
+
+        if (@TypeOf(aliased_block) == *CompositeBlock) {
+            if (!self.composite_set.contains(aliased_block)) {
+                try self.composite_set.put(aliased_block, {});
+                try aliased_block.connect(self);
+            }
+        }
+
+        if (util.indexOfString(composite.inputs, port_name)) |index| {
+            const composite_port = InputPort{ .block = BlockVariant.wrap(composite), .index = index };
+            const aliased_port = InputPort{ .block = BlockVariant.wrap(aliased_block), .index = util.indexOfString(aliased_block.inputs, aliased_port_name) orelse return FlowgraphError.PortNotFound };
+
+            if (!self.input_aliases.contains(composite_port)) {
+                try self.input_aliases.put(composite_port, std.ArrayList(InputPort).init(self.allocator));
+            }
+
+            try self.input_aliases.getPtr(composite_port).?.append(aliased_port);
+        } else if (util.indexOfString(composite.outputs, port_name)) |index| {
+            const composite_port = OutputPort{ .block = BlockVariant.wrap(composite), .index = index };
+            const aliased_port = OutputPort{ .block = BlockVariant.wrap(aliased_block), .index = util.indexOfString(aliased_block.outputs, aliased_port_name) orelse return FlowgraphError.PortNotFound };
+
+            try self.output_aliases.putNoClobber(composite_port, aliased_port);
+        } else {
+            return FlowgraphError.PortNotFound;
+        }
     }
 
     pub fn _validate(self: *Flowgraph) !void {
@@ -240,21 +350,14 @@ pub const Flowgraph = struct {
             // Check all inputs are connected
             var i: usize = 0;
             while (i < k.*.inputs.len) : (i += 1) {
-                if (!self.connections.contains(InputPort{ .block = k.*, .index = i })) {
+                if (!self.flattened_connections.contains(BlockInputPort{ .block = k.*, .index = i })) {
                     return FlowgraphError.InputPortUnconnected;
                 }
             }
         }
     }
 
-    pub fn _initialize(self: *Flowgraph) !void {
-        // Validate flowgraph
-        try self._validate();
-
-        // Build the evaluation order
-        var evaluation_order = try buildEvaluationOrder(self.allocator, &self.connections, &self.block_set);
-        defer evaluation_order.deinit();
-
+    pub fn _differentiate(self: *Flowgraph, evaluation_order: *const std.AutoArrayHashMap(*Block, void)) !void {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Allocate a slice for input types
@@ -264,12 +367,12 @@ pub const Flowgraph = struct {
             // For each block input port, collect the type of the connected output port
             var i: usize = 0;
             while (i < block.inputs.len) : (i += 1) {
-                var output_port = self.connections.get(InputPort{ .block = block, .index = i }).?;
+                const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
                 input_types[i] = try output_port.block.getOutputType(output_port.index);
             }
 
             // Get upstream rate
-            var upstream_rate = if (block.inputs.len > 0) try self.connections.get(InputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
+            var upstream_rate = if (block.inputs.len > 0) try self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
 
             // Differentiate the block
             try block.differentiate(input_types, upstream_rate);
@@ -277,21 +380,30 @@ pub const Flowgraph = struct {
             // Compare other input port rates
             i = 1;
             while (i < block.inputs.len) : (i += 1) {
-                const rate = try self.connections.get(InputPort{ .block = block, .index = i }).?.block.getRate(f64);
+                const rate = try self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?.block.getRate(f64);
                 if (rate != upstream_rate) return FlowgraphError.RateMismatch;
             }
         }
+    }
 
-        // Dump flow graph if debug is enabled
+    pub fn _initialize(self: *Flowgraph) !void {
+        // Validate flowgraph
+        try self._validate();
+
+        // Build the evaluation order
+        var evaluation_order = try buildEvaluationOrder(self.allocator, &self.flattened_connections, &self.block_set);
+        defer evaluation_order.deinit();
+
+        // Differentiate flowgraph
+        try self._differentiate(&evaluation_order);
+
+        // Dump flowgraph if debug is enabled
         if (self.options.debug) {
             self._dump(&evaluation_order);
         }
 
-        // For each block in the evaluation order
-        for (evaluation_order.keys()) |block| {
-            // Initialize the block
-            try block.initialize(self.allocator);
-        }
+        // Initialize blocks
+        for (evaluation_order.keys()) |block| try block.initialize(self.allocator);
     }
 
     pub fn _deinitialize(self: *Flowgraph) void {
@@ -312,11 +424,12 @@ pub const Flowgraph = struct {
             // For each input port
             var i: usize = 0;
             while (i < block.inputs.len) : (i += 1) {
-                const output_port = self.connections.get(InputPort{ .block = block, .index = i }).?;
                 const input_port_name = block.inputs[i];
                 const input_port_type = block.getInputType(i) catch unreachable;
-                const output_port_name = block.outputs[i];
-                std.debug.print("[Flowgraph]        .{s} [{any}] <- {s}.{s}\n", .{ input_port_name, input_port_type, output_port.block.name, output_port_name });
+                const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
+                const output_port_name = output_port.block.outputs[output_port.index];
+                const block_name = output_port.block.name;
+                std.debug.print("[Flowgraph]        .{s} [{any}] <- {s}.{s}\n", .{ input_port_name, input_port_type, block_name, output_port_name });
             }
 
             // For each output port
@@ -328,14 +441,15 @@ pub const Flowgraph = struct {
                 std.debug.print("[Flowgraph]        .{s} [{any}] -> ", .{ output_port_name, output_port_type });
 
                 // Find all connected input ports (quadratic, but this is a debug dump)
-                var it = self.connections.keyIterator();
+                var it = self.flattened_connections.keyIterator();
                 var print_separator = false;
                 while (it.next()) |input_port| {
-                    const output_port = self.connections.get(input_port.*).?;
+                    const output_port = self.flattened_connections.get(input_port.*).?;
                     if (output_port.block == block and output_port.index == i) {
                         const input_port_name = input_port.block.inputs[input_port.index];
+                        const block_name = input_port.block.name;
                         if (print_separator) std.debug.print(", ", .{});
-                        std.debug.print("{s}.{s}", .{ input_port.block.name, input_port_name });
+                        std.debug.print("{s}.{s}", .{ block_name, input_port_name });
                         print_separator = true;
                     }
                 }
@@ -352,7 +466,7 @@ pub const Flowgraph = struct {
         try self._initialize();
 
         // Build run state
-        self.run_state = try FlowgraphRunState.init(self.allocator, &self.connections, &self.block_set);
+        self.run_state = try FlowgraphRunState.init(self.allocator, &self.flattened_connections, &self.block_set);
 
         // Spawn block runners
         for (self.run_state.?.block_runners.items) |*block_runner| {
@@ -534,6 +648,166 @@ const TestErrorBlock = struct {
     }
 };
 
+const TestCompositeBlock1 = struct {
+    composite: CompositeBlock,
+    b1: TestBlock,
+    b2: TestBlock,
+    b3: TestBlock,
+
+    pub fn init() TestCompositeBlock1 {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .b1 = TestBlock.init(),
+            .b2 = TestBlock.init(),
+            .b3 = TestBlock.init(),
+        };
+    }
+
+    pub fn connect(self: *TestCompositeBlock1, flowgraph: *Flowgraph) !void {
+        //            2
+        //     -----------------
+        // -->|---[1] -> [2]---|-->
+        //    |       \> [3]---|-->
+        //    ------------------
+
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+        try flowgraph.connect(&self.b1.block, &self.b3.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.composite, "out2", &self.b3.block, "out1");
+    }
+};
+
+const TestCompositeBlock2 = struct {
+    composite: CompositeBlock,
+    b1: TestBlock,
+    b2: TestBlock,
+
+    pub fn init() TestCompositeBlock2 {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
+            .b1 = TestBlock.init(),
+            .b2 = TestBlock.init(),
+        };
+    }
+
+    pub fn connect(self: *TestCompositeBlock2, flowgraph: *Flowgraph) !void {
+        //
+        //    ------------------
+        // -->|---[1] -> [2]---|-->
+        //    ------------------
+        //
+
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+    }
+};
+
+const TestNestedCompositeBlock = struct {
+    composite: CompositeBlock,
+    b1: TestBlock,
+    b2: TestBlock,
+    b3: TestCompositeBlock2,
+
+    pub fn init() TestNestedCompositeBlock {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .b1 = TestBlock.init(),
+            .b2 = TestBlock.init(),
+            .b3 = TestCompositeBlock2.init(),
+        };
+    }
+
+    pub fn connect(self: *TestNestedCompositeBlock, flowgraph: *Flowgraph) !void {
+        //
+        //    ------------------
+        // -->|---[1] -- [2]---|-->
+        //    |\--|[ ] -> [ ]|-|-->
+        //    ------------------
+        //
+
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.composite, "in1", &self.b3.composite, "in1");
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.composite, "out2", &self.b3.composite, "out1");
+    }
+};
+
+const TestMissingInputAliasCompositeBlock = struct {
+    composite: CompositeBlock,
+    b1: TestBlock,
+    b2: TestBlock,
+    b3: TestBlock,
+
+    pub fn init() TestMissingInputAliasCompositeBlock {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .b1 = TestBlock.init(),
+            .b2 = TestBlock.init(),
+            .b3 = TestBlock.init(),
+        };
+    }
+
+    pub fn connect(self: *TestMissingInputAliasCompositeBlock, flowgraph: *Flowgraph) !void {
+        //            2
+        //     -----------------
+        // -->|   [1] -> [2]---|-->
+        //    |       \> [3]---|-->
+        //    ------------------
+
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+        try flowgraph.connect(&self.b1.block, &self.b3.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.composite, "out2", &self.b3.block, "out1");
+    }
+};
+
+const TestMissingOutputAliasCompositeBlock = struct {
+    composite: CompositeBlock,
+    b1: TestBlock,
+    b2: TestBlock,
+    b3: TestBlock,
+
+    pub fn init() TestMissingOutputAliasCompositeBlock {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .b1 = TestBlock.init(),
+            .b2 = TestBlock.init(),
+            .b3 = TestBlock.init(),
+        };
+    }
+
+    pub fn connect(self: *TestMissingOutputAliasCompositeBlock, flowgraph: *Flowgraph) !void {
+        //            2
+        //     -----------------
+        // -->|---[1] -> [2]---|-->
+        //    |       \> [3]   |-->
+        //    ------------------
+
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+        try flowgraph.connect(&self.b1.block, &self.b3.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+    }
+};
+
 test "buildEvaluationOrder" {
     //
     // [1] -- [2] -- [3] -- [4] -- [5]
@@ -563,7 +837,7 @@ test "buildEvaluationOrder" {
     try top.connect(&b3.block, &b8.block);
     try top.connect(&b8.block, &b9.block);
 
-    var evaluation_order = try buildEvaluationOrder(top.allocator, &top.connections, &top.block_set);
+    var evaluation_order = try buildEvaluationOrder(top.allocator, &top.flattened_connections, &top.block_set);
     defer evaluation_order.deinit();
 
     try std.testing.expectEqual(@as(usize, 9), evaluation_order.count());
@@ -619,14 +893,15 @@ test "Flowgraph connect" {
     try top1.connectPort(&b5.block, "out1", &b8.block, "in1");
     try top1.connectPort(&b8.block, "out1", &b9.block, "in1");
 
-    try std.testing.expectEqual(OutputPort{ .block = &b1.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b3.block, .index = 0 }).?); // a
-    try std.testing.expectEqual(OutputPort{ .block = &b2.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b3.block, .index = 1 }).?); // b
-    try std.testing.expectEqual(OutputPort{ .block = &b3.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b4.block, .index = 0 }).?); // c
-    try std.testing.expectEqual(OutputPort{ .block = &b4.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b6.block, .index = 0 }).?); // d
-    try std.testing.expectEqual(OutputPort{ .block = &b5.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b6.block, .index = 1 }).?); // e
-    try std.testing.expectEqual(OutputPort{ .block = &b5.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b8.block, .index = 0 }).?); // g
-    try std.testing.expectEqual(OutputPort{ .block = &b6.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b7.block, .index = 0 }).?); // f
-    try std.testing.expectEqual(OutputPort{ .block = &b8.block, .index = 0 }, top1.connections.get(InputPort{ .block = &b9.block, .index = 0 }).?); // h
+    try std.testing.expectEqual(@as(usize, 8), top1.connections.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?); // a
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 1 }).?); // b
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?); // c
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b6.block), .index = 0 }).?); // d
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b6.block), .index = 1 }).?); // e
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b8.block), .index = 0 }).?); // g
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b6.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b7.block), .index = 0 }).?); // f
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b8.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b9.block), .index = 0 }).?); // h
 
     try std.testing.expectEqual(@as(usize, 9), top1.block_set.count());
     try std.testing.expect(top1.block_set.contains(&b1.block));
@@ -653,14 +928,15 @@ test "Flowgraph connect" {
     try top2.connectPort(&b4.block, "out1", &b6.block, "in1");
     try top2.connectPort(&b5.block, "out1", &b6.block, "in2");
 
-    try std.testing.expectEqual(OutputPort{ .block = &b1.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b3.block, .index = 0 }).?); // a
-    try std.testing.expectEqual(OutputPort{ .block = &b2.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b3.block, .index = 1 }).?); // b
-    try std.testing.expectEqual(OutputPort{ .block = &b3.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b4.block, .index = 0 }).?); // c
-    try std.testing.expectEqual(OutputPort{ .block = &b4.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b6.block, .index = 0 }).?); // d
-    try std.testing.expectEqual(OutputPort{ .block = &b5.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b6.block, .index = 1 }).?); // e
-    try std.testing.expectEqual(OutputPort{ .block = &b5.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b8.block, .index = 0 }).?); // g
-    try std.testing.expectEqual(OutputPort{ .block = &b6.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b7.block, .index = 0 }).?); // f
-    try std.testing.expectEqual(OutputPort{ .block = &b8.block, .index = 0 }, top2.connections.get(InputPort{ .block = &b9.block, .index = 0 }).?); // h
+    try std.testing.expectEqual(@as(usize, 8), top2.connections.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?); // a
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 1 }).?); // b
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?); // c
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b6.block), .index = 0 }).?); // d
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b6.block), .index = 1 }).?); // e
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b8.block), .index = 0 }).?); // g
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b6.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b7.block), .index = 0 }).?); // f
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b8.block), .index = 0 }, top2.connections.get(InputPort{ .block = BlockVariant.wrap(&b9.block), .index = 0 }).?); // h
 
     try std.testing.expectEqual(@as(usize, 9), top2.block_set.count());
     try std.testing.expect(top2.block_set.contains(&b1.block));
@@ -680,11 +956,11 @@ test "Flowgraph connect" {
 
     try std.testing.expectError(FlowgraphError.InvalidPortCount, top3.connect(&b7.block, &b4.block));
     try std.testing.expectError(FlowgraphError.InvalidPortCount, top3.connect(&b4.block, &b6.block));
-    try std.testing.expectError(FlowgraphError.InputPortNotFound, top3.connectPort(&b3.block, "out1", &b4.block, "in2"));
-    try std.testing.expectError(FlowgraphError.OutputPortNotFound, top3.connectPort(&b3.block, "out2", &b4.block, "in1"));
+    try std.testing.expectError(FlowgraphError.PortNotFound, top3.connectPort(&b3.block, "out1", &b4.block, "in2"));
+    try std.testing.expectError(FlowgraphError.PortNotFound, top3.connectPort(&b3.block, "out2", &b4.block, "in1"));
 
     try top3.connect(&b5.block, &b8.block);
-    try std.testing.expectError(FlowgraphError.InputPortAlreadyConnected, top3.connectPort(&b4.block, "out1", &b8.block, "in1"));
+    try std.testing.expectError(FlowgraphError.PortAlreadyConnected, top3.connectPort(&b4.block, "out1", &b8.block, "in1"));
 }
 
 test "Flowgraph validate" {
@@ -893,9 +1169,6 @@ test "Flowgraph initialize and deinitialize blocks" {
     try std.testing.expectEqual(false, b3.initialized);
     try std.testing.expectEqual(false, b4.initialized);
 
-    var foo = try FlowgraphRunState.init(top1.allocator, &top1.connections, &top1.block_set);
-    defer foo.deinit();
-
     //
     //          a        c
     //    [ 5 ] -> [ 6 ] -> [ 7 ]
@@ -919,6 +1192,204 @@ test "Flowgraph initialize and deinitialize blocks" {
 
     try std.testing.expectEqual(true, b5.initialized);
     try std.testing.expectEqual(false, b7.initialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Composite Block Tests
+////////////////////////////////////////////////////////////////////////////////
+
+test "Flowgraph connect composite" {
+    //
+    //                     2
+    //              -----------------
+    //    [ 1 ] -> |-[   ] -> [   ]-|--> [ 3 ] -> [ 4 ]
+    //             |       \> [   ]-|--> [ 5 ]
+    //             ------------------
+    //
+
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    defer top1.deinit();
+
+    var b1 = TestSource.init();
+    var b2 = TestCompositeBlock1.init();
+    var b3 = TestBlock.init();
+    var b4 = TestSink.init();
+    var b5 = TestSink.init();
+
+    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
+    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
+
+    try std.testing.expectEqual(@as(usize, 6), top1.connections.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }).?);
+
+    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.count());
+    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[0]);
+
+    try std.testing.expectEqual(@as(usize, 2), top1.output_aliases.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }).?);
+
+    try std.testing.expectEqual(@as(usize, 6), top1.flattened_connections.count());
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b1.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b2.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b3.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b2.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b3.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b3.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b5.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b3.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b4.block, .index = 0 }).?);
+
+    try std.testing.expectEqual(@as(usize, 7), top1.block_set.count());
+    try std.testing.expect(top1.block_set.contains(&b1.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b1.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b2.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b3.block));
+    try std.testing.expect(top1.block_set.contains(&b3.block));
+    try std.testing.expect(top1.block_set.contains(&b4.block));
+    try std.testing.expect(top1.block_set.contains(&b5.block));
+
+    try std.testing.expectEqual(@as(usize, 1), top1.composite_set.count());
+    try std.testing.expect(top1.composite_set.contains(&b2.composite));
+}
+
+test "Flowgraph connect nested composite" {
+    //
+    //                     2
+    //              -----------------
+    //    [ 1 ] -> |-[   ] -> [   ]-|--> [ 3 ] -> [ 4 ]
+    //             |\->|[ ] -> [ ]|-|--> [ 5 ]
+    //             ------------------
+    //
+
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    defer top1.deinit();
+
+    var b1 = TestSource.init();
+    var b2 = TestNestedCompositeBlock.init();
+    var b3 = TestBlock.init();
+    var b4 = TestSink.init();
+    var b5 = TestSink.init();
+
+    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
+    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
+
+    try std.testing.expectEqual(@as(usize, 6), top1.connections.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.b2.block), .index = 0 }).?);
+
+    try std.testing.expectEqual(@as(usize, 2), top1.input_aliases.count());
+    try std.testing.expectEqual(@as(usize, 2), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[0]);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[1]);
+    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?.items[0]);
+
+    try std.testing.expectEqual(@as(usize, 3), top1.output_aliases.count());
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?);
+
+    try std.testing.expectEqual(@as(usize, 7), top1.flattened_connections.count());
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b1.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b2.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b3.b1.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b3.b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b3.b2.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b2.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b3.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b2.b3.b2.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b5.block, .index = 0 }).?);
+    try std.testing.expectEqual(BlockOutputPort{ .block = &b3.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b4.block, .index = 0 }).?);
+
+    try std.testing.expectEqual(@as(usize, 8), top1.block_set.count());
+    try std.testing.expect(top1.block_set.contains(&b1.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b1.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b2.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b3.b1.block));
+    try std.testing.expect(top1.block_set.contains(&b2.b3.b2.block));
+    try std.testing.expect(top1.block_set.contains(&b3.block));
+    try std.testing.expect(top1.block_set.contains(&b4.block));
+    try std.testing.expect(top1.block_set.contains(&b5.block));
+
+    try std.testing.expectEqual(@as(usize, 2), top1.composite_set.count());
+    try std.testing.expect(top1.composite_set.contains(&b2.composite));
+    try std.testing.expect(top1.composite_set.contains(&b2.b3.composite));
+}
+
+test "Flowgraph connect composite with unaliased composite input" {
+    //
+    //                     2
+    //              -----------------
+    //    [ 1 ] -> | [   ] -> [   ]-|--> [ 3 ] -> [ 4 ]
+    //             |       \> [   ]-|--> [ 5 ]
+    //             ------------------
+    //
+
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    defer top1.deinit();
+
+    var b1 = TestSource.init();
+    var b2 = TestMissingInputAliasCompositeBlock.init();
+
+    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b1.block, "out1", &b2.composite, "in1"));
+}
+
+test "Flowgraph connect composite with unaliased composite output" {
+    //
+    //                     2
+    //              -----------------
+    //    [ 1 ] -> |-[   ] -> [   ]-|--> [ 3 ] -> [ 4 ]
+    //             |       \> [   ] |--> [ 5 ]
+    //             ------------------
+    //
+
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    defer top1.deinit();
+
+    var b1 = TestSource.init();
+    var b2 = TestMissingOutputAliasCompositeBlock.init();
+    var b3 = TestBlock.init();
+    var b4 = TestSink.init();
+    var b5 = TestSink.init();
+
+    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
+    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
+    try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
+
+    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b2.composite, "out2", &b5.block, "in1"));
+}
+
+test "Flowgraph validate composite with unconnected input" {
+    //
+    //                     2
+    //              -----------------
+    //          X> |-[   ] -> [   ]-|--> [ 3 ] -> [ 4 ]
+    //             |       \> [   ]-|--> [ 5 ]
+    //             ------------------
+    //
+
+    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    defer top1.deinit();
+
+    var b2 = TestCompositeBlock1.init();
+    var b3 = TestBlock.init();
+    var b4 = TestSink.init();
+    var b5 = TestSink.init();
+
+    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
+
+    try std.testing.expectError(FlowgraphError.InputPortUnconnected, top1._validate());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
