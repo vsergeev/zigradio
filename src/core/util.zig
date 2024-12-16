@@ -54,6 +54,16 @@ pub fn dereferenceTuplePointerSlices(comptime data_types: []const type, inputs: 
     return dereferenced_inputs;
 }
 
+pub fn indexOfString(haystack: []const []const u8, needle: []const u8) ?usize {
+    for (haystack, 0..) |value, i| {
+        if (std.mem.eql(u8, value, needle)) {
+            return i;
+        }
+    }
+
+    return null;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,4 +100,13 @@ test "dereference tuple pointer slices" {
 
     try std.testing.expectEqualSlices(u8, "hello", y[0]);
     try std.testing.expectEqualSlices(u32, &[_]u32{ 0xdeadbeef, 0xcafecafe }, y[1]);
+}
+
+test "indexOfString" {
+    const items: []const []const u8 = &[_][]const u8{ "abc", "def", "xyz" };
+
+    try std.testing.expectEqual(@as(?usize, 0), indexOfString(items, "abc"));
+    try std.testing.expectEqual(@as(?usize, 1), indexOfString(items, "def"));
+    try std.testing.expectEqual(@as(?usize, 2), indexOfString(items, "xyz"));
+    try std.testing.expectEqual(@as(?usize, null), indexOfString(items, "ghi"));
 }

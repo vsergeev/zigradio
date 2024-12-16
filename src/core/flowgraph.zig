@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const util = @import("util.zig");
+
 const Block = @import("block.zig").Block;
 const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
@@ -221,12 +223,8 @@ pub const Flowgraph = struct {
     }
 
     pub fn connectPort(self: *Flowgraph, src: *Block, src_port_name: []const u8, dst: *Block, dst_port_name: []const u8) !void {
-        const src_port = OutputPort{ .block = src, .index = for (src.outputs, 0..) |output, i| {
-            if (std.mem.eql(u8, output, src_port_name)) break i;
-        } else return FlowgraphError.OutputPortNotFound };
-        const dst_port = InputPort{ .block = dst, .index = for (dst.inputs, 0..) |input, i| {
-            if (std.mem.eql(u8, input, dst_port_name)) break i;
-        } else return FlowgraphError.InputPortNotFound };
+        const src_port = OutputPort{ .block = src, .index = util.indexOfString(src.outputs, src_port_name) orelse return FlowgraphError.OutputPortNotFound };
+        const dst_port = InputPort{ .block = dst, .index = util.indexOfString(dst.inputs, dst_port_name) orelse return FlowgraphError.InputPortNotFound };
 
         if (self.connections.contains(dst_port)) return FlowgraphError.InputPortAlreadyConnected;
 
