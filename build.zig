@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) !void {
 
     // Create radio module
     const radio_module = b.addModule("radio", .{
-        .root_source_file = .{ .path = "src/radio.zig" },
+        .root_source_file = b.path("src/radio.zig"),
         .imports = &.{
             .{ .name = "platform_options", .module = platform_options_module },
         },
@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) !void {
     for (examples) |example| {
         const exe = b.addExecutable(.{
             .name = example.name,
-            .root_source_file = .{ .path = example.path },
+            .root_source_file = b.path(example.path),
             .target = target,
             .optimize = optimize,
         });
@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) !void {
 
     // Run unit tests
     const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/radio.zig" },
+        .root_source_file = b.path("src/radio.zig"),
         .target = target,
         .optimize = optimize,
     });

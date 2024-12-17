@@ -8,22 +8,18 @@ const util = @import("util.zig");
 // SampleMux
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn _SampleBuffers(comptime N: comptime_int, comptime input_data_types: [N]type, comptime M: comptime_int, comptime output_data_types: [M]type) type {
-    return struct {
-        inputs: util.makeTupleConstSliceTypes(&input_data_types),
-        outputs: util.makeTupleSliceTypes(&output_data_types),
-    };
-}
-
-pub fn SampleBuffers(comptime input_data_types: []const type, comptime output_data_types: []const type) type {
-    return _SampleBuffers(input_data_types.len, input_data_types[0..input_data_types.len].*, output_data_types.len, output_data_types[0..output_data_types.len].*);
-}
-
 pub const SampleMux = struct {
     ptr: *anyopaque,
     getBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void,
     updateBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void,
     setEOFFn: *const fn (ptr: *anyopaque) void,
+
+    pub fn SampleBuffers(comptime input_data_types: []const type, comptime output_data_types: []const type) type {
+        return struct {
+            inputs: util.makeTupleConstSliceTypes(input_data_types),
+            outputs: util.makeTupleSliceTypes(output_data_types),
+        };
+    }
 
     pub fn init(pointer: anytype, comptime getBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void, comptime updateBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void, comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void) SampleMux {
         const Ptr = @TypeOf(pointer);
@@ -52,35 +48,26 @@ pub const SampleMux = struct {
     }
 
     pub fn getBuffers(self: *SampleMux, comptime input_data_types: []const type, comptime output_data_types: []const type) error{EndOfFile}!SampleBuffers(input_data_types, output_data_types) {
-        // Get data type sizes
-        const input_element_sizes: []const usize = comptime util.dataTypeSizes(input_data_types);
-        const output_element_sizes: []const usize = comptime util.dataTypeSizes(output_data_types);
-
         // Get raw byte buffers
-        var input_buffers_raw: [input_data_types.len][]align(std.mem.page_size) const u8 = undefined;
-        var output_buffers_raw: [output_data_types.len][]align(std.mem.page_size) u8 = undefined;
-        try self.getBuffersFn(self.ptr, input_element_sizes, input_buffers_raw[0..], output_element_sizes, output_buffers_raw[0..]);
+        var input_buffers_raw: [input_data_types.len][]const u8 = undefined;
+        var output_buffers_raw: [output_data_types.len][]u8 = undefined;
+        try self.getBuffersFn(self.ptr, comptime util.dataTypeSizes(input_data_types), input_buffers_raw[0..], comptime util.dataTypeSizes(output_data_types), output_buffers_raw[0..]);
 
-        // Translate into typed buffers
-        var input_buffers: util.makeTupleConstSliceTypes(input_data_types) = undefined;
-        var output_buffers: util.makeTupleSliceTypes(output_data_types) = undefined;
+        // Cast into typed buffers
+        var sample_buffers: SampleBuffers(input_data_types, output_data_types) = undefined;
         inline for (input_data_types, 0..) |_, i| {
-            input_buffers[i] = @alignCast(std.mem.bytesAsSlice(input_data_types[i], input_buffers_raw[i]));
+            sample_buffers.inputs[i] = @alignCast(std.mem.bytesAsSlice(input_data_types[i], input_buffers_raw[i]));
         }
         inline for (output_data_types, 0..) |_, i| {
-            output_buffers[i] = @alignCast(std.mem.bytesAsSlice(output_data_types[i], output_buffers_raw[i]));
+            sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_data_types[i], output_buffers_raw[i]));
         }
 
         // Return typed input and output buffers
-        return .{ .inputs = input_buffers, .outputs = output_buffers };
+        return sample_buffers;
     }
 
     pub fn updateBuffers(self: *SampleMux, comptime input_data_types: []const type, samples_consumed: []const usize, comptime output_data_types: []const type, samples_produced: []const usize) void {
-        // Get data type sizes
-        const input_element_sizes: []const usize = comptime util.dataTypeSizes(input_data_types);
-        const output_element_sizes: []const usize = comptime util.dataTypeSizes(output_data_types);
-
-        self.updateBuffersFn(self.ptr, input_element_sizes, samples_consumed, output_element_sizes, samples_produced);
+        self.updateBuffersFn(self.ptr, comptime util.dataTypeSizes(input_data_types), samples_consumed, comptime util.dataTypeSizes(output_data_types), samples_produced);
     }
 
     pub fn setEOF(self: *SampleMux) void {
@@ -868,7 +855,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 
     // Leave input 2 ring buffer empty
 
-    const BufferType = SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    const BufferType = SampleMux.SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     const BufferWaiter = struct {
         fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *BufferType) !void {
@@ -950,7 +937,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     output2_writer.write(&[_]u8{0x11} ** (std.mem.page_size - 3));
     try std.testing.expectEqual(@as(usize, 2), output2_writer.getAvailable());
 
-    const BufferType = SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    const BufferType = SampleMux.SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     const BufferWaiter = struct {
         fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *BufferType) !void {
