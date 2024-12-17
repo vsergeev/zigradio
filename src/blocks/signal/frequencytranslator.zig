@@ -28,7 +28,7 @@ pub const FrequencyTranslatorBlock = struct {
             self.phase += self.omega;
         }
 
-        while (std.math.fabs(self.phase) > 2 * std.math.pi) {
+        while (@abs(self.phase) > 2 * std.math.pi) {
             self.phase -= std.math.sign(self.omega) * 2 * std.math.pi;
         }
 

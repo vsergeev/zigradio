@@ -5,52 +5,35 @@ const std = @import("std");
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const ComptimeTypeSignature = struct {
-    inputs: []type,
-    outputs: []type,
+    inputs: []const type,
+    outputs: []const type,
 
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
         const process_args = @typeInfo(@TypeOf(process_fn)).Fn.params[1..];
 
-        comptime var comptime_inputs: [process_args.len]type = undefined;
-        comptime var comptime_outputs: [process_args.len]type = undefined;
-        comptime var num_inputs: usize = 0;
-        comptime var num_outputs: usize = 0;
+        var _comptime_inputs: [process_args.len]type = undefined;
+        var _comptime_outputs: [process_args.len]type = undefined;
+        var num_inputs: usize = 0;
+        var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
             const arg_is_input = @typeInfo(arg.type orelse unreachable).Pointer.is_const;
             if (arg_is_input) {
-                comptime_inputs[num_inputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
+                _comptime_inputs[num_inputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
                 num_inputs += 1;
             } else {
-                comptime_outputs[num_outputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
+                _comptime_outputs[num_outputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
                 num_outputs += 1;
             }
         }
+
+        const comptime_inputs = _comptime_inputs;
+        const comptime_outputs = _comptime_outputs;
 
         return ComptimeTypeSignature{
             .inputs = comptime_inputs[0..num_inputs],
             .outputs = comptime_outputs[0..num_outputs],
         };
-    }
-
-    pub fn getInputTypes(comptime self: *const ComptimeTypeSignature) []const type {
-        comptime var data_types: [self.inputs.len]type = undefined;
-
-        inline for (self.inputs, 0..) |input, i| {
-            data_types[i] = input;
-        }
-
-        return data_types[0..];
-    }
-
-    pub fn getOutputTypes(comptime self: *const ComptimeTypeSignature) []const type {
-        comptime var data_types: [self.outputs.len]type = undefined;
-
-        inline for (self.outputs, 0..) |output, i| {
-            data_types[i] = output;
-        }
-
-        return data_types[0..];
     }
 };
 
@@ -92,15 +75,18 @@ pub const RuntimeDataType = enum {
 };
 
 pub const RuntimeTypeSignature = struct {
-    inputs: []RuntimeDataType,
-    outputs: []RuntimeDataType,
+    inputs: []const RuntimeDataType,
+    outputs: []const RuntimeDataType,
 
     pub fn init(comptime type_signature: ComptimeTypeSignature) RuntimeTypeSignature {
-        comptime var runtime_inputs: [type_signature.inputs.len]RuntimeDataType = undefined;
-        comptime var runtime_outputs: [type_signature.outputs.len]RuntimeDataType = undefined;
+        var _runtime_inputs: [type_signature.inputs.len]RuntimeDataType = undefined;
+        var _runtime_outputs: [type_signature.outputs.len]RuntimeDataType = undefined;
 
-        inline for (type_signature.inputs, 0..) |input, i| runtime_inputs[i] = comptime RuntimeDataType.map(input);
-        inline for (type_signature.outputs, 0..) |output, i| runtime_outputs[i] = comptime RuntimeDataType.map(output);
+        inline for (type_signature.inputs, 0..) |input, i| _runtime_inputs[i] = comptime RuntimeDataType.map(input);
+        inline for (type_signature.outputs, 0..) |output, i| _runtime_outputs[i] = comptime RuntimeDataType.map(output);
+
+        const runtime_inputs = _runtime_inputs;
+        const runtime_outputs = _runtime_outputs;
 
         return RuntimeTypeSignature{
             .inputs = runtime_inputs[0..],
@@ -161,30 +147,6 @@ test "ComptimeTypeSignature.init" {
     try std.testing.expectEqual(2, ts22.outputs.len);
     try std.testing.expectEqual(u8, ts22.outputs[0]);
     try std.testing.expectEqual(bool, ts22.outputs[1]);
-}
-
-test "ComptimeTypeSignature.getInputTypes" {
-    // 2 inputs, 2 outputs
-    const TestProcess22 = struct {
-        fn process(_: *@This(), _: []const u16, _: []const u32, _: []u8, _: []bool) void {}
-    };
-    comptime var ts22 = ComptimeTypeSignature.init(TestProcess22.process);
-    const input_types = ts22.getInputTypes();
-    try std.testing.expectEqual(2, input_types.len);
-    try std.testing.expectEqual(u16, input_types[0]);
-    try std.testing.expectEqual(u32, input_types[1]);
-}
-
-test "ComptimeTypeSignature.getOutputTypes" {
-    // 2 inputs, 2 outputs
-    const TestProcess22 = struct {
-        fn process(_: *@This(), _: []const u16, _: []const u32, _: []u8, _: []bool) void {}
-    };
-    comptime var ts22 = ComptimeTypeSignature.init(TestProcess22.process);
-    const output_types = ts22.getOutputTypes();
-    try std.testing.expectEqual(2, output_types.len);
-    try std.testing.expectEqual(u8, output_types[0]);
-    try std.testing.expectEqual(bool, output_types[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

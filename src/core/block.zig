@@ -3,11 +3,7 @@ const std = @import("std");
 const ComptimeTypeSignature = @import("type_signature.zig").ComptimeTypeSignature;
 const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
-
 const SampleMux = @import("sample_mux.zig").SampleMux;
-const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
-const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Block Errors
@@ -54,10 +50,10 @@ pub const RuntimeDifferentiation = struct {
     deinitialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) void,
     process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
-    pub fn derive(comptime block_type: anytype) []RuntimeDifferentiation {
+    pub fn derive(comptime block_type: anytype) []const RuntimeDifferentiation {
         const declarations = std.meta.declarations(block_type);
 
-        comptime var runtime_differentiations: [declarations.len]RuntimeDifferentiation = undefined;
+        comptime var _runtime_differentiations: [declarations.len]RuntimeDifferentiation = undefined;
         comptime var count: usize = 0;
 
         inline for (declarations) |decl| {
@@ -79,11 +75,11 @@ pub const RuntimeDifferentiation = struct {
                     @compileError("Source block " ++ @typeName(block_type) ++ " is missing the setRate() method.");
                 }
 
-                runtime_differentiations[count].type_signature = comptime RuntimeTypeSignature.init(type_signature);
-                runtime_differentiations[count].set_rate_fn = wrapSetRateFunction(block_type, set_rate_fn);
-                runtime_differentiations[count].initialize_fn = wrapInitializeFunction(block_type, initialize_fn);
-                runtime_differentiations[count].deinitialize_fn = wrapDeinitializeFunction(block_type, deinitialize_fn);
-                runtime_differentiations[count].process_fn = wrapProcessFunction(block_type, process_fn, type_signature);
+                _runtime_differentiations[count].type_signature = comptime RuntimeTypeSignature.init(type_signature);
+                _runtime_differentiations[count].set_rate_fn = comptime wrapSetRateFunction(block_type, set_rate_fn);
+                _runtime_differentiations[count].initialize_fn = comptime wrapInitializeFunction(block_type, initialize_fn);
+                _runtime_differentiations[count].deinitialize_fn = comptime wrapDeinitializeFunction(block_type, deinitialize_fn);
+                _runtime_differentiations[count].process_fn = comptime wrapProcessFunction(block_type, process_fn, type_signature);
 
                 count += 1;
             }
@@ -93,6 +89,8 @@ pub const RuntimeDifferentiation = struct {
             @compileError("Block " ++ @typeName(block_type) ++ " is missing a process() method.");
         }
 
+        const runtime_differentiations = _runtime_differentiations;
+
         return runtime_differentiations[0..count];
     }
 };
@@ -101,7 +99,7 @@ fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: 
     if (@TypeOf(initialize_fn) != @TypeOf(null)) {
         const impl = struct {
             fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
-                const self = @fieldParentPtr(block_type, "block", block);
+                const self: *block_type = @fieldParentPtr("block", block);
 
                 try initialize_fn(self, allocator);
             }
@@ -122,7 +120,7 @@ fn wrapDeinitializeFunction(comptime block_type: anytype, comptime deinitialize_
     if (@TypeOf(deinitialize_fn) != @TypeOf(null)) {
         const impl = struct {
             fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
-                const self = @fieldParentPtr(block_type, "block", block);
+                const self: *block_type = @fieldParentPtr("block", block);
 
                 deinitialize_fn(self, allocator);
             }
@@ -143,7 +141,7 @@ fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anyty
     if (@TypeOf(set_rate_fn) != @TypeOf(null)) {
         const impl = struct {
             fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
-                const self = @fieldParentPtr(block_type, "block", block);
+                const self: *block_type = @fieldParentPtr("block", block);
 
                 return try set_rate_fn(self, upstream_rate);
             }
@@ -155,7 +153,6 @@ fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anyty
                 _ = block;
 
                 // Default setRate() retains upstream rate
-
                 return upstream_rate;
             }
         };
@@ -163,13 +160,13 @@ fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anyty
     }
 }
 
-fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anytype, comptime type_signature: ComptimeTypeSignature) fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
+fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytype, comptime type_signature: ComptimeTypeSignature) fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
     const impl = struct {
         fn process(block: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
-            const self = @fieldParentPtr(derived_type, "block", block);
+            const self: *block_type = @fieldParentPtr("block", block);
 
             // Get buffers, catching read EOF
-            const buffers = sample_mux.getBuffers(type_signature.getInputTypes(), type_signature.getOutputTypes()) catch |err| {
+            const buffers = sample_mux.getBuffers(type_signature.inputs, type_signature.outputs) catch |err| {
                 if (err == error.EndOfFile) {
                     sample_mux.setEOF();
                     return ProcessResult.eof();
@@ -182,7 +179,7 @@ fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anyt
             const process_result = try @call(.auto, process_fn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
             // Update buffers
-            sample_mux.updateBuffers(type_signature.getInputTypes(), &process_result.samples_consumed, type_signature.getOutputTypes(), &process_result.samples_produced);
+            sample_mux.updateBuffers(type_signature.inputs, &process_result.samples_consumed, type_signature.outputs, &process_result.samples_produced);
 
             // If block completed, set write EOF
             if (process_result.eof) {
@@ -203,11 +200,11 @@ fn wrapProcessFunction(comptime derived_type: anytype, comptime process_fn: anyt
 pub fn extractBlockName(comptime block_type: type) []const u8 {
     // Split ( for generic blocks
     comptime var it = std.mem.split(u8, @typeName(block_type), "(");
-    comptime var first = it.first();
-    comptime var suffix = it.rest();
+    const first = comptime it.first();
+    const suffix = comptime it.rest();
     // Split . backwards for block name
     comptime var it_back = std.mem.splitBackwards(u8, first, ".");
-    comptime var prefix = it_back.first();
+    const prefix = comptime it_back.first();
 
     // Concatenate prefix and suffix
     return prefix ++ (if (suffix.len > 0) "(" else "") ++ suffix;
@@ -223,12 +220,16 @@ pub const Block = struct {
     _rate: ?f64 = null,
 
     pub fn init(comptime block_type: type) Block {
-        comptime var differentiations = RuntimeDifferentiation.derive(block_type);
-        comptime var inputs: [differentiations[0].type_signature.inputs.len][]const u8 = undefined;
-        comptime var outputs: [differentiations[0].type_signature.outputs.len][]const u8 = undefined;
+        const differentiations = comptime RuntimeDifferentiation.derive(block_type);
 
-        inline for (differentiations[0].type_signature.inputs, 0..) |_, i| inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
-        inline for (differentiations[0].type_signature.outputs, 0..) |_, i| outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
+        comptime var _inputs: [differentiations[0].type_signature.inputs.len][]const u8 = undefined;
+        comptime var _outputs: [differentiations[0].type_signature.outputs.len][]const u8 = undefined;
+
+        inline for (differentiations[0].type_signature.inputs, 0..) |_, i| _inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
+        inline for (differentiations[0].type_signature.outputs, 0..) |_, i| _outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
+
+        const inputs = _inputs;
+        const outputs = _outputs;
 
         return .{
             .name = comptime extractBlockName(block_type),
@@ -289,6 +290,7 @@ pub const Block = struct {
 
     pub fn getRate(self: *Block, comptime T: type) BlockError!T {
         if (self._differentiation == null) return BlockError.NotDifferentiated;
+
         return std.math.lossyCast(T, self._rate.?);
     }
 };
@@ -296,6 +298,10 @@ pub const Block = struct {
 ////////////////////////////////////////////////////////////////////////////////
 // Block Tests
 ////////////////////////////////////////////////////////////////////////////////
+
+const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
+const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
+const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 const TestBlock = struct {
     block: Block,
@@ -395,7 +401,7 @@ const TestSource = struct {
 };
 
 test "Block.init" {
-    var test_block = TestBlock.init();
+    const test_block = TestBlock.init();
 
     try std.testing.expectEqualSlices(u8, test_block.block.name, "TestBlock");
     try std.testing.expectEqual(test_block.block.differentiations.len, 3);

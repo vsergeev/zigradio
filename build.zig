@@ -15,7 +15,7 @@ const examples = [_]Example{
 // FIXME not exactly portable or stable
 fn getPlatformPackages(self: *std.Build) ![]const []const u8 {
     var code: u8 = undefined;
-    const stdout = try self.execAllowFail(&[_][]const u8{ "pkg-config", "--list-all" }, &code, .Ignore);
+    const stdout = try self.runAllowFail(&[_][]const u8{ "pkg-config", "--list-all" }, &code, .Ignore);
     var list = std.ArrayList([]const u8).init(self.allocator);
     errdefer list.deinit();
     var line_it = std.mem.tokenize(u8, stdout, "\r\n");
@@ -40,12 +40,12 @@ pub fn build(b: *std.Build) !void {
 
     // Create radio module
     const radio_module = b.addModule("radio", .{
-        .source_file = .{ .path = "src/radio.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "src/radio.zig" },
+        .imports = &.{
             .{ .name = "platform_options", .module = platform_options_module },
         },
     });
-    try radio_module.dependencies.put("radio", radio_module);
+    radio_module.addImport("radio", radio_module);
 
     // Build examples
     const examples_step = b.step("examples", "Build examples");
@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
         });
-        exe.addModule("radio", radio_module);
+        exe.root_module.addImport("radio", radio_module);
         exe.linkLibC();
         for (example.libs) |libname| exe.linkSystemLibrary(libname);
 

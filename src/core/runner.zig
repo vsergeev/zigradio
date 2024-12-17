@@ -1,15 +1,10 @@
 const std = @import("std");
 
 const Block = @import("block.zig").Block;
-const ProcessResult = @import("block.zig").ProcessResult;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Runner Errors
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-// Runner
+// ThreadedBlockRunner
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const ThreadedBlockRunner = struct {
@@ -70,6 +65,7 @@ pub const ThreadedBlockRunner = struct {
 
 const builtin = @import("builtin");
 
+const ProcessResult = @import("block.zig").ProcessResult;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;

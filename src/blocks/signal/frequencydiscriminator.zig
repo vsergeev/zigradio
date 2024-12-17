@@ -23,7 +23,7 @@ pub const FrequencyDiscriminatorBlock = struct {
     pub fn process(self: *FrequencyDiscriminatorBlock, x: []const std.math.Complex(f32), z: []f32) !ProcessResult {
         for (x, 0..) |_, i| {
             const tmp = x[i].mul((if (i == 0) self.prev_sample else x[i - 1]).conjugate());
-            z[i] = std.math.atan2(f32, tmp.im, tmp.re) * (1.0 / self.gain);
+            z[i] = std.math.atan2(tmp.im, tmp.re) * (1.0 / self.gain);
         }
 
         self.prev_sample = x[x.len - 1];

@@ -70,16 +70,16 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
     var evaluation_order = std.AutoArrayHashMap(*Block, void).init(allocator);
     errdefer evaluation_order.deinit();
 
-    var num_blocks = block_set_copy.count();
+    const num_blocks = block_set_copy.count();
     while (evaluation_order.count() < num_blocks) {
         // For each block left in the block set
         var block_it = block_set_copy.keyIterator();
-        var next_block: ?*Block = outer: while (block_it.next()) |k| {
+        const next_block: ?*Block = outer: while (block_it.next()) |k| {
             // For each input to the block
             var index: usize = 0;
             while (index < k.*.inputs.len) : (index += 1) {
                 // Check if upstream block is already in our evaluation order
-                var upstream_block = flattened_connections.get(BlockInputPort{ .block = k.*, .index = index }).?.block;
+                const upstream_block = flattened_connections.get(BlockInputPort{ .block = k.*, .index = index }).?.block;
                 if (!evaluation_order.contains(upstream_block)) {
                     // Continue to next block
                     continue :outer;
@@ -87,7 +87,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
             }
             // Yield this block to add
             break k.*;
-        } orelse null;
+        } else null;
 
         // If we couldn't find a block to add, there is a dependency cycle
         if (next_block == null) return FlowgraphError.CyclicDependency;
@@ -372,7 +372,7 @@ pub const Flowgraph = struct {
             }
 
             // Get upstream rate
-            var upstream_rate = if (block.inputs.len > 0) try self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
+            const upstream_rate = if (block.inputs.len > 0) try self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
 
             // Differentiate the block
             try block.differentiate(input_types, upstream_rate);
@@ -1529,7 +1529,7 @@ test "Flowgraph start, stop" {
 
     // Generate expected output buffer
     var prng = std.rand.DefaultPrng.init(123);
-    var expected_output_vector = try std.testing.allocator.alloc(u8, sink_block.buf.items.len);
+    const expected_output_vector = try std.testing.allocator.alloc(u8, sink_block.buf.items.len);
     defer std.testing.allocator.free(expected_output_vector);
     prng.fill(expected_output_vector);
     for (expected_output_vector) |*e| {

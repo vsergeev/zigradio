@@ -53,12 +53,12 @@ pub const SampleMux = struct {
 
     pub fn getBuffers(self: *SampleMux, comptime input_data_types: []const type, comptime output_data_types: []const type) error{EndOfFile}!SampleBuffers(input_data_types, output_data_types) {
         // Get data type sizes
-        comptime var input_element_sizes: []const usize = util.dataTypeSizes(input_data_types);
-        comptime var output_element_sizes: []const usize = util.dataTypeSizes(output_data_types);
+        const input_element_sizes: []const usize = comptime util.dataTypeSizes(input_data_types);
+        const output_element_sizes: []const usize = comptime util.dataTypeSizes(output_data_types);
 
         // Get raw byte buffers
-        var input_buffers_raw: [input_data_types.len][]const u8 = undefined;
-        var output_buffers_raw: [output_data_types.len][]u8 = undefined;
+        var input_buffers_raw: [input_data_types.len][]align(std.mem.page_size) const u8 = undefined;
+        var output_buffers_raw: [output_data_types.len][]align(std.mem.page_size) u8 = undefined;
         try self.getBuffersFn(self.ptr, input_element_sizes, input_buffers_raw[0..], output_element_sizes, output_buffers_raw[0..]);
 
         // Translate into typed buffers
@@ -405,7 +405,7 @@ test "TestSampleMux eof" {
 
     var sample_mux = test_sample_mux.sampleMux();
 
-    var buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    const buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs[0].len);

@@ -36,7 +36,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             // Prepare sample spec
             const sample_spec = pulse_simple.pa_sample_spec{
-                .format = if (builtin.target.cpu.arch.endian() == std.builtin.Endian.Little) pulse_simple.PA_SAMPLE_FLOAT32LE else pulse_simple.PA_SAMPLE_FLOAT32BE,
+                .format = if (builtin.target.cpu.arch.endian() == std.builtin.Endian.little) pulse_simple.PA_SAMPLE_FLOAT32LE else pulse_simple.PA_SAMPLE_FLOAT32BE,
                 .rate = try self.block.getRate(u32),
                 .channels = N,
             };

@@ -9,7 +9,7 @@ const CopiedMemoryImpl = struct {
     buf: []u8,
 
     pub fn init(allocator: std.mem.Allocator, capacity: usize) !CopiedMemoryImpl {
-        var buf = try allocator.alloc(u8, capacity * 2);
+        const buf = try allocator.alloc(u8, capacity * 2);
 
         // Zero initialize buffer
         for (buf) |*e| e.* = 0;
@@ -30,7 +30,7 @@ const CopiedMemoryImpl = struct {
 };
 
 const MappedMemoryImpl = struct {
-    fd: std.os.fd_t,
+    fd: std.posix.fd_t,
     buf: []align(std.mem.page_size) u8,
 
     const MappingError = error{
@@ -39,19 +39,19 @@ const MappedMemoryImpl = struct {
 
     pub fn init(_: std.mem.Allocator, capacity: usize) !MappedMemoryImpl {
         // Create memfd
-        const fd = try std.os.memfd_create("ring_buffer_mem", 0);
-        errdefer std.os.close(fd);
+        const fd = try std.posix.memfd_create("ring_buffer_mem", 0);
+        errdefer std.posix.close(fd);
 
         // Size memory
-        try std.os.ftruncate(fd, capacity);
+        try std.posix.ftruncate(fd, capacity);
 
         // Map the file with two regions of capacity
-        const mapping1 = try std.os.mmap(null, 2 * capacity, std.os.PROT.READ | std.os.PROT.WRITE, std.os.MAP.SHARED, fd, 0);
-        errdefer std.os.munmap(mapping1);
+        const mapping1 = try std.posix.mmap(null, 2 * capacity, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .TYPE = .SHARED }, fd, 0);
+        errdefer std.posix.munmap(mapping1);
 
         // Remap second region to first
-        const mapping2 = try std.os.mmap(@alignCast(mapping1.ptr + capacity), capacity, std.os.PROT.READ | std.os.PROT.WRITE, std.os.MAP.SHARED | std.os.MAP.FIXED, fd, 0);
-        errdefer std.os.munmap(mapping2);
+        const mapping2 = try std.posix.mmap(@alignCast(mapping1.ptr + capacity), capacity, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .TYPE = .SHARED, .FIXED = true }, fd, 0);
+        errdefer std.posix.munmap(mapping2);
 
         // Validate mapping is adjacent
         if (@intFromPtr(mapping2.ptr) < @intFromPtr(mapping1.ptr) or @intFromPtr(mapping2.ptr) - @intFromPtr(mapping1.ptr) != capacity) {
@@ -62,8 +62,8 @@ const MappedMemoryImpl = struct {
     }
 
     pub fn deinit(self: *MappedMemoryImpl) void {
-        std.os.munmap(self.buf);
-        std.os.close(self.fd);
+        std.posix.munmap(self.buf);
+        std.posix.close(self.fd);
     }
 
     pub fn alias(_: *MappedMemoryImpl, _: usize, _: usize, _: usize) void {
@@ -169,7 +169,6 @@ fn RingBuffer(comptime MemoryImpl: type) type {
             // Find lagging reader index
             var min_weight: usize = std.math.maxInt(usize);
             var min_index: usize = 0;
-
             for (self.read_index[0..self.num_readers], 0..) |read_index, i| {
                 const weight = if (read_index <= self.write_index) read_index + self.capacity else read_index;
                 if (weight < min_weight) {
@@ -314,6 +313,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 }
             }
 
+            // Write interface for testing
             pub fn write(self: *@This(), data: []const u8) void {
                 std.debug.assert(self.getAvailable() >= data.len);
                 @memcpy(self.getBuffer(data.len), data);
@@ -362,6 +362,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 }
             }
 
+            // Read interface for testing
             pub fn read(self: *@This(), data: []u8) []u8 {
                 std.debug.assert(self.getAvailable() catch unreachable >= data.len);
                 @memcpy(data, self.getBuffer(data.len));

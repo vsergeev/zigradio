@@ -3,10 +3,7 @@ const std = @import("std");
 const util = @import("util.zig");
 
 const Block = @import("block.zig").Block;
-const BlockError = @import("block.zig").BlockError;
-const ProcessResult = @import("block.zig").ProcessResult;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
-
 const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 
@@ -66,7 +63,7 @@ pub const BlockTester = struct {
 
     pub fn check(self: *BlockTester, rate: f64, comptime input_data_types: []const type, input_vectors: util.makeTupleConstSliceTypes(input_data_types), comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
         // Create runtime data types
-        comptime var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
+        var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
         inline for (input_data_types, 0..) |t, i| {
             runtime_data_types[i] = comptime RuntimeDataType.map(t);
         }
@@ -161,16 +158,19 @@ pub const BlockTester = struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn waitForInterrupt() void {
-    var mask = std.os.empty_sigset;
+    var mask = std.posix.empty_sigset;
     var signal: c_int = undefined;
-    std.os.linux.sigaddset(&mask, std.os.SIG.INT);
-    _ = std.c.sigprocmask(std.os.SIG.BLOCK, &mask, null);
+    std.os.linux.sigaddset(&mask, std.posix.SIG.INT);
+    _ = std.c.sigprocmask(std.posix.SIG.BLOCK, &mask, null);
     _ = std.c.sigwait(&mask, &signal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
+
+const BlockError = @import("block.zig").BlockError;
+const ProcessResult = @import("block.zig").ProcessResult;
 
 const TestBlock = struct {
     block: Block,

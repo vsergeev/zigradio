@@ -5,17 +5,19 @@ const std = @import("std");
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn dataTypeSizes(comptime data_types: []const type) []const usize {
-    comptime var data_type_sizes: [data_types.len]usize = undefined;
+    var _data_type_sizes: [data_types.len]usize = undefined;
 
     inline for (data_types, 0..) |data_type, i| {
-        data_type_sizes[i] = @sizeOf(data_type);
+        _data_type_sizes[i] = @sizeOf(data_type);
     }
+
+    const data_type_sizes = _data_type_sizes;
 
     return data_type_sizes[0..];
 }
 
 pub fn makeTupleConstSliceTypes(comptime data_types: []const type) type {
-    comptime var slice_data_types: [data_types.len]type = undefined;
+    var slice_data_types: [data_types.len]type = undefined;
 
     inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = []const data_type;
@@ -25,7 +27,7 @@ pub fn makeTupleConstSliceTypes(comptime data_types: []const type) type {
 }
 
 pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
-    comptime var slice_data_types: [data_types.len]type = undefined;
+    var slice_data_types: [data_types.len]type = undefined;
 
     inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = []data_type;
@@ -35,7 +37,7 @@ pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
 }
 
 pub fn makeTuplePointerSliceTypes(comptime data_types: []const type) type {
-    comptime var slice_data_types: [data_types.len]type = undefined;
+    var slice_data_types: [data_types.len]type = undefined;
 
     inline for (data_types, 0..) |data_type, i| {
         slice_data_types[i] = *[]const data_type;
@@ -95,8 +97,8 @@ test "dereference tuple pointer slices" {
     var a: []const u8 = "hello";
     var b: []const u32 = &[_]u32{ 0xdeadbeef, 0xcafecafe };
 
-    var x: makeTuplePointerSliceTypes(&[2]type{ u8, u32 }) = .{ &a, &b };
-    var y = dereferenceTuplePointerSlices(&[2]type{ u8, u32 }, x);
+    const x: makeTuplePointerSliceTypes(&[2]type{ u8, u32 }) = .{ &a, &b };
+    const y = dereferenceTuplePointerSlices(&[2]type{ u8, u32 }, x);
 
     try std.testing.expectEqualSlices(u8, "hello", y[0]);
     try std.testing.expectEqualSlices(u32, &[_]u32{ 0xdeadbeef, 0xcafecafe }, y[1]);

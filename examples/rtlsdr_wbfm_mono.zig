@@ -5,12 +5,12 @@ const radio = @import("radio");
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-    var args = try std.process.argsAlloc(gpa.allocator());
+    const args = try std.process.argsAlloc(gpa.allocator());
     defer std.process.argsFree(gpa.allocator(), args);
 
     if (args.len < 2) {
         std.debug.print("Usage: {s} <FM radio frequency>\n", .{args[0]});
-        std.os.exit(1);
+        std.posix.exit(1);
     }
 
     const frequency = try std.fmt.parseFloat(f64, args[1]);

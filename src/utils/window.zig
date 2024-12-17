@@ -23,7 +23,7 @@ pub fn window(comptime N: comptime_int, func: WindowFunction, periodic: bool) [N
             WindowFunction.Rectangular => 1.0,
             WindowFunction.Hamming => 0.54 - 0.46 * std.math.cos((2 * std.math.pi * index) / (M - 1)),
             WindowFunction.Hanning => 0.5 - 0.5 * std.math.cos((2 * std.math.pi * index) / (M - 1)),
-            WindowFunction.Bartlett => (2 / (M - 1)) * ((M - 1) / 2 - std.math.fabs(index - (M - 1) / 2)),
+            WindowFunction.Bartlett => (2 / (M - 1)) * ((M - 1) / 2 - @abs(index - (M - 1) / 2)),
             WindowFunction.Blackman => 0.42 - 0.5 * std.math.cos((2 * std.math.pi * index) / (M - 1)) + 0.08 * std.math.cos((4 * std.math.pi * index) / (M - 1)),
         };
     }

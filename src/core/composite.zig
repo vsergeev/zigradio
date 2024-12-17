@@ -11,7 +11,7 @@ const Flowgraph = @import("flowgraph.zig").Flowgraph;
 fn wrapConnectFunction(comptime block_type: anytype, comptime connect_fn: anytype) fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
     const impl = struct {
         fn connect(block: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
-            const self = @fieldParentPtr(block_type, "composite", block);
+            const self: *block_type = @fieldParentPtr("composite", block);
 
             try connect_fn(self, flowgraph);
         }
