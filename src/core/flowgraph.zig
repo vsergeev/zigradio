@@ -75,10 +75,9 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
         var block_it = block_set_copy.keyIterator();
         const next_block: ?*Block = outer: while (block_it.next()) |k| {
             // For each input to the block
-            var index: usize = 0;
-            while (index < k.*.inputs.len) : (index += 1) {
+            for (0..k.*.inputs.len) |i| {
                 // Check if upstream block is already in our evaluation order
-                const upstream_block = flattened_connections.get(BlockInputPort{ .block = k.*, .index = index }).?.block;
+                const upstream_block = flattened_connections.get(BlockInputPort{ .block = k.*, .index = i }).?.block;
                 if (!evaluation_order.contains(upstream_block)) {
                     // Continue to next block
                     continue :outer;
@@ -143,16 +142,14 @@ const FlowgraphRunState = struct {
             output_ring_buffers.clearRetainingCapacity();
 
             // Collect input ring buffers
-            var input_index: usize = 0;
-            while (input_index < block.*.inputs.len) : (input_index += 1) {
-                const output = flattened_connections.get(BlockInputPort{ .block = block.*, .index = input_index }).?;
+            for (0..block.*.inputs.len) |i| {
+                const output = flattened_connections.get(BlockInputPort{ .block = block.*, .index = i }).?;
                 try input_ring_buffers.append(ring_buffers.getPtr(output).?);
             }
 
             // Collect output ring buffers
-            var output_index: usize = 0;
-            while (output_index < block.*.outputs.len) : (output_index += 1) {
-                try output_ring_buffers.append(ring_buffers.getPtr(BlockOutputPort{ .block = block.*, .index = output_index }).?);
+            for (0..block.*.outputs.len) |i| {
+                try output_ring_buffers.append(ring_buffers.getPtr(BlockOutputPort{ .block = block.*, .index = i }).?);
             }
 
             // Create block runner
@@ -328,8 +325,7 @@ pub const Flowgraph = struct {
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |k| {
             // Check all inputs are connected
-            var i: usize = 0;
-            while (i < k.*.inputs.len) : (i += 1) {
+            for (0..k.*.inputs.len) |i| {
                 if (!self.flattened_connections.contains(BlockInputPort{ .block = k.*, .index = i })) {
                     return FlowgraphError.InputPortUnconnected;
                 }
@@ -345,8 +341,7 @@ pub const Flowgraph = struct {
             defer self.allocator.free(input_types);
 
             // For each block input port, collect the type of the connected output port
-            var i: usize = 0;
-            while (i < block.inputs.len) : (i += 1) {
+            for (0..block.inputs.len) |i| {
                 const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
                 input_types[i] = try output_port.block.getOutputType(output_port.index);
             }
@@ -358,7 +353,7 @@ pub const Flowgraph = struct {
             try block.differentiate(input_types, upstream_rate);
 
             // Compare other input port rates
-            i = 1;
+            var i: usize = 1;
             while (i < block.inputs.len) : (i += 1) {
                 const rate = try self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?.block.getRate(f64);
                 if (rate != upstream_rate) return FlowgraphError.RateMismatch;
@@ -402,8 +397,7 @@ pub const Flowgraph = struct {
             std.debug.print("[Flowgraph]    {s} [{d} Hz]\n", .{ block.name, block.getRate(f64) catch unreachable });
 
             // For each input port
-            var i: usize = 0;
-            while (i < block.inputs.len) : (i += 1) {
+            for (0..block.inputs.len) |i| {
                 const input_port_name = block.inputs[i];
                 const input_port_type = block.getInputType(i) catch unreachable;
                 const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
@@ -413,8 +407,7 @@ pub const Flowgraph = struct {
             }
 
             // For each output port
-            i = 0;
-            while (i < block.outputs.len) : (i += 1) {
+            for (0..block.outputs.len) |i| {
                 const output_port_name = block.outputs[i];
                 const output_port_type = block.getOutputType(i) catch unreachable;
 
