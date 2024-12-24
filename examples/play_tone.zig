@@ -13,6 +13,6 @@ pub fn main() !void {
     try top.connect(&source.block, &sink.block);
 
     try top.start();
-    radio.testing.waitForInterrupt();
+    radio.platform.waitForInterrupt();
     try top.stop();
 }

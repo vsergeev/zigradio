@@ -38,6 +38,6 @@ pub fn main() !void {
     try top.connect(&af_downsampler.block, &sink.block);
 
     try top.start();
-    radio.testing.waitForInterrupt();
+    radio.platform.waitForInterrupt();
     try top.stop();
 }
