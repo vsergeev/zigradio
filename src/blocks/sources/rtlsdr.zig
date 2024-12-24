@@ -230,8 +230,7 @@ pub const RtlSdrSource = struct {
 
         // Convert complex u8 samples to complex float samples
         const num_samples: usize = @divExact(@as(usize, @intCast(num_read)), 2);
-        var i: usize = 0;
-        while (i < num_samples) : (i += 1) {
+        for (0..num_samples) |i| {
             z[i] = std.math.Complex(f32).init((@as(f32, @floatFromInt(self.buf[2 * i])) - 127.5) * (1.0 / 127.5), (@as(f32, @floatFromInt(self.buf[2 * i + 1])) - 127.5) * (1.0 / 127.5));
         }
 
