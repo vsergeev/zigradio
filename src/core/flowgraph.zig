@@ -7,7 +7,6 @@ const CompositeBlock = @import("composite.zig").CompositeBlock;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +105,6 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
 
 const FlowgraphRunState = struct {
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
-    sample_muxes: std.AutoHashMap(*Block, ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer)),
     block_runners: std.ArrayList(ThreadedBlockRunner),
 
     const RING_BUFFER_SIZE = 2 * 1048576;
@@ -119,13 +117,7 @@ const FlowgraphRunState = struct {
             while (ring_buffers_it.next()) |ring_buffer| ring_buffer.deinit();
             ring_buffers.deinit();
         }
-        // Allocate sample mux map
-        var sample_muxes = std.AutoHashMap(*Block, ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer)).init(allocator);
-        errdefer {
-            var sample_muxes_it = sample_muxes.valueIterator();
-            while (sample_muxes_it.next()) |sample_mux| sample_mux.deinit();
-            sample_muxes.deinit();
-        }
+
         // Allocate block runner list
         var block_runners = std.ArrayList(ThreadedBlockRunner).init(allocator);
         errdefer block_runners.deinit();
@@ -143,7 +135,7 @@ const FlowgraphRunState = struct {
         var output_ring_buffers = std.ArrayList(*ThreadSafeRingBuffer).init(allocator);
         defer output_ring_buffers.deinit();
 
-        // For each block, create a sample mux
+        // For each block, collect ring buffers and create a block runner
         var block_it = block_set.keyIterator();
         while (block_it.next()) |block| {
             // Clear temporary ring buffer arrays
@@ -163,20 +155,12 @@ const FlowgraphRunState = struct {
                 try output_ring_buffers.append(ring_buffers.getPtr(BlockOutputPort{ .block = block.*, .index = output_index }).?);
             }
 
-            // Create sample mux
-            try sample_muxes.put(block.*, try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(allocator, input_ring_buffers.items, output_ring_buffers.items));
-        }
-
-        // For each block, create a block runner
-        block_it = block_set.keyIterator();
-        while (block_it.next()) |block| {
             // Create block runner
-            try block_runners.append(ThreadedBlockRunner.init(block.*, sample_muxes.getPtr(block.*).?.sampleMux()));
+            try block_runners.append(try ThreadedBlockRunner.init(allocator, block.*, input_ring_buffers.items, output_ring_buffers.items));
         }
 
         return .{
             .ring_buffers = ring_buffers,
-            .sample_muxes = sample_muxes,
             .block_runners = block_runners,
         };
     }
@@ -184,10 +168,6 @@ const FlowgraphRunState = struct {
     pub fn deinit(self: *FlowgraphRunState) void {
         for (self.block_runners.items) |*block_runner| block_runner.deinit();
         self.block_runners.deinit();
-
-        var sample_muxes_it = self.sample_muxes.valueIterator();
-        while (sample_muxes_it.next()) |sample_mux| sample_mux.deinit();
-        self.sample_muxes.deinit();
 
         var ring_buffers_it = self.ring_buffers.valueIterator();
         while (ring_buffers_it.next()) |ring_buffer| ring_buffer.deinit();
@@ -496,7 +476,7 @@ pub const Flowgraph = struct {
         // For each block runner
         for (self.run_state.?.block_runners.items) |*block_runner| {
             // If this block is a source
-            if (block_runner.instance.inputs.len == 0) {
+            if (block_runner.block.inputs.len == 0) {
                 // Stop the block
                 block_runner.stop();
             }
