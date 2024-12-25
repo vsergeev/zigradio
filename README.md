@@ -53,7 +53,7 @@ Check out some more [examples](examples) of what you can build with ZigRadio.
 
 ## Building
 
-ZigRadio requires Zig version 0.11.0 or later.
+ZigRadio requires Zig version 0.13.0 or later.
 
 ```
 $ git clone https://github.com/vsergeev/zigradio.git
@@ -63,7 +63,7 @@ $ cd zigradio
 Build examples:
 
 ``` shell
-$ zig build -Doptimize=ReleaseFast examples
+$ zig build --release=fast examples
 ```
 
 Try out one of the [examples](examples) with an
