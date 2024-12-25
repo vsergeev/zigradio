@@ -17,9 +17,7 @@ pub fn main() !void {
     const tune_offset = -250e3;
 
     var source = radio.blocks.RtlSdrSource.init(frequency + tune_offset, 1102500, .{ .debug = true });
-    var if_translator = radio.blocks.FrequencyTranslatorBlock.init(tune_offset);
-    var if_filter = radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 128).init(100e3, .{});
-    var if_downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(5);
+    var tuner = radio.blocks.TunerBlock.init(tune_offset, 100e3, 5);
     var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(1.25);
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(15e3, .{});
     var af_deemphasis = radio.blocks.FMDeemphasisFilterBlock.init(75e-6);
@@ -28,10 +26,9 @@ pub fn main() !void {
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();
-    try top.connect(&source.block, &if_translator.block);
-    try top.connect(&if_translator.block, &if_filter.block);
-    try top.connect(&if_filter.block, &if_downsampler.block);
-    try top.connect(&if_downsampler.block, &fm_demod.block);
+
+    try top.connect(&source.block, &tuner.composite);
+    try top.connect(&tuner.composite, &fm_demod.block);
     try top.connect(&fm_demod.block, &af_filter.block);
     try top.connect(&af_filter.block, &af_deemphasis.block);
     try top.connect(&af_deemphasis.block, &af_downsampler.block);
