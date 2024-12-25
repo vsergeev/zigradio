@@ -8,15 +8,15 @@ jobs:
   tests:
     strategy:
       matrix:
-        zig-version: [ 0.11.0 ]
+        zig-version: [ 0.13.0 ]
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
 
     - name: Setup Zig
-      uses: korandoru/setup-zig@v1
+      uses: mlugg/setup-zig@v1
       with:
         zig-version: ${{ matrix.zig-version }}
 
