@@ -10,16 +10,14 @@ const _IIRFilterBlock = @import("./iirfilter.zig")._IIRFilterBlock;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
-    return struct {
-        pub const DerivedBlock = _IIRFilterBlock(T, 2, 2, @This());
-
+    return _IIRFilterBlock(T, 2, 2, struct {
         cutoff: f32,
 
-        pub fn init(cutoff: f32) DerivedBlock {
-            return DerivedBlock.init(.{ .cutoff = cutoff });
+        pub fn init(cutoff: f32) SinglepoleLowpassFilterBlock(T) {
+            return SinglepoleLowpassFilterBlock(T)._init(.{ .cutoff = cutoff });
         }
 
-        pub fn initialize(self: *DerivedBlock, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *SinglepoleLowpassFilterBlock(T), _: std.mem.Allocator) !void {
             // Compute wraped tau
             const rate = try self.block.getRate(f32);
             const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.context.cutoff) / rate));
@@ -30,7 +28,7 @@ pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
             self.a_taps[0] = 1;
             self.a_taps[1] = (1 - 2 * tau * rate) / (1 + 2 * tau * rate);
         }
-    };
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

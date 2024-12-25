@@ -27,7 +27,9 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
         input_state: [N]T = [_]T{zero(T)} ** N,
         output_state: [M - 1]T = [_]T{zero(T)} ** (M - 1),
 
-        pub fn init(context: Context) Self {
+        pub const init = Context.init;
+
+        pub fn _init(context: Context) Self {
             return .{ .block = Block.init(@This()), .context = context };
         }
 
@@ -35,7 +37,7 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
             for (&self.input_state) |*e| e.* = zero(T);
             for (&self.output_state) |*e| e.* = zero(T);
 
-            if (Context != void) {
+            if (@hasDecl(Context, "initialize")) {
                 return Context.initialize(self, allocator);
             }
         }
@@ -62,14 +64,14 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
 }
 
 pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int) type {
-    return struct {
-        pub fn init(b_taps: [N]f32, a_taps: [M]f32) _IIRFilterBlock(T, N, M, void) {
-            var block = _IIRFilterBlock(T, N, M, void).init(void{});
+    return _IIRFilterBlock(T, N, M, struct {
+        pub fn init(b_taps: [N]f32, a_taps: [M]f32) IIRFilterBlock(T, N, M) {
+            var block = IIRFilterBlock(T, N, M)._init(.{});
             @memcpy(&block.b_taps, &b_taps);
             @memcpy(&block.a_taps, &a_taps);
             return block;
         }
-    };
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

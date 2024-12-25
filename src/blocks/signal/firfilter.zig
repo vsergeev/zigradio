@@ -19,14 +19,16 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
         taps: [N]f32 = [_]f32{0} ** N,
         state: [N]T = [_]T{zero(T)} ** N,
 
-        pub fn init(context: Context) Self {
+        pub const init = Context.init;
+
+        pub fn _init(context: Context) Self {
             return .{ .block = Block.init(@This()), .context = context };
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             for (&self.state) |*e| e.* = zero(T);
 
-            if (Context != void) {
+            if (@hasDecl(Context, "initialize")) {
                 return Context.initialize(self, allocator);
             }
         }
@@ -48,13 +50,13 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
 }
 
 pub fn FIRFilterBlock(comptime T: type, comptime N: comptime_int) type {
-    return struct {
-        pub fn init(taps: [N]f32) _FIRFilterBlock(T, N, void) {
-            var block = _FIRFilterBlock(T, N, void).init(void{});
+    return _FIRFilterBlock(T, N, struct {
+        pub fn init(taps: [N]f32) FIRFilterBlock(T, N) {
+            var block = FIRFilterBlock(T, N)._init(.{});
             @memcpy(&block.taps, &taps);
             return block;
         }
-    };
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@ const SinglepoleLowpassFilterBlock = @import("./singlepolelowpassfilter.zig").Si
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const FMDeemphasisFilterBlock = struct {
-    pub fn init(tau: f32) SinglepoleLowpassFilterBlock(f32).DerivedBlock {
+    pub fn init(tau: f32) SinglepoleLowpassFilterBlock(f32) {
         return SinglepoleLowpassFilterBlock(f32).init(1 / (2 * std.math.pi * tau));
     }
 };

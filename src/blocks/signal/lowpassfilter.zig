@@ -13,9 +13,7 @@ const firwinLowpass = @import("../../radio.zig").utils.filter.firwinLowpass;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
-    return struct {
-        const Context = @This();
-
+    return _FIRFilterBlock(T, N, struct {
         pub const Options = struct {
             nyquist: ?f32 = null,
             window: WindowFunction = WindowFunction.Hamming,
@@ -24,18 +22,18 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
         cutoff: f32,
         options: Options,
 
-        pub fn init(cutoff: f32, options: Options) _FIRFilterBlock(T, N, Context) {
-            return _FIRFilterBlock(T, N, Context).init(Context{ .cutoff = cutoff, .options = options });
+        pub fn init(cutoff: f32, options: Options) LowpassFilterBlock(T, N) {
+            return LowpassFilterBlock(T, N)._init(.{ .cutoff = cutoff, .options = options });
         }
 
-        pub fn initialize(self: *_FIRFilterBlock(T, N, Context), _: std.mem.Allocator) !void {
+        pub fn initialize(self: *LowpassFilterBlock(T, N), _: std.mem.Allocator) !void {
             // Compute Nyquist frequency
             const nyquist = self.context.options.nyquist orelse try self.block.getRate(f32) / 2;
 
             // Generate taps
             self.taps = firwinLowpass(N, self.context.cutoff / nyquist, self.context.options.window);
         }
-    };
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
