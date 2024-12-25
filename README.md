@@ -82,6 +82,7 @@ $ ./zig-out/bin/example-rtlsdr_wbfm_mono 89.7e6
         * [sources/](src/blocks/sources) - Sources
         * [sinks/](src/blocks/sinks) - Sinks
         * [signal/](src/blocks/signal) - Signal blocks
+        * [composites/](src/blocks/composites) - Composite blocks
     * [utils/](src/utils) - Utility functions
     * [vectors/](src/vectors) - Generated test vectors
 * [examples/](examples) - Examples
