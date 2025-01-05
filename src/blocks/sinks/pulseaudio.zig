@@ -4,11 +4,51 @@ const builtin = @import("builtin");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
-const platform = @import("../../radio.zig").platform;
-const pulse_simple = @cImport({
-    @cInclude("pulse/simple.h");
-    @cInclude("pulse/error.h");
-});
+////////////////////////////////////////////////////////////////////////////////
+// libpulse-simple API
+////////////////////////////////////////////////////////////////////////////////
+
+const struct_pa_simple = opaque {};
+const pa_simple = struct_pa_simple;
+
+const PA_STREAM_PLAYBACK: c_int = 1;
+const enum_pa_stream_direction = c_uint;
+const pa_stream_direction_t = enum_pa_stream_direction;
+
+const PA_SAMPLE_FLOAT32LE: c_int = 5;
+const PA_SAMPLE_FLOAT32BE: c_int = 6;
+const enum_pa_sample_format = c_int;
+const pa_sample_format_t = enum_pa_sample_format;
+
+const struct_pa_sample_spec = extern struct {
+    format: pa_sample_format_t = @import("std").mem.zeroes(pa_sample_format_t),
+    rate: u32 = @import("std").mem.zeroes(u32),
+    channels: u8 = @import("std").mem.zeroes(u8),
+};
+const pa_sample_spec = struct_pa_sample_spec;
+
+const struct_pa_buffer_attr = extern struct {
+    maxlength: u32 = @import("std").mem.zeroes(u32),
+    tlength: u32 = @import("std").mem.zeroes(u32),
+    prebuf: u32 = @import("std").mem.zeroes(u32),
+    minreq: u32 = @import("std").mem.zeroes(u32),
+    fragsize: u32 = @import("std").mem.zeroes(u32),
+};
+const pa_buffer_attr = struct_pa_buffer_attr;
+
+const enum_pa_channel_position = c_int;
+const pa_channel_position_t = enum_pa_channel_position;
+const struct_pa_channel_map = extern struct {
+    channels: u8 = @import("std").mem.zeroes(u8),
+    map: [32]pa_channel_position_t = @import("std").mem.zeroes([32]pa_channel_position_t),
+};
+const pa_channel_map = struct_pa_channel_map;
+
+var pa_simple_new: *const fn (server: [*c]const u8, name: [*c]const u8, dir: pa_stream_direction_t, dev: [*c]const u8, stream_name: [*c]const u8, ss: [*c]const pa_sample_spec, map: [*c]const pa_channel_map, attr: [*c]const pa_buffer_attr, @"error": [*c]c_int) ?*pa_simple = undefined;
+var pa_simple_write: *const fn (s: ?*pa_simple, data: ?*const anyopaque, bytes: usize, @"error": [*c]c_int) c_int = undefined;
+var pa_simple_free: *const fn (s: ?*pa_simple) void = undefined;
+var pa_strerror: *const fn (@"error": c_int) [*c]const u8 = undefined;
+var pa_simple_loaded: bool = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // PulseAudio Sink
@@ -25,27 +65,38 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
         };
 
         block: Block,
-        pa_conn: ?*pulse_simple.pa_simple = null,
+        pa_conn: ?*pa_simple = null,
         interleaved: ?std.ArrayList(f32) = null,
 
         pub fn init() Self {
-            if (!comptime platform.hasPackage("libpulse-simple")) @compileError("Platform is missing libpulse-simple library.");
-            return .{ .block = Block.init(@This()) };
+            return .{
+                .block = Block.init(@This()),
+            };
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+            // Open PulseAudio library
+            if (!pa_simple_loaded) {
+                var lib = try std.DynLib.open("libpulse-simple.so");
+                pa_simple_new = lib.lookup(@TypeOf(pa_simple_new), "pa_simple_new") orelse return error.LookupFail;
+                pa_simple_write = lib.lookup(@TypeOf(pa_simple_write), "pa_simple_write") orelse return error.LookupFail;
+                pa_simple_free = lib.lookup(@TypeOf(pa_simple_free), "pa_simple_free") orelse return error.LookupFail;
+                pa_strerror = lib.lookup(@TypeOf(pa_strerror), "pa_strerror") orelse return error.LookupFail;
+                pa_simple_loaded = true;
+            }
+
             // Prepare sample spec
-            const sample_spec = pulse_simple.pa_sample_spec{
-                .format = if (builtin.target.cpu.arch.endian() == std.builtin.Endian.little) pulse_simple.PA_SAMPLE_FLOAT32LE else pulse_simple.PA_SAMPLE_FLOAT32BE,
+            const sample_spec = pa_sample_spec{
+                .format = if (builtin.target.cpu.arch.endian() == std.builtin.Endian.little) PA_SAMPLE_FLOAT32LE else PA_SAMPLE_FLOAT32BE,
                 .rate = try self.block.getRate(u32),
                 .channels = N,
             };
 
             // Open PulseAudio connection
             var error_code: c_int = undefined;
-            self.pa_conn = pulse_simple.pa_simple_new(null, "ZigRadio", pulse_simple.PA_STREAM_PLAYBACK, null, "PulseAudioSink", &sample_spec, null, null, &error_code);
+            self.pa_conn = pa_simple_new(null, "ZigRadio", PA_STREAM_PLAYBACK, null, "PulseAudioSink", &sample_spec, null, null, &error_code);
             if (self.pa_conn == null) {
-                std.debug.print("pa_simple_new(): {s}\n", .{pulse_simple.pa_strerror(error_code)});
+                std.debug.print("pa_simple_new(): {s}\n", .{pa_strerror(error_code)});
                 return PulseAudioError.InitializationError;
             }
 
@@ -58,15 +109,15 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
             if (N > 1) self.interleaved.?.deinit();
 
             // Close and free our PulseAudio connection
-            if (self.pa_conn) |pa_conn| pulse_simple.pa_simple_free(pa_conn);
+            if (self.pa_conn) |pa_conn| pa_simple_free(pa_conn);
         }
 
         pub fn _process_mono(self: *Self, x: []const f32) !ProcessResult {
             // Write to our PulseAudio connection
             var error_code: c_int = undefined;
-            const ret = pulse_simple.pa_simple_write(self.pa_conn.?, x.ptr, x.len * @sizeOf(f32), &error_code);
+            const ret = pa_simple_write(self.pa_conn.?, x.ptr, x.len * @sizeOf(f32), &error_code);
             if (ret < 0) {
-                std.debug.print("pa_simple_write(): {s}\n", .{pulse_simple.pa_strerror(error_code)});
+                std.debug.print("pa_simple_write(): {s}\n", .{pa_strerror(error_code)});
                 return PulseAudioError.WriteError;
             }
 
@@ -83,9 +134,9 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
 
             // Write to our PulseAudio connection
             var error_code: c_int = undefined;
-            const ret = pulse_simple.pa_simple_write(self.pa_conn.?, self.interleaved.?.items.ptr, self.interleaved.?.items.len * @sizeOf(f32), &error_code);
+            const ret = pa_simple_write(self.pa_conn.?, self.interleaved.?.items.ptr, self.interleave.?.items.len * @sizeOf(f32), &error_code);
             if (ret < 0) {
-                std.debug.print("pa_simple_write(): {s}\n", .{pulse_simple.pa_strerror(error_code)});
+                std.debug.print("pa_simple_write(): {s}\n", .{pa_strerror(error_code)});
                 return PulseAudioError.WriteError;
             }
 
