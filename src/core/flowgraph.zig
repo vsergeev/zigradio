@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const util = @import("util.zig");
+const platform = @import("platform.zig");
 
 const Block = @import("block.zig").Block;
 const CompositeBlock = @import("composite.zig").CompositeBlock;
@@ -377,6 +378,9 @@ pub const Flowgraph = struct {
             self._dump(&evaluation_order);
         }
 
+        // Initialize platform for acceleration
+        try platform.initialize(self.allocator);
+
         // Initialize blocks
         for (evaluation_order.keys()) |block| try block.initialize(self.allocator);
     }
@@ -390,7 +394,7 @@ pub const Flowgraph = struct {
     }
 
     fn _dump(self: *Flowgraph, evaluation_order: *std.AutoArrayHashMap(*Block, void)) void {
-        std.debug.print("[Flowgraph] Flow graph:\n", .{});
+        std.debug.print("[Flowgraph] Flowgraph:\n", .{});
 
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
