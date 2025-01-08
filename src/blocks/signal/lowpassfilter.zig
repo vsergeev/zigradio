@@ -13,7 +13,7 @@ const firwinLowpass = @import("../../radio.zig").utils.filter.firwinLowpass;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
-    return _FIRFilterBlock(T, N, struct {
+    return _FIRFilterBlock(T, f32, N, struct {
         pub const Options = struct {
             nyquist: ?f32 = null,
             window: WindowFunction = WindowFunction.Hamming,

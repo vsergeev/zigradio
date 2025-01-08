@@ -10,13 +10,13 @@ const innerProduct = @import("../../radio.zig").utils.math.innerProduct;
 // FIR Filter Block
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Context: type) type {
+pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Context: type) type {
     return struct {
         const Self = @This();
 
         block: Block,
         context: Context,
-        taps: [N]f32 = [_]f32{0} ** N,
+        taps: [N]U = [_]U{zero(U)} ** N,
         state: [N]T = [_]T{zero(T)} ** N,
 
         pub const init = Context.init;
@@ -41,7 +41,7 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
                 self.state[0] = x[i];
 
                 // y[n] = b[0]*x[n] + b[1]*x[n-1] + b[2]*x[n-2] + ...
-                y[i] = innerProduct(T, &self.state, &self.taps);
+                y[i] = innerProduct(T, U, &self.state, &self.taps);
             }
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
@@ -49,10 +49,10 @@ pub fn _FIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime Cont
     };
 }
 
-pub fn FIRFilterBlock(comptime T: type, comptime N: comptime_int) type {
-    return _FIRFilterBlock(T, N, struct {
-        pub fn init(taps: [N]f32) FIRFilterBlock(T, N) {
-            var block = FIRFilterBlock(T, N)._init(.{});
+pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int) type {
+    return _FIRFilterBlock(T, U, N, struct {
+        pub fn init(taps: [N]U) FIRFilterBlock(T, U, N) {
+            var block = FIRFilterBlock(T, U, N)._init(.{});
             @memcpy(&block.taps, &taps);
             return block;
         }
@@ -68,31 +68,45 @@ const BlockTester = @import("../../radio.zig").testing.BlockTester;
 const vectors = @import("../../vectors/blocks/signal/firfilter.zig");
 
 test "FIRFilterBlock" {
-    // 1 tap, ComplexFloat32
+    // 1 real tap, ComplexFloat32
     {
-        var block = FIRFilterBlock(std.math.Complex(f32), 1).init(vectors.input_taps_1);
+        var block = FIRFilterBlock(std.math.Complex(f32), f32, 1).init(vectors.input_taps_1);
         var tester = BlockTester.init(&block.block, 1e-6);
         try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_1_complexfloat32});
     }
 
-    // 8 taps, ComplexFloat32
+    // 8 real taps, ComplexFloat32
     {
-        var block = FIRFilterBlock(std.math.Complex(f32), 8).init(vectors.input_taps_8);
+        var block = FIRFilterBlock(std.math.Complex(f32), f32, 8).init(vectors.input_taps_8);
         var tester = BlockTester.init(&block.block, 1e-6);
         try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_8_complexfloat32});
     }
 
-    // 1 tap, Float32
+    // 1 real tap, Float32
     {
-        var block = FIRFilterBlock(f32, 1).init(vectors.input_taps_1);
+        var block = FIRFilterBlock(f32, f32, 1).init(vectors.input_taps_1);
         var tester = BlockTester.init(&block.block, 1e-6);
         try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_1_float32});
     }
 
-    // 8 tap, Float32
+    // 8 real taps, Float32
     {
-        var block = FIRFilterBlock(f32, 8).init(vectors.input_taps_8);
+        var block = FIRFilterBlock(f32, f32, 8).init(vectors.input_taps_8);
         var tester = BlockTester.init(&block.block, 1e-6);
         try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_8_float32});
+    }
+
+    // 1 complex tap, ComplexFloat32
+    {
+        var block = FIRFilterBlock(std.math.Complex(f32), std.math.Complex(f32), 1).init(vectors.input_complex_taps_1);
+        var tester = BlockTester.init(&block.block, 1e-6);
+        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_complex_taps_1_complexfloat32});
+    }
+
+    // 8 complex tap, ComplexFloat32
+    {
+        var block = FIRFilterBlock(std.math.Complex(f32), std.math.Complex(f32), 8).init(vectors.input_complex_taps_8);
+        var tester = BlockTester.init(&block.block, 1e-6);
+        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_complex_taps_8_complexfloat32});
     }
 }

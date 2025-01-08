@@ -50,7 +50,7 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
                 self.input_state[0] = x[i];
 
                 // y[n] = (b[0]*x[n] + b[1]*x[n-1] + b[2]*x[n-2] + ...  - a[1]*y[n-1] - a[2]*y[n-2] - ...) / a[0]
-                y[i] = scalarDiv(T, sub(T, innerProduct(T, &self.input_state, &self.b_taps), innerProduct(T, &self.output_state, self.a_taps[1..])), self.a_taps[0]);
+                y[i] = scalarDiv(T, sub(T, innerProduct(T, f32, &self.input_state, &self.b_taps), innerProduct(T, f32, &self.output_state, self.a_taps[1..])), self.a_taps[0]);
 
                 // Shift the output state samples down
                 for (self.output_state[1..], 0..) |_, j| self.output_state[M - 2 - j] = self.output_state[M - 3 - j];

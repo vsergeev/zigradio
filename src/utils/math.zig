@@ -28,14 +28,16 @@ pub fn scalarDiv(comptime T: type, x: T, scalar: f32) T {
     } else unreachable;
 }
 
-pub fn innerProduct(comptime T: type, x: []const T, y: []const f32) T {
+pub fn innerProduct(comptime T: type, comptime U: type, x: []const T, y: []const U) T {
     var acc = zero(T);
 
     std.debug.assert(x.len == y.len);
 
-    if (T == std.math.Complex(f32)) {
+    if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
+        for (x, 0..) |_, i| acc = acc.add(x[i].mul(y[i]));
+    } else if (T == std.math.Complex(f32) and U == f32) {
         for (x, 0..) |_, i| acc = acc.add(.{ .re = x[i].re * y[i], .im = x[i].im * y[i] });
-    } else if (T == f32) {
+    } else if (T == f32 and U == f32) {
         for (x, 0..) |_, i| acc += x[i] * y[i];
     } else unreachable;
 
@@ -62,6 +64,7 @@ test "scalarDiv" {
 }
 
 test "innerProduct" {
-    try std.testing.expectEqual(std.math.Complex(f32).init(14, 20), innerProduct(std.math.Complex(f32), &[3]std.math.Complex(f32){ .{ .re = 1, .im = 2 }, .{ .re = 2, .im = 3 }, .{ .re = 3, .im = 4 } }, &[3]f32{ 1, 2, 3 }));
-    try std.testing.expectEqual(@as(f32, 32), innerProduct(f32, &[3]f32{ 1, 2, 3 }, &[3]f32{ 4, 5, 6 }));
+    try std.testing.expectEqual(std.math.Complex(f32).init(-24, 85), innerProduct(std.math.Complex(f32), std.math.Complex(f32), &[3]std.math.Complex(f32){ .{ .re = 1, .im = 2 }, .{ .re = 2, .im = 3 }, .{ .re = 3, .im = 4 } }, &[3]std.math.Complex(f32){ .{ .re = 4, .im = 5 }, .{ .re = 5, .im = 6 }, .{ .re = 6, .im = 7 } }));
+    try std.testing.expectEqual(std.math.Complex(f32).init(14, 20), innerProduct(std.math.Complex(f32), f32, &[3]std.math.Complex(f32){ .{ .re = 1, .im = 2 }, .{ .re = 2, .im = 3 }, .{ .re = 3, .im = 4 } }, &[3]f32{ 1, 2, 3 }));
+    try std.testing.expectEqual(@as(f32, 32), innerProduct(f32, f32, &[3]f32{ 1, 2, 3 }, &[3]f32{ 4, 5, 6 }));
 }
