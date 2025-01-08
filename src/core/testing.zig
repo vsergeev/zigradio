@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const util = @import("util.zig");
+const platform = @import("platform.zig");
 
 const Block = @import("block.zig").Block;
 const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
@@ -82,6 +83,9 @@ pub const BlockTester = struct {
         var input_buffers: [input_data_types.len][]const u8 = undefined;
         inline for (input_data_types, 0..) |_, i| input_buffers[i] = std.mem.sliceAsBytes(input_vectors[i][0..]);
 
+        // Initialize platform
+        try platform.initialize(std.testing.allocator);
+
         // Test input vectors entire vector at a time, followed by one sample at a time
         for (&[2]bool{ false, true }) |single_samples| {
             // Initialize block
@@ -119,6 +123,9 @@ pub const BlockTester = struct {
                 return BlockTesterError.DataTypeMismatch;
             }
         }
+
+        // Initialize platform
+        try platform.initialize(std.testing.allocator);
 
         // Test entire output vector at a time, followed by one sample at a time
         for (&[2]bool{ false, true }) |single_samples| {
