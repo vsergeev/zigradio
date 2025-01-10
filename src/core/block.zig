@@ -288,7 +288,7 @@ pub const Block = struct {
         return self._differentiation.?.type_signature.outputs[index];
     }
 
-    pub fn getRate(self: *Block, comptime T: type) BlockError!T {
+    pub fn getRate(self: *const Block, comptime T: type) BlockError!T {
         if (self._differentiation == null) return BlockError.NotDifferentiated;
 
         return std.math.lossyCast(T, self._rate.?);
