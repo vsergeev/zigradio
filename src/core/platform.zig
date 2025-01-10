@@ -14,6 +14,12 @@ pub var libs: struct {
     .fftw3f = null,
 };
 
+pub var debug: struct {
+    enabled: bool,
+} = .{
+    .enabled = false,
+};
+
 fn isTruthy(value: []const u8) bool {
     const haystack = [_][]const u8{ "1", "true", "TRUE", "yes", "YES" };
     for (haystack) |x| {
@@ -32,6 +38,8 @@ fn lookupEnvFlag(allocator: std.mem.Allocator, key: []const u8) !bool {
 }
 
 pub fn initialize(allocator: std.mem.Allocator) !void {
+    debug.enabled = try lookupEnvFlag(allocator, "ZIGRADIO_DEBUG");
+
     if (libs.liquid == null and !try lookupEnvFlag(allocator, "ZIGRADIO_DISABLE_LIQUID")) {
         libs.liquid = std.DynLib.open("libliquid.so") catch null;
     }
