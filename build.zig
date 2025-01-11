@@ -44,6 +44,20 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run framework tests");
     test_step.dependOn(&run_tests.step);
 
+    // Run benchmark suite
+    const benchmark_step = b.step("benchmark", "Run benchmark suite");
+    const benchmark_suite = b.addExecutable(.{
+        .name = "benchmark",
+        .root_source_file = b.path("benchmarks/benchmark.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    benchmark_suite.root_module.addImport("radio", radio_module);
+    benchmark_suite.linkLibC();
+    const run_benchmark_suite = b.addRunArtifact(benchmark_suite);
+    if (b.args) |args| run_benchmark_suite.addArgs(args);
+    benchmark_step.dependOn(&run_benchmark_suite.step);
+
     // Generate test vectors
     const generate_step = b.step("generate", "Generate test vectors");
     const generate_cmd = b.addSystemCommand(&[_][]const u8{ "python3", "generate.py" });
