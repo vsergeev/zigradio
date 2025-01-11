@@ -13,3 +13,4 @@ pub const FMDeemphasisFilterBlock = @import("fmdeemphasisfilter.zig").FMDeemphas
 pub const LowpassFilterBlock = @import("lowpassfilter.zig").LowpassFilterBlock;
 pub const ComplexToRealBlock = @import("complextoreal.zig").ComplexToRealBlock;
 pub const ComplexToImagBlock = @import("complextoimag.zig").ComplexToImagBlock;
+pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitudeBlock;
