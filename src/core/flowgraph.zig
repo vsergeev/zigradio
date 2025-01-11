@@ -107,7 +107,7 @@ const FlowgraphRunState = struct {
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
     block_runners: std.ArrayList(ThreadedBlockRunner),
 
-    const RING_BUFFER_SIZE = 2 * 1048576;
+    const RING_BUFFER_SIZE = 8 * 1048576;
 
     pub fn init(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !FlowgraphRunState {
         // Allocate ring buffer map
