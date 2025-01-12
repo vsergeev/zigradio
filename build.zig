@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) !void {
             .name = example.name,
             .root_source_file = b.path(example.path),
             .target = target,
-            .optimize = optimize,
+            .optimize = .ReleaseFast,
         });
         exe.root_module.addImport("radio", radio_module);
         exe.linkLibC();
