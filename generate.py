@@ -35,9 +35,9 @@ def serialize(vector):
 
     if isinstance(vector, numpy.ndarray):
         if vector.dtype == "float32":
-            return f"[{len(vector)}]f32{{ " + ", ".join([f"{e:.{PRECISION}f}" for e in vector]) + " }"
+            return f"[{len(vector)}]f32{{" + ("", " ")[len(vector) > 1] + ", ".join([f"{e:.{PRECISION}f}" for e in vector]) + ("", " ")[len(vector) > 1] + "}"
         elif vector.dtype == "complex64":
-            return f"[{len(vector)}]std.math.Complex(f32){{ " + ", ".join([f".{{ .re = {e.real:.{PRECISION}f}, .im = {e.imag:.{PRECISION}f} }}" for e in vector]) + " }"
+            return f"[{len(vector)}]std.math.Complex(f32){{" + ("", " ")[len(vector) > 1] + ", ".join([f".{{ .re = {e.real:.{PRECISION}f}, .im = {e.imag:.{PRECISION}f} }}" for e in vector]) + ("", " ")[len(vector) > 1] + "}"
         else:
             raise NotImplementedError(f"Unsupported ndarray data type: {vector.dtype}")
     else:
