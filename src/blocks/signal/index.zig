@@ -11,6 +11,7 @@ pub const IIRFilterBlock = @import("iirfilter.zig").IIRFilterBlock;
 pub const SinglepoleLowpassFilterBlock = @import("singlepolelowpassfilter.zig").SinglepoleLowpassFilterBlock;
 pub const FMDeemphasisFilterBlock = @import("fmdeemphasisfilter.zig").FMDeemphasisFilterBlock;
 pub const LowpassFilterBlock = @import("lowpassfilter.zig").LowpassFilterBlock;
+pub const HighpassFilterBlock = @import("highpassfilter.zig").HighpassFilterBlock;
 pub const ComplexToRealBlock = @import("complextoreal.zig").ComplexToRealBlock;
 pub const ComplexToImagBlock = @import("complextoimag.zig").ComplexToImagBlock;
 pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitudeBlock;
