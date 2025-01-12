@@ -18,7 +18,7 @@ pub fn firLowpass(comptime N: comptime_int, cutoff: f32) [N]f32 {
         if (N % 2 == 1 and i == (N - 1) / 2) {
             h[i] = cutoff;
         } else {
-            const arg = @as(f32, @floatFromInt(i)) - ((@as(f32, @floatFromInt(N)) - 1) / 2);
+            const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
             h[i] = std.math.sin(std.math.pi * cutoff * arg) / (std.math.pi * arg);
         }
     }
@@ -35,7 +35,7 @@ pub fn firHighpass(comptime N: comptime_int, cutoff: f32) [N]f32 {
         if (i == (N - 1) / 2) {
             h[i] = 1 - cutoff;
         } else {
-            const arg = @as(f32, @floatFromInt(i)) - ((@as(f32, @floatFromInt(N)) - 1) / 2);
+            const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
             h[i] = -std.math.sin(std.math.pi * cutoff * arg) / (std.math.pi * arg);
         }
     }
@@ -52,7 +52,7 @@ pub fn firBandpass(comptime N: comptime_int, cutoffs: struct { f32, f32 }) [N]f3
         if (i == (N - 1) / 2) {
             h[i] = cutoffs[1] - cutoffs[0];
         } else {
-            const arg = @as(f32, @floatFromInt(i)) - ((@as(f32, @floatFromInt(N)) - 1) / 2);
+            const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
             h[i] = std.math.sin(std.math.pi * cutoffs[1] * arg) / (std.math.pi * arg) - std.math.sin(std.math.pi * cutoffs[0] * arg) / (std.math.pi * arg);
         }
     }
@@ -69,7 +69,7 @@ pub fn firBandstop(comptime N: comptime_int, cutoffs: struct { f32, f32 }) [N]f3
         if (i == (N - 1) / 2) {
             h[i] = 1 - (cutoffs[1] - cutoffs[0]);
         } else {
-            const arg = @as(f32, @floatFromInt(i)) - ((@as(f32, @floatFromInt(N)) - 1) / 2);
+            const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
             h[i] = std.math.sin(std.math.pi * cutoffs[0] * arg) / (std.math.pi * arg) - std.math.sin(std.math.pi * cutoffs[1] * arg) / (std.math.pi * arg);
         }
     }
@@ -97,7 +97,7 @@ pub fn firwin(comptime N: comptime_int, h: [N]f32, window_func: WindowFunction, 
     // Scale magnitude response
     var scale: f32 = 0;
     for (hw, 0..) |_, i| {
-        const arg = @as(f32, @floatFromInt(i)) - ((@as(f32, @floatFromInt(N)) - 1) / 2);
+        const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
         scale += hw[i] * std.math.cos(std.math.pi * arg * scale_freq);
     }
     for (&hw) |*e| {
