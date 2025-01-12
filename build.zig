@@ -5,10 +5,23 @@ const Example = struct {
     path: []const u8,
 };
 
-const examples = [_]Example{
-    .{ .name = "example-rtlsdr_wbfm_mono", .path = "examples/rtlsdr_wbfm_mono.zig" },
-    .{ .name = "example-play_tone", .path = "examples/play_tone.zig" },
-};
+fn discoverExamples(allocator: std.mem.Allocator) !std.ArrayList(Example) {
+    var examples = std.ArrayList(Example).init(allocator);
+
+    var examples_dir = try std.fs.cwd().openDir("examples", .{ .iterate = true });
+    defer examples_dir.close();
+
+    var examples_it = examples_dir.iterate();
+    while (try examples_it.next()) |entry| {
+        if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".zig")) {
+            const name = try std.mem.concat(allocator, u8, &[_][]const u8{ "example-", entry.name[0 .. entry.name.len - 4] });
+            const path = try std.fs.path.join(allocator, &[_][]const u8{ "examples", entry.name });
+            try examples.append(.{ .name = name, .path = path });
+        }
+    }
+
+    return examples;
+}
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -18,9 +31,19 @@ pub fn build(b: *std.Build) !void {
     const radio_module = b.addModule("radio", .{ .root_source_file = b.path("src/radio.zig") });
     radio_module.addImport("radio", radio_module);
 
+    // Discover examples
+    var examples = try discoverExamples(b.allocator);
+    defer {
+        for (examples.items) |example| {
+            examples.allocator.free(example.name);
+            examples.allocator.free(example.path);
+        }
+        examples.deinit();
+    }
+
     // Build examples
     const examples_step = b.step("examples", "Build examples");
-    for (examples) |example| {
+    for (examples.items) |example| {
         const exe = b.addExecutable(.{
             .name = example.name,
             .root_source_file = b.path(example.path),
