@@ -20,6 +20,14 @@ pub fn sub(comptime T: type, x: T, y: T) T {
     } else unreachable;
 }
 
+pub fn scalarMul(comptime T: type, x: T, scalar: f32) T {
+    if (T == std.math.Complex(f32)) {
+        return .{ .re = x.re * scalar, .im = x.im * scalar };
+    } else if (T == f32) {
+        return x * scalar;
+    } else unreachable;
+}
+
 pub fn scalarDiv(comptime T: type, x: T, scalar: f32) T {
     if (T == std.math.Complex(f32)) {
         return .{ .re = x.re / scalar, .im = x.im / scalar };
@@ -56,6 +64,11 @@ test "zero" {
 test "sub" {
     try std.testing.expectEqual(std.math.Complex(f32).init(1, 2), sub(std.math.Complex(f32), std.math.Complex(f32).init(2, 3), std.math.Complex(f32).init(1, 1)));
     try std.testing.expectEqual(@as(f32, 2), sub(f32, 4, 2));
+}
+
+test "scalarMul" {
+    try std.testing.expectEqual(std.math.Complex(f32).init(3, 6), scalarMul(std.math.Complex(f32), std.math.Complex(f32).init(1, 2), 3));
+    try std.testing.expectEqual(@as(f32, 6), scalarMul(f32, 2, 3));
 }
 
 test "scalarDiv" {
