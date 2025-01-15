@@ -21,6 +21,7 @@ pub const FlowgraphError = error{
     PortAlreadyConnected,
     InputPortUnconnected,
     CyclicDependency,
+    DataTypeMismatch,
     RateMismatch,
     NotRunning,
     AlreadyRunning,
@@ -325,33 +326,28 @@ pub const Flowgraph = struct {
         // For each block in the block set
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |k| {
-            // Check all inputs are connected
+            // Check all inputs are connected and data types match
             for (0..k.*.inputs.len) |i| {
-                if (!self.flattened_connections.contains(BlockInputPort{ .block = k.*, .index = i })) {
+                const upstream_connection = self.flattened_connections.get(BlockInputPort{ .block = k.*, .index = i });
+                if (upstream_connection == null) {
                     return FlowgraphError.InputPortUnconnected;
+                }
+
+                if (k.*.type_signature.inputs[i] != upstream_connection.?.block.type_signature.outputs[upstream_connection.?.index]) {
+                    return FlowgraphError.DataTypeMismatch;
                 }
             }
         }
     }
 
-    pub fn _differentiate(self: *Flowgraph, evaluation_order: *const std.AutoArrayHashMap(*Block, void)) !void {
+    pub fn _propagateRates(self: *Flowgraph, evaluation_order: *const std.AutoArrayHashMap(*Block, void)) !void {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
-            // Allocate a slice for input types
-            var input_types: []RuntimeDataType = try self.allocator.alloc(RuntimeDataType, block.inputs.len);
-            defer self.allocator.free(input_types);
-
-            // For each block input port, collect the type of the connected output port
-            for (0..block.inputs.len) |i| {
-                const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
-                input_types[i] = try output_port.block.getOutputType(output_port.index);
-            }
-
             // Get upstream rate
             const upstream_rate = if (block.inputs.len > 0) try self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
 
-            // Differentiate the block
-            try block.differentiate(input_types, upstream_rate);
+            // Set rate on the block
+            try block.setRate(upstream_rate);
 
             // Compare other input port rates
             var i: usize = 1;
@@ -370,8 +366,8 @@ pub const Flowgraph = struct {
         var evaluation_order = try buildEvaluationOrder(self.allocator, &self.flattened_connections, &self.block_set);
         defer evaluation_order.deinit();
 
-        // Differentiate flowgraph
-        try self._differentiate(&evaluation_order);
+        // Propagate rates through flowgraph
+        try self._propagateRates(&evaluation_order);
 
         // Dump flowgraph if debug is enabled
         if (self.options.debug) {
@@ -403,7 +399,7 @@ pub const Flowgraph = struct {
             // For each input port
             for (0..block.inputs.len) |i| {
                 const input_port_name = block.inputs[i];
-                const input_port_type = block.getInputType(i) catch unreachable;
+                const input_port_type = block.type_signature.inputs[i];
                 const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
                 const output_port_name = output_port.block.outputs[output_port.index];
                 const block_name = output_port.block.name;
@@ -413,7 +409,7 @@ pub const Flowgraph = struct {
             // For each output port
             for (0..block.outputs.len) |i| {
                 const output_port_name = block.outputs[i];
-                const output_port_type = block.getOutputType(i) catch unreachable;
+                const output_port_type = block.type_signature.outputs[i];
 
                 std.debug.print("[Flowgraph]        .{s} [{any}] -> ", .{ output_port_name, output_port_type });
 
@@ -439,7 +435,7 @@ pub const Flowgraph = struct {
     pub fn start(self: *Flowgraph) !void {
         if (self.run_state != null) return FlowgraphError.AlreadyRunning;
 
-        // Differentiate and initialize blocks
+        // Initialize flowgraph
         try self._initialize();
 
         // Build run state
@@ -498,116 +494,104 @@ pub const Flowgraph = struct {
 const BlockError = @import("block.zig").BlockError;
 const ProcessResult = @import("block.zig").ProcessResult;
 
-const TestSource = struct {
-    block: Block,
-    initialized: bool = false,
+fn TestSource(comptime T: type) type {
+    return struct {
+        const Self = @This();
 
-    pub fn init() TestSource {
-        return .{ .block = Block.init(@This()) };
-    }
+        block: Block,
+        rate: f64,
+        initialized: bool = false,
 
-    pub fn setRate(_: *TestSource, _: f64) !f64 {
-        return 8000;
-    }
+        pub fn init(rate: f64) Self {
+            return .{ .block = Block.init(@This()), .rate = rate };
+        }
 
-    pub fn initialize(self: *TestSource, _: std.mem.Allocator) !void {
-        self.initialized = true;
-    }
+        pub fn setRate(self: *Self, _: f64) !f64 {
+            return self.rate;
+        }
 
-    pub fn deinitialize(self: *TestSource, _: std.mem.Allocator) void {
-        self.initialized = false;
-    }
+        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+            self.initialized = true;
+        }
 
-    pub fn process(_: *TestSource, _: []u32) !ProcessResult {
-        return ProcessResult.init(&[0]usize{}, &[1]usize{1});
-    }
-};
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+            self.initialized = false;
+        }
 
-const TestSourceFloat32 = struct {
-    block: Block,
+        pub fn process(_: *Self, _: []T) !ProcessResult {
+            return ProcessResult.init(&[0]usize{}, &[1]usize{1});
+        }
+    };
+}
 
-    pub fn init() TestSourceFloat32 {
-        return .{ .block = Block.init(@This()) };
-    }
+fn TestSink(comptime T: type) type {
+    return struct {
+        const Self = @This();
 
-    pub fn setRate(_: *TestSourceFloat32, _: f64) !f64 {
-        return 4000;
-    }
+        block: Block,
+        initialized: bool = false,
 
-    pub fn process(_: *TestSourceFloat32, _: []f32) !ProcessResult {
-        return ProcessResult.init(&[0]usize{}, &[1]usize{1});
-    }
-};
+        pub fn init() Self {
+            return .{ .block = Block.init(@This()) };
+        }
 
-const TestSink = struct {
-    block: Block,
-    initialized: bool = false,
+        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+            self.initialized = true;
+        }
 
-    pub fn init() TestSink {
-        return .{ .block = Block.init(@This()) };
-    }
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+            self.initialized = false;
+        }
 
-    pub fn initialize(self: *TestSink, _: std.mem.Allocator) !void {
-        self.initialized = true;
-    }
+        pub fn process(_: *Self, _: []const T) !ProcessResult {
+            return ProcessResult.init(&[1]usize{1}, &[0]usize{});
+        }
+    };
+}
 
-    pub fn deinitialize(self: *TestSink, _: std.mem.Allocator) void {
-        self.initialized = false;
-    }
+fn TestBlock(comptime T: type, comptime U: type) type {
+    return struct {
+        const Self = @This();
 
-    pub fn processUnsigned32(_: *TestSink, _: []const u32) !ProcessResult {
-        return ProcessResult.init(&[1]usize{1}, &[0]usize{});
-    }
+        block: Block,
 
-    pub fn processFloat32(_: *TestSink, _: []const f32) !ProcessResult {
-        return ProcessResult.init(&[1]usize{1}, &[0]usize{});
-    }
-};
+        pub fn init() Self {
+            return .{ .block = Block.init(@This()) };
+        }
 
-const TestBlock = struct {
-    block: Block,
+        pub fn setRate(_: *Self, upstream_rate: f64) !f64 {
+            return upstream_rate / 2;
+        }
 
-    pub fn init() TestBlock {
-        return .{ .block = Block.init(@This()) };
-    }
+        pub fn process(_: *Self, _: []const T, _: []U) !ProcessResult {
+            return ProcessResult.init(&[1]usize{1}, &[1]usize{1});
+        }
+    };
+}
 
-    pub fn setRate(_: *TestBlock, upstream_rate: f64) !f64 {
-        return upstream_rate / 2;
-    }
+fn TestAddBlock(comptime T: type, comptime U: type) type {
+    return struct {
+        const Self = @This();
+        block: Block,
+        initialized: bool = false,
 
-    pub fn processUnsigned32(_: *TestBlock, _: []const u32, _: []f32) !ProcessResult {
-        return ProcessResult.init(&[1]usize{1}, &[1]usize{1});
-    }
+        pub fn init() Self {
+            return .{ .block = Block.init(@This()) };
+        }
 
-    pub fn processFloat32(_: *TestBlock, _: []const f32, _: []u32) !ProcessResult {
-        return ProcessResult.init(&[1]usize{1}, &[1]usize{1});
-    }
-};
+        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+            self.initialized = true;
+        }
 
-const TestAddBlock = struct {
-    block: Block,
-    initialized: bool = false,
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+            self.initialized = false;
+        }
 
-    pub fn init() TestAddBlock {
-        return .{ .block = Block.init(@This()) };
-    }
-
-    pub fn initialize(self: *TestAddBlock, _: std.mem.Allocator) !void {
-        self.initialized = true;
-    }
-
-    pub fn deinitialize(self: *TestAddBlock, _: std.mem.Allocator) void {
-        self.initialized = false;
-    }
-
-    pub fn processUnsigned32(_: *TestAddBlock, _: []const u32, _: []const u32, _: []u32) !ProcessResult {
-        return ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1});
-    }
-
-    pub fn processFloat32(_: *TestAddBlock, _: []const f32, _: []const f32, _: []f32) !ProcessResult {
-        return ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1});
-    }
-};
+        pub fn process(_: *Self, _: []const T, _: []const T, _: []U) !ProcessResult {
+            return ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1});
+        }
+    };
+}
 
 const TestErrorBlock = struct {
     block: Block,
@@ -620,23 +604,23 @@ const TestErrorBlock = struct {
         return error.NotImplemented;
     }
 
-    pub fn process(_: *TestErrorBlock, _: []const u32, _: []f32) !ProcessResult {
+    pub fn process(_: *TestErrorBlock, _: []const f32, _: []f32) !ProcessResult {
         return ProcessResult.init(&[1]usize{1}, &[1]usize{1});
     }
 };
 
 const TestCompositeBlock1 = struct {
     composite: CompositeBlock,
-    b1: TestBlock,
-    b2: TestBlock,
-    b3: TestBlock,
+    b1: TestBlock(f32, f32),
+    b2: TestBlock(f32, f32),
+    b3: TestBlock(f32, f32),
 
     pub fn init() TestCompositeBlock1 {
         return .{
             .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
-            .b1 = TestBlock.init(),
-            .b2 = TestBlock.init(),
-            .b3 = TestBlock.init(),
+            .b1 = TestBlock(f32, f32).init(),
+            .b2 = TestBlock(f32, f32).init(),
+            .b3 = TestBlock(f32, f32).init(),
         };
     }
 
@@ -660,14 +644,14 @@ const TestCompositeBlock1 = struct {
 
 const TestCompositeBlock2 = struct {
     composite: CompositeBlock,
-    b1: TestBlock,
-    b2: TestBlock,
+    b1: TestBlock(f32, f32),
+    b2: TestBlock(f32, f32),
 
     pub fn init() TestCompositeBlock2 {
         return .{
             .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
-            .b1 = TestBlock.init(),
-            .b2 = TestBlock.init(),
+            .b1 = TestBlock(f32, f32).init(),
+            .b2 = TestBlock(f32, f32).init(),
         };
     }
 
@@ -689,15 +673,15 @@ const TestCompositeBlock2 = struct {
 
 const TestNestedCompositeBlock = struct {
     composite: CompositeBlock,
-    b1: TestBlock,
-    b2: TestBlock,
+    b1: TestBlock(f32, f32),
+    b2: TestBlock(f32, f32),
     b3: TestCompositeBlock2,
 
     pub fn init() TestNestedCompositeBlock {
         return .{
             .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
-            .b1 = TestBlock.init(),
-            .b2 = TestBlock.init(),
+            .b1 = TestBlock(f32, f32).init(),
+            .b2 = TestBlock(f32, f32).init(),
             .b3 = TestCompositeBlock2.init(),
         };
     }
@@ -723,16 +707,16 @@ const TestNestedCompositeBlock = struct {
 
 const TestMissingInputAliasCompositeBlock = struct {
     composite: CompositeBlock,
-    b1: TestBlock,
-    b2: TestBlock,
-    b3: TestBlock,
+    b1: TestBlock(f32, f32),
+    b2: TestBlock(f32, f32),
+    b3: TestBlock(f32, f32),
 
     pub fn init() TestMissingInputAliasCompositeBlock {
         return .{
             .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
-            .b1 = TestBlock.init(),
-            .b2 = TestBlock.init(),
-            .b3 = TestBlock.init(),
+            .b1 = TestBlock(f32, f32).init(),
+            .b2 = TestBlock(f32, f32).init(),
+            .b3 = TestBlock(f32, f32).init(),
         };
     }
 
@@ -755,16 +739,16 @@ const TestMissingInputAliasCompositeBlock = struct {
 
 const TestMissingOutputAliasCompositeBlock = struct {
     composite: CompositeBlock,
-    b1: TestBlock,
-    b2: TestBlock,
-    b3: TestBlock,
+    b1: TestBlock(f32, f32),
+    b2: TestBlock(f32, f32),
+    b3: TestBlock(f32, f32),
 
     pub fn init() TestMissingOutputAliasCompositeBlock {
         return .{
             .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
-            .b1 = TestBlock.init(),
-            .b2 = TestBlock.init(),
-            .b3 = TestBlock.init(),
+            .b1 = TestBlock(f32, f32).init(),
+            .b2 = TestBlock(f32, f32).init(),
+            .b3 = TestBlock(f32, f32).init(),
         };
     }
 
@@ -795,15 +779,15 @@ test "buildEvaluationOrder" {
     var top = Flowgraph.init(std.testing.allocator, .{});
     defer top.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestBlock.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestBlock.init();
-    var b5 = TestSink.init();
-    var b6 = TestSource.init();
-    var b7 = TestBlock.init();
-    var b8 = TestBlock.init();
-    var b9 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestBlock(f32, f32).init();
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestBlock(f32, f32).init();
+    var b5 = TestSink(f32).init();
+    var b6 = TestSource(f32).init(8000);
+    var b7 = TestBlock(f32, f32).init();
+    var b8 = TestBlock(f32, f32).init();
+    var b9 = TestSink(f32).init();
 
     try top.connect(&b1.block, &b2.block);
     try top.connect(&b6.block, &b7.block);
@@ -851,15 +835,15 @@ test "Flowgraph connect" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestSource.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestBlock.init();
-    var b5 = TestSource.init();
-    var b6 = TestAddBlock.init();
-    var b7 = TestSink.init();
-    var b8 = TestBlock.init();
-    var b9 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestSource(f32).init(8000);
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestBlock(f32, f32).init();
+    var b5 = TestSource(f32).init(8000);
+    var b6 = TestAddBlock(f32, f32).init();
+    var b7 = TestSink(f32).init();
+    var b8 = TestBlock(f32, f32).init();
+    var b9 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b3.block, "in1");
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2");
@@ -952,10 +936,10 @@ test "Flowgraph validate" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestSource.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestSource(f32).init(8000);
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b
@@ -993,36 +977,26 @@ test "Flowgraph differentiate (type signature)" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestSource.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestBlock.init();
-    var b5 = TestSourceFloat32.init();
-    var b6 = TestAddBlock.init();
-    var b7 = TestSink.init();
-    var b8 = TestBlock.init();
-    var b9 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestSource(f32).init(8000);
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestBlock(f32, u32).init();
+    var b5 = TestSource(u32).init(4000);
+    var b6 = TestAddBlock(u32, f32).init();
+    var b7 = TestSink(f32).init();
+    var b8 = TestBlock(u32, f32).init();
+    var b9 = TestSink(f32).init();
 
-    try top1.connectPort(&b1.block, "out1", &b3.block, "in1"); // a u32
-    try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b u32
-    try top1.connectPort(&b3.block, "out1", &b4.block, "in1"); // c u32
-    try top1.connectPort(&b4.block, "out1", &b6.block, "in1"); // d f32
-    try top1.connectPort(&b5.block, "out1", &b6.block, "in2"); // e f32
+    try top1.connectPort(&b1.block, "out1", &b3.block, "in1"); // a f32
+    try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b f32
+    try top1.connectPort(&b3.block, "out1", &b4.block, "in1"); // c f32
+    try top1.connectPort(&b4.block, "out1", &b6.block, "in1"); // d u32
+    try top1.connectPort(&b5.block, "out1", &b6.block, "in2"); // e u32
     try top1.connectPort(&b6.block, "out1", &b7.block, "in1"); // f f32
-    try top1.connectPort(&b5.block, "out1", &b8.block, "in1"); // g f32
-    try top1.connectPort(&b8.block, "out1", &b9.block, "in1"); // h u32
+    try top1.connectPort(&b5.block, "out1", &b8.block, "in1"); // g u32
+    try top1.connectPort(&b8.block, "out1", &b9.block, "in1"); // h f32
 
     try top1._initialize();
-
-    try std.testing.expectEqual(b1.block._differentiation, &b1.block.differentiations[0]);
-    try std.testing.expectEqual(b2.block._differentiation, &b2.block.differentiations[0]);
-    try std.testing.expectEqual(b3.block._differentiation, &b3.block.differentiations[0]);
-    try std.testing.expectEqual(b4.block._differentiation, &b4.block.differentiations[0]);
-    try std.testing.expectEqual(b5.block._differentiation, &b5.block.differentiations[0]);
-    try std.testing.expectEqual(b6.block._differentiation, &b6.block.differentiations[1]);
-    try std.testing.expectEqual(b7.block._differentiation, &b7.block.differentiations[1]);
-    try std.testing.expectEqual(b8.block._differentiation, &b8.block.differentiations[1]);
-    try std.testing.expectEqual(b9.block._differentiation, &b9.block.differentiations[0]);
 
     try std.testing.expectEqual(@as(usize, 8000), try b1.block.getRate(usize));
     try std.testing.expectEqual(@as(usize, 8000), try b2.block.getRate(usize));
@@ -1045,15 +1019,15 @@ test "Flowgraph differentiate (type signature)" {
     var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
-    try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a u32
-    try top2.connectPort(&b2.block, "out1", &b3.block, "in2"); // b u32
-    try top2.connectPort(&b3.block, "out1", &b6.block, "in1"); // c u32
-    try top2.connectPort(&b5.block, "out1", &b6.block, "in2"); // e f32
+    try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a f32
+    try top2.connectPort(&b2.block, "out1", &b3.block, "in2"); // b f32
+    try top2.connectPort(&b3.block, "out1", &b6.block, "in1"); // c f32
+    try top2.connectPort(&b5.block, "out1", &b6.block, "in2"); // e u32
     try top2.connectPort(&b6.block, "out1", &b7.block, "in1"); // f f32
-    try top2.connectPort(&b5.block, "out1", &b8.block, "in1"); // g f32
-    try top2.connectPort(&b8.block, "out1", &b9.block, "in1"); // h u32
+    try top2.connectPort(&b5.block, "out1", &b8.block, "in1"); // g u32
+    try top2.connectPort(&b8.block, "out1", &b9.block, "in1"); // h f32
 
-    try std.testing.expectError(BlockError.TypeSignatureNotFound, top2._initialize());
+    try std.testing.expectError(FlowgraphError.DataTypeMismatch, top2._initialize());
 }
 
 test "Flowgraph differentiate (rate validation)" {
@@ -1068,10 +1042,10 @@ test "Flowgraph differentiate (rate validation)" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestSource.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestSource(f32).init(8000);
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b
@@ -1092,11 +1066,11 @@ test "Flowgraph differentiate (rate validation)" {
     var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
-    var b5 = TestSource.init();
-    var b6 = TestSourceFloat32.init();
-    var b7 = TestBlock.init();
-    var b8 = TestAddBlock.init();
-    var b9 = TestSink.init();
+    var b5 = TestSource(f32).init(8000);
+    var b6 = TestSource(u32).init(8000);
+    var b7 = TestBlock(u32, f32).init();
+    var b8 = TestAddBlock(f32, f32).init();
+    var b9 = TestSink(f32).init();
 
     try top2.connectPort(&b5.block, "out1", &b8.block, "in1"); // a
     try top2.connectPort(&b7.block, "out1", &b8.block, "in2"); // b
@@ -1118,10 +1092,10 @@ test "Flowgraph initialize and deinitialize blocks" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
-    var b2 = TestSource.init();
-    var b3 = TestAddBlock.init();
-    var b4 = TestSink.init();
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestSource(f32).init(8000);
+    var b3 = TestAddBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
     try top1.connectPort(&b2.block, "out1", &b3.block, "in2"); // b
@@ -1155,9 +1129,9 @@ test "Flowgraph initialize and deinitialize blocks" {
     var top2 = Flowgraph.init(std.testing.allocator, .{});
     defer top2.deinit();
 
-    var b5 = TestSource.init();
+    var b5 = TestSource(f32).init(8000);
     var b6 = TestErrorBlock.init();
-    var b7 = TestSink.init();
+    var b7 = TestSink(f32).init();
 
     try top2.connect(&b5.block, &b6.block);
     try top2.connect(&b6.block, &b7.block);
@@ -1187,11 +1161,11 @@ test "Flowgraph connect composite" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
+    var b1 = TestSource(f32).init(8000);
     var b2 = TestCompositeBlock1.init();
-    var b3 = TestBlock.init();
-    var b4 = TestSink.init();
-    var b5 = TestSink.init();
+    var b3 = TestBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
+    var b5 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
     try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
@@ -1247,11 +1221,11 @@ test "Flowgraph connect nested composite" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
+    var b1 = TestSource(f32).init(8000);
     var b2 = TestNestedCompositeBlock.init();
-    var b3 = TestBlock.init();
-    var b4 = TestSink.init();
-    var b5 = TestSink.init();
+    var b3 = TestBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
+    var b5 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
     try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
@@ -1314,7 +1288,7 @@ test "Flowgraph connect composite with unaliased composite input" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
+    var b1 = TestSource(f32).init(8000);
     var b2 = TestMissingInputAliasCompositeBlock.init();
 
     try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b1.block, "out1", &b2.composite, "in1"));
@@ -1332,11 +1306,11 @@ test "Flowgraph connect composite with unaliased composite output" {
     var top1 = Flowgraph.init(std.testing.allocator, .{});
     defer top1.deinit();
 
-    var b1 = TestSource.init();
+    var b1 = TestSource(f32).init(8000);
     var b2 = TestMissingOutputAliasCompositeBlock.init();
-    var b3 = TestBlock.init();
-    var b4 = TestSink.init();
-    var b5 = TestSink.init();
+    var b3 = TestBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
+    var b5 = TestSink(f32).init();
 
     try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
     try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
@@ -1358,9 +1332,9 @@ test "Flowgraph validate composite with unconnected input" {
     defer top1.deinit();
 
     var b2 = TestCompositeBlock1.init();
-    var b3 = TestBlock.init();
-    var b4 = TestSink.init();
-    var b5 = TestSink.init();
+    var b3 = TestBlock(f32, f32).init();
+    var b4 = TestSink(f32).init();
+    var b5 = TestSink(f32).init();
 
     try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
     try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");

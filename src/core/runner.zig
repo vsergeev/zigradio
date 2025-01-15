@@ -181,10 +181,10 @@ test "ThreadedBlockRunner finite run" {
     var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer ring_buffer2.deinit();
 
-    // Differentiate blocks
-    try test_source.block.differentiate(&[0]RuntimeDataType{}, 8000);
-    try test_block.block.differentiate(&[1]RuntimeDataType{RuntimeDataType.Unsigned16}, 8000);
-    try test_sink.block.differentiate(&[1]RuntimeDataType{RuntimeDataType.Unsigned16}, 8000);
+    // Set rates
+    try test_source.block.setRate(8000);
+    try test_block.block.setRate(8000);
+    try test_sink.block.setRate(8000);
 
     // Create block runners
     var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
@@ -225,9 +225,9 @@ test "ThreadedBlockRunner infinite run" {
     var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer ring_buffer.deinit();
 
-    // Differentiate blocks
-    try test_source.block.differentiate(&[0]RuntimeDataType{}, 8000);
-    try test_sink.block.differentiate(&[1]RuntimeDataType{RuntimeDataType.Unsigned16}, 8000);
+    // Set rates
+    try test_source.block.setRate(8000);
+    try test_sink.block.setRate(8000);
 
     // Create block runners
     var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});

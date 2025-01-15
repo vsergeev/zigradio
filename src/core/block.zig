@@ -10,10 +10,7 @@ const SampleMux = @import("sample_mux.zig").SampleMux;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const BlockError = error{
-    TypeSignatureNotFound,
-    InputNotFound,
-    OutputNotFound,
-    NotDifferentiated,
+    RateNotSet,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,60 +37,8 @@ pub const ProcessResult = struct {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// Runtime Differentiation Derivation
+// Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
-
-pub const RuntimeDifferentiation = struct {
-    type_signature: RuntimeTypeSignature,
-    set_rate_fn: *const fn (self: *Block, upstream_rate: f64) anyerror!f64,
-    initialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
-    deinitialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) void,
-    process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
-
-    pub fn derive(comptime block_type: anytype) []const RuntimeDifferentiation {
-        const declarations = std.meta.declarations(block_type);
-
-        comptime var _runtime_differentiations: [declarations.len]RuntimeDifferentiation = undefined;
-        comptime var count: usize = 0;
-
-        inline for (declarations) |decl| {
-            if (comptime std.mem.startsWith(u8, decl.name, "process")) {
-                const process_fn = @field(block_type, decl.name);
-
-                const set_rate_fn_name = "setRate";
-                const set_rate_fn = if (@hasDecl(block_type, set_rate_fn_name)) @field(block_type, set_rate_fn_name) else null;
-
-                const initialize_fn_name = "initialize" ++ decl.name[7..];
-                const initialize_fn = if (@hasDecl(block_type, initialize_fn_name)) @field(block_type, initialize_fn_name) else if (@hasDecl(block_type, "initialize")) @field(block_type, "initialize") else null;
-
-                const deinitialize_fn_name = "deinitialize" ++ decl.name[7..];
-                const deinitialize_fn = if (@hasDecl(block_type, deinitialize_fn_name)) @field(block_type, deinitialize_fn_name) else if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
-
-                const type_signature = ComptimeTypeSignature.init(process_fn);
-
-                if (type_signature.inputs.len == 0 and @TypeOf(set_rate_fn) == @TypeOf(null)) {
-                    @compileError("Source block " ++ @typeName(block_type) ++ " is missing the setRate() method.");
-                }
-
-                _runtime_differentiations[count].type_signature = comptime RuntimeTypeSignature.init(type_signature);
-                _runtime_differentiations[count].set_rate_fn = comptime wrapSetRateFunction(block_type, set_rate_fn);
-                _runtime_differentiations[count].initialize_fn = comptime wrapInitializeFunction(block_type, initialize_fn);
-                _runtime_differentiations[count].deinitialize_fn = comptime wrapDeinitializeFunction(block_type, deinitialize_fn);
-                _runtime_differentiations[count].process_fn = comptime wrapProcessFunction(block_type, process_fn, type_signature);
-
-                count += 1;
-            }
-        }
-
-        if (count == 0) {
-            @compileError("Block " ++ @typeName(block_type) ++ " is missing a process() method.");
-        }
-
-        const runtime_differentiations = _runtime_differentiations;
-
-        return runtime_differentiations[0..count];
-    }
-};
 
 fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: anytype) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
     if (@TypeOf(initialize_fn) != @TypeOf(null)) {
@@ -193,10 +138,6 @@ fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytyp
     return impl.process;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Block
-////////////////////////////////////////////////////////////////////////////////
-
 pub fn extractBlockName(comptime block_type: type) []const u8 {
     // Split ( for generic blocks
     comptime var it = std.mem.split(u8, @typeName(block_type), "(");
@@ -210,24 +151,42 @@ pub fn extractBlockName(comptime block_type: type) []const u8 {
     return prefix ++ (if (suffix.len > 0) "(" else "") ++ suffix;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Block
+////////////////////////////////////////////////////////////////////////////////
+
 pub const Block = struct {
     name: []const u8,
     inputs: []const []const u8,
     outputs: []const []const u8,
-    differentiations: []const RuntimeDifferentiation,
+    type_signature: RuntimeTypeSignature,
+    set_rate_fn: *const fn (self: *Block, upstream_rate: f64) anyerror!f64,
+    initialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
+    deinitialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) void,
+    process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
-    _differentiation: ?*const RuntimeDifferentiation = null,
-    _rate: ?f64 = null,
+    rate: ?f64 = null,
 
     pub fn init(comptime block_type: type) Block {
-        const differentiations = comptime RuntimeDifferentiation.derive(block_type);
+        const process_fn = if (@hasDecl(block_type, "process")) @field(block_type, "process") else null;
+        const set_rate_fn = if (@hasDecl(block_type, "setRate")) @field(block_type, "setRate") else null;
+        const initialize_fn = if (@hasDecl(block_type, "initialize")) @field(block_type, "initialize") else null;
+        const deinitialize_fn = if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
 
-        comptime var _inputs: [differentiations[0].type_signature.inputs.len][]const u8 = undefined;
-        comptime var _outputs: [differentiations[0].type_signature.outputs.len][]const u8 = undefined;
+        if (@TypeOf(process_fn) == @TypeOf(null)) {
+            @compileError("Block " ++ @typeName(block_type) ++ " is missing the process() method.");
+        }
 
-        inline for (differentiations[0].type_signature.inputs, 0..) |_, i| _inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
-        inline for (differentiations[0].type_signature.outputs, 0..) |_, i| _outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
+        const type_signature = ComptimeTypeSignature.init(process_fn);
 
+        if (type_signature.inputs.len == 0 and @TypeOf(set_rate_fn) == @TypeOf(null)) {
+            @compileError("Source block " ++ @typeName(block_type) ++ " is missing the setRate() method.");
+        }
+
+        comptime var _inputs: [type_signature.inputs.len][]const u8 = undefined;
+        comptime var _outputs: [type_signature.outputs.len][]const u8 = undefined;
+        inline for (type_signature.inputs, 0..) |_, i| _inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
+        inline for (type_signature.outputs, 0..) |_, i| _outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
         const inputs = _inputs;
         const outputs = _outputs;
 
@@ -235,63 +194,35 @@ pub const Block = struct {
             .name = comptime extractBlockName(block_type),
             .inputs = inputs[0..],
             .outputs = outputs[0..],
-            .differentiations = differentiations,
+            .type_signature = comptime RuntimeTypeSignature.init(type_signature),
+            .set_rate_fn = comptime wrapSetRateFunction(block_type, set_rate_fn),
+            .initialize_fn = comptime wrapInitializeFunction(block_type, initialize_fn),
+            .deinitialize_fn = comptime wrapDeinitializeFunction(block_type, deinitialize_fn),
+            .process_fn = comptime wrapProcessFunction(block_type, process_fn, type_signature),
         };
     }
 
     // Primary Block API
 
-    pub fn differentiate(self: *Block, data_types: []const RuntimeDataType, rate: f64) !void {
-        for (self.differentiations, 0..) |differentiation, i| {
-            if (differentiation.type_signature.inputs.len != data_types.len)
-                std.debug.panic("Attempted differentiation with invalid number of input types for block", .{});
-
-            const match = for (data_types, 0..) |_, j| {
-                if (data_types[j] != differentiation.type_signature.inputs[j])
-                    break false;
-            } else true;
-
-            if (match) {
-                self._differentiation = &self.differentiations[i];
-                self._rate = try self._differentiation.?.set_rate_fn(self, rate);
-
-                return;
-            }
-        }
-
-        return BlockError.TypeSignatureNotFound;
+    pub fn setRate(self: *Block, rate: f64) !void {
+        self.rate = try self.set_rate_fn(self, rate);
     }
 
     pub fn initialize(self: *Block, allocator: std.mem.Allocator) !void {
-        try self._differentiation.?.initialize_fn(self, allocator);
+        try self.initialize_fn(self, allocator);
     }
 
     pub fn deinitialize(self: *Block, allocator: std.mem.Allocator) void {
-        self._differentiation.?.deinitialize_fn(self, allocator);
+        self.deinitialize_fn(self, allocator);
     }
 
     pub fn process(self: *Block, sample_mux: *SampleMux) !ProcessResult {
-        return try self._differentiation.?.process_fn(self, sample_mux);
-    }
-
-    pub fn getInputType(self: *Block, index: usize) BlockError!RuntimeDataType {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-        if (index >= self._differentiation.?.type_signature.inputs.len) return BlockError.InputNotFound;
-
-        return self._differentiation.?.type_signature.inputs[index];
-    }
-
-    pub fn getOutputType(self: *Block, index: usize) BlockError!RuntimeDataType {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-        if (index >= self._differentiation.?.type_signature.outputs.len) return BlockError.OutputNotFound;
-
-        return self._differentiation.?.type_signature.outputs[index];
+        return try self.process_fn(self, sample_mux);
     }
 
     pub fn getRate(self: *const Block, comptime T: type) BlockError!T {
-        if (self._differentiation == null) return BlockError.NotDifferentiated;
-
-        return std.math.lossyCast(T, self._rate.?);
+        if (self.rate == null) return BlockError.RateNotSet;
+        return std.math.lossyCast(T, self.rate.?);
     }
 };
 
@@ -305,11 +236,10 @@ const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBu
 
 const TestBlock = struct {
     block: Block,
-    init_u32_called: bool,
-    init_f32_called: bool,
+    initialize_called: bool,
 
     pub fn init() TestBlock {
-        return .{ .block = Block.init(@This()), .init_u32_called = false, .init_f32_called = false };
+        return .{ .block = Block.init(@This()), .initialize_called = false };
     }
 
     pub fn setRate(_: *TestBlock, upstream_rate: f64) !f64 {
@@ -317,35 +247,15 @@ const TestBlock = struct {
         return upstream_rate / 2;
     }
 
-    pub fn initializeUnsigned32(self: *TestBlock, _: std.mem.Allocator) !void {
-        self.init_u32_called = true;
+    pub fn initialize(self: *TestBlock, _: std.mem.Allocator) !void {
+        self.initialize_called = true;
     }
 
-    pub fn deinitializeUnsigned32(self: *TestBlock, _: std.mem.Allocator) void {
-        self.init_u32_called = false;
+    pub fn deinitialize(self: *TestBlock, _: std.mem.Allocator) void {
+        self.initialize_called = false;
     }
 
-    pub fn processUnsigned32(_: *TestBlock, _: []const u32, _: []const u8, _: []u32) !ProcessResult {
-        return ProcessResult.init(&[2]usize{ 0, 0 }, &[1]usize{0});
-    }
-
-    pub fn initializeFloat32(self: *TestBlock, _: std.mem.Allocator) !void {
-        self.init_f32_called = true;
-    }
-
-    pub fn deinitializeFloat32(self: *TestBlock, _: std.mem.Allocator) void {
-        self.init_f32_called = false;
-    }
-
-    pub fn processFloat32(_: *TestBlock, _: []const f32, _: []const u16, _: []f32) !ProcessResult {
-        return ProcessResult.init(&[2]usize{ 0, 0 }, &[1]usize{0});
-    }
-
-    pub fn initializeUnsigned8(_: *TestBlock, _: std.mem.Allocator) !void {
-        return error.Unsupported;
-    }
-
-    pub fn processUnsigned8(_: *TestBlock, _: []const u8, _: []const u8, _: []u8) !ProcessResult {
+    pub fn process(_: *TestBlock, _: []const u32, _: []const u8, _: []u32) !ProcessResult {
         return ProcessResult.init(&[2]usize{ 0, 0 }, &[1]usize{0});
     }
 };
@@ -357,22 +267,11 @@ const TestAddBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn processUnsigned32(_: *TestAddBlock, x: []const u32, y: []const u32, z: []u32) !ProcessResult {
+    pub fn process(_: *TestAddBlock, x: []const u32, y: []const u32, z: []u32) !ProcessResult {
         for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
-    }
-
-    pub fn processUnsigned8(_: *TestAddBlock, x: []const u8, y: []const u8, z: []u8) !ProcessResult {
-        for (x, 0..) |_, i| {
-            z[i] = x[i] + y[i];
-        }
-        return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
-    }
-
-    pub fn processUnsigned16(_: *TestAddBlock, _: []const u16, _: []const u16, _: []u16) !ProcessResult {
-        return error.Unsupported;
     }
 };
 
@@ -404,7 +303,6 @@ test "Block.init" {
     const test_block = TestBlock.init();
 
     try std.testing.expectEqualSlices(u8, test_block.block.name, "TestBlock");
-    try std.testing.expectEqual(test_block.block.differentiations.len, 3);
 
     try std.testing.expectEqual(@as(usize, 2), test_block.block.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), test_block.block.outputs.len);
@@ -413,75 +311,29 @@ test "Block.init" {
     try std.testing.expectEqualSlices(u8, "in2", test_block.block.inputs[1]);
     try std.testing.expectEqualSlices(u8, "out1", test_block.block.outputs[0]);
 
-    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, test_block.block.differentiations[0].type_signature.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned32}, test_block.block.differentiations[0].type_signature.outputs);
-
-    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, test_block.block.differentiations[1].type_signature.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Float32}, test_block.block.differentiations[1].type_signature.outputs);
-
-    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Unsigned8, RuntimeDataType.Unsigned8 }, test_block.block.differentiations[2].type_signature.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned8}, test_block.block.differentiations[2].type_signature.outputs);
-}
-
-test "Block.differentiate" {
-    var test_block = TestBlock.init();
-
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getRate(usize));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(0));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getInputType(1));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_block.block.getOutputType(0));
-
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
-    try std.testing.expectEqual(test_block.block._differentiation, &test_block.block.differentiations[0]);
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getInputType(0));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned8, try test_block.block.getInputType(1));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
-
-    try std.testing.expectError(BlockError.InputNotFound, test_block.block.getInputType(2));
-    try std.testing.expectError(BlockError.OutputNotFound, test_block.block.getOutputType(1));
-
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
-    try std.testing.expectEqual(test_block.block._differentiation, &test_block.block.differentiations[1]);
-    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getInputType(0));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_block.block.getInputType(1));
-    try std.testing.expectEqual(RuntimeDataType.Float32, try test_block.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 4000), try test_block.block.getRate(usize));
-
-    try std.testing.expectError(BlockError.TypeSignatureNotFound, test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Float32 }, 8000));
-    try std.testing.expectError(error.Unsupported, test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 2000));
-
-    var test_source = TestSource.init();
-
-    try std.testing.expectError(BlockError.NotDifferentiated, test_source.block.getRate(usize));
-    try std.testing.expectError(BlockError.NotDifferentiated, test_source.block.getOutputType(0));
-
-    try test_source.block.differentiate(&[0]RuntimeDataType{}, 0);
-    try std.testing.expectEqual(RuntimeDataType.Unsigned16, try test_source.block.getOutputType(0));
-    try std.testing.expectEqual(@as(usize, 8000), try test_source.block.getRate(usize));
-
-    try std.testing.expectError(BlockError.InputNotFound, test_source.block.getInputType(0));
+    try std.testing.expectEqual(RuntimeDataType.Unsigned32, test_block.block.type_signature.inputs[0]);
+    try std.testing.expectEqual(RuntimeDataType.Unsigned8, test_block.block.type_signature.inputs[1]);
+    try std.testing.expectEqual(RuntimeDataType.Unsigned32, test_block.block.type_signature.outputs[0]);
 }
 
 test "Block.initialize and Block.deinitialize" {
     var test_block = TestBlock.init();
 
-    try std.testing.expectEqual(false, test_block.init_u32_called);
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned8 }, 8000);
+    try std.testing.expectEqual(false, test_block.initialize_called);
     try test_block.block.initialize(std.testing.allocator);
-    try std.testing.expectEqual(true, test_block.init_u32_called);
+    try std.testing.expectEqual(true, test_block.initialize_called);
     test_block.block.deinitialize(std.testing.allocator);
-    try std.testing.expectEqual(false, test_block.init_u32_called);
+    try std.testing.expectEqual(false, test_block.initialize_called);
+}
 
-    try std.testing.expectEqual(false, test_block.init_f32_called);
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, 8000);
-    try test_block.block.initialize(std.testing.allocator);
-    try std.testing.expectEqual(true, test_block.init_f32_called);
-    test_block.block.deinitialize(std.testing.allocator);
-    try std.testing.expectEqual(false, test_block.init_f32_called);
+test "Block.setRate and Block.getRate" {
+    var test_block = TestBlock.init();
 
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned8, RuntimeDataType.Unsigned8 }, 8000);
-    try std.testing.expectError(error.Unsupported, test_block.block.initialize(std.testing.allocator));
+    try std.testing.expectError(BlockError.RateNotSet, test_block.block.getRate(u32));
+    try std.testing.expectError(error.Unsupported, test_block.block.setRate(4000));
+
+    try test_block.block.setRate(8000);
+    try std.testing.expectEqual(4000, try test_block.block.getRate(u32));
 }
 
 test "Block.process" {
@@ -490,51 +342,18 @@ test "Block.process" {
 
     var test_block = TestAddBlock.init();
 
-    // Try u32 differentiation
-    {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
-        defer test_sample_mux.deinit();
-        var sample_mux = test_sample_mux.sampleMux();
+    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
+    defer test_sample_mux.deinit();
+    var sample_mux = test_sample_mux.sampleMux();
 
-        try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned32 }, 8000);
+    var process_result = try test_block.block.process(&sample_mux);
+    try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[0]);
+    try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[1]);
+    try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
+    try std.testing.expectEqualSlices(u32, &[_]u32{ 0x48362412, 0xc8a78665 }, test_sample_mux.getOutputVector(u32, 0));
 
-        var process_result = try test_block.block.process(&sample_mux);
-        try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[0]);
-        try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[1]);
-        try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
-        try std.testing.expectEqualSlices(u32, &[_]u32{ 0x48362412, 0xc8a78665 }, test_sample_mux.getOutputVector(u32, 0));
-
-        process_result = try test_block.block.process(&sample_mux);
-        try std.testing.expect(process_result.eof);
-    }
-
-    // Try u8 differentiation
-    {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
-        defer test_sample_mux.deinit();
-        var sample_mux = test_sample_mux.sampleMux();
-
-        try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned8, RuntimeDataType.Unsigned8 }, 8000);
-
-        var process_result = try test_block.block.process(&sample_mux);
-        try std.testing.expectEqual(@as(usize, 8), process_result.samples_consumed[0]);
-        try std.testing.expectEqual(@as(usize, 8), process_result.samples_consumed[1]);
-        try std.testing.expectEqual(@as(usize, 8), process_result.samples_produced[0]);
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x12, 0x24, 0x36, 0x48, 0x65, 0x86, 0xa7, 0xc8 }, test_sample_mux.getOutputVector(u8, 0));
-
-        process_result = try test_block.block.process(&sample_mux);
-        try std.testing.expect(process_result.eof);
-    }
-
-    // Try u16 differentiation
-    {
-        var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
-        defer test_sample_mux.deinit();
-        var sample_mux = test_sample_mux.sampleMux();
-
-        try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned16, RuntimeDataType.Unsigned16 }, 8000);
-        try std.testing.expectError(error.Unsupported, test_block.block.process(&sample_mux));
-    }
+    process_result = try test_block.block.process(&sample_mux);
+    try std.testing.expect(process_result.eof);
 }
 
 test "Block.process read eof" {
@@ -559,7 +378,6 @@ test "Block.process read eof" {
 
     // Create block
     var test_block = TestAddBlock.init();
-    try test_block.block.differentiate(&[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Unsigned32 }, 8000);
 
     // Preload buffers
     @memcpy(input1_ring_buffer.impl.memory.buf[0..8], &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x10, 0x20, 0x30, 0x40 });
@@ -615,7 +433,6 @@ test "Block.process write eof" {
 
     // Create block
     var test_source = TestSource.init();
-    try test_source.block.differentiate(&[0]RuntimeDataType{}, 8000);
 
     // Process
     var process_result = try test_source.block.process(&sample_mux);

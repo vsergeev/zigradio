@@ -13,6 +13,8 @@ const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const BlockTesterError = error{
+    InputMismatch,
+    OutputMismatch,
     DataTypeMismatch,
     LengthMismatch,
     ValueMismatch,
@@ -63,21 +65,35 @@ pub const BlockTester = struct {
     }
 
     pub fn check(self: *BlockTester, rate: f64, comptime input_data_types: []const type, input_vectors: util.makeTupleConstSliceTypes(input_data_types), comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
+        // Validate input and outputs lengths
+        if (input_data_types.len != self.instance.type_signature.inputs.len) {
+            return BlockTesterError.InputMismatch;
+        } else if (output_data_types.len != self.instance.type_signature.outputs.len) {
+            return BlockTesterError.OutputMismatch;
+        }
+
         // Create runtime data types
         var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
         inline for (input_data_types, 0..) |t, i| {
             runtime_data_types[i] = comptime RuntimeDataType.map(t);
         }
 
-        // Differentiate block
-        try self.instance.differentiate(&runtime_data_types, rate);
-
-        // Validate block output data types
-        inline for (output_data_types, 0..) |t, i| {
-            if (try self.instance.getOutputType(i) != comptime RuntimeDataType.map(t)) {
+        // Validate block input data types
+        inline for (runtime_data_types, 0..) |_, i| {
+            if (self.instance.type_signature.inputs[i] != runtime_data_types[i]) {
                 return BlockTesterError.DataTypeMismatch;
             }
         }
+
+        // Validate block output data types
+        inline for (output_data_types, 0..) |t, i| {
+            if (self.instance.type_signature.outputs[i] != comptime RuntimeDataType.map(t)) {
+                return BlockTesterError.DataTypeMismatch;
+            }
+        }
+
+        // Set rate on block
+        try self.instance.setRate(rate);
 
         // Convert input vectors to byte buffers
         var input_buffers: [input_data_types.len][]const u8 = undefined;
@@ -114,15 +130,20 @@ pub const BlockTester = struct {
     }
 
     pub fn checkSource(self: *BlockTester, comptime output_data_types: []const type, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
-        // Differentiate block
-        try self.instance.differentiate(&[0]RuntimeDataType{}, 0);
+        // Validate input and outputs lengths
+        if (output_data_types.len != self.instance.type_signature.outputs.len) {
+            return BlockTesterError.OutputMismatch;
+        }
 
         // Validate block output data types
         inline for (output_data_types, 0..) |t, i| {
-            if (try self.instance.getOutputType(i) != comptime RuntimeDataType.map(t)) {
+            if (self.instance.type_signature.outputs[i] != comptime RuntimeDataType.map(t)) {
                 return BlockTesterError.DataTypeMismatch;
             }
         }
+
+        // Set rate on block
+        try self.instance.setRate(0);
 
         // Initialize platform
         try platform.initialize(std.testing.allocator);
@@ -167,76 +188,71 @@ pub const BlockTester = struct {
 const BlockError = @import("block.zig").BlockError;
 const ProcessResult = @import("block.zig").ProcessResult;
 
-const TestBlock = struct {
+const TestBlock1 = struct {
     block: Block,
     initialized: usize,
 
-    pub fn init() TestBlock {
+    pub fn init() TestBlock1 {
         return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn initialize1(self: *TestBlock, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestBlock1, _: std.mem.Allocator) !void {
         self.initialized = 1;
     }
 
-    pub fn deinitialize1(self: *TestBlock, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock1, _: std.mem.Allocator) void {
         self.initialized += 10;
     }
 
-    pub fn process1(_: *TestBlock, x: []const u32, y: []const u16, z: []u32) !ProcessResult {
+    pub fn process(_: *TestBlock1, x: []const u32, y: []const u16, z: []u32) !ProcessResult {
         for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
+};
 
-    pub fn initialize2(self: *TestBlock, _: std.mem.Allocator) !void {
+const TestBlock2 = struct {
+    block: Block,
+    initialized: usize,
+
+    pub fn init() TestBlock2 {
+        return .{ .block = Block.init(@This()), .initialized = 0 };
+    }
+
+    pub fn initialize(self: *TestBlock2, _: std.mem.Allocator) !void {
         self.initialized = 2;
     }
 
-    pub fn deinitialize2(self: *TestBlock, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock2, _: std.mem.Allocator) void {
         self.initialized += 20;
     }
 
-    pub fn process2(_: *TestBlock, x: []const u8, y: []const u16, z: []u16) !ProcessResult {
-        for (x, 0..) |_, i| {
-            z[i] = x[i] + y[i] + y[i];
-        }
-        return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
-    }
-
-    pub fn initialize3(_: *TestBlock, _: std.mem.Allocator) !void {
-        return error.NotImplemented;
-    }
-
-    pub fn process3(_: *TestBlock, _: []const u8, _: []const u8, _: []u8) !ProcessResult {
-        return error.NotImplemented;
-    }
-
-    pub fn initialize4(self: *TestBlock, _: std.mem.Allocator) !void {
-        self.initialized = 4;
-    }
-
-    pub fn deinitialize4(self: *TestBlock, _: std.mem.Allocator) void {
-        self.initialized += 40;
-    }
-
-    pub fn process4(_: *TestBlock, x: []const f32, y: []const f32, z: []f32) !ProcessResult {
+    pub fn process(_: *TestBlock2, x: []const f32, y: []const f32, z: []f32) !ProcessResult {
         for (x, 0..) |_, i| {
             z[i] = x[i] + y[i];
         }
         return ProcessResult.init(&[2]usize{ x.len, y.len }, &[1]usize{x.len});
     }
+};
 
-    pub fn initialize5(self: *TestBlock, _: std.mem.Allocator) !void {
-        self.initialized = 5;
+const TestBlock3 = struct {
+    block: Block,
+    initialized: usize,
+
+    pub fn init() TestBlock3 {
+        return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn deinitialize5(self: *TestBlock, _: std.mem.Allocator) void {
-        self.initialized += 50;
+    pub fn initialize(self: *TestBlock3, _: std.mem.Allocator) !void {
+        self.initialized = 3;
     }
 
-    pub fn process5(_: *TestBlock, x: []const std.math.Complex(f32), y: []const std.math.Complex(f32), z: []std.math.Complex(f32)) !ProcessResult {
+    pub fn deinitialize(self: *TestBlock3, _: std.mem.Allocator) void {
+        self.initialized += 30;
+    }
+
+    pub fn process(_: *TestBlock3, x: []const std.math.Complex(f32), y: []const std.math.Complex(f32), z: []std.math.Complex(f32)) !ProcessResult {
         for (x, 0..) |_, i| {
             z[i] = x[i].sub(y[i]);
         }
@@ -245,52 +261,48 @@ const TestBlock = struct {
 };
 
 test "BlockTester for Block" {
-    var block = TestBlock.init();
+    var block1 = TestBlock1.init();
+    var block2 = TestBlock2.init();
+    var block3 = TestBlock3.init();
 
-    var tester = BlockTester.init(&block.block, 0.1);
+    var tester1 = BlockTester.init(&block1.block, 0.1);
+    var tester2 = BlockTester.init(&block2.block, 0.1);
+    var tester3 = BlockTester.init(&block3.block, 0.1);
 
-    // Test differentiation failure
-    try std.testing.expectError(BlockError.TypeSignatureNotFound, tester.check(8000, &[2]type{ u64, u64 }, .{ &[_]u64{ 1, 2, 3 }, &[_]u64{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }}));
-
+    // Test input data type count mismatch
+    try std.testing.expectError(BlockTesterError.InputMismatch, tester1.check(8000, &[1]type{u32}, .{&[_]u32{ 1, 2, 3 }}, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }}));
     // Test output data type count mismatch
-    try std.testing.expectError(BlockError.OutputNotFound, tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[2]type{ u32, u32 }, .{ &[_]u32{ 3, 5, 7 }, &[_]u32{ 3, 5, 7 } }));
+    try std.testing.expectError(BlockTesterError.OutputMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[2]type{ u32, u32 }, .{ &[_]u32{ 3, 5, 7 }, &[_]u32{ 3, 5, 7 } }));
 
+    // Test input data type mismatch
+    try std.testing.expectError(BlockTesterError.DataTypeMismatch, tester1.check(8000, &[2]type{ u8, u16 }, .{ &[_]u8{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }}));
     // Test output data type mismatch
-    try std.testing.expectError(BlockTesterError.DataTypeMismatch, tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u64}, .{&[_]u64{ 3, 5, 7 }}));
-
-    // Test initialization error
-    try std.testing.expectError(error.NotImplemented, tester.check(8000, &[2]type{ u8, u8 }, .{ &[_]u8{ 1, 2 }, &[_]u8{ 3, 4 } }, &[1]type{u8}, .{&[_]u8{2}}));
+    try std.testing.expectError(BlockTesterError.DataTypeMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u64}, .{&[_]u64{ 3, 5, 7 }}));
 
     // Test success
-    try tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }});
-    try std.testing.expectEqual(@as(usize, 11), block.initialized);
-    try tester.check(8000, &[2]type{ u8, u16 }, .{ &[_]u8{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u16}, .{&[_]u16{ 5, 8, 11 }});
-    try std.testing.expectEqual(@as(usize, 22), block.initialized);
+    try tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 7 }});
+    try std.testing.expectEqual(@as(usize, 11), block1.initialized);
 
     // Test success with floats
-    try tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.4, 6.6 }});
-    try std.testing.expectEqual(@as(usize, 44), block.initialized);
-    try tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.15, 4.45, 6.55 }});
-    try std.testing.expectEqual(@as(usize, 44), block.initialized);
+    try tester2.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.4, 6.6 }});
+    try std.testing.expectEqual(@as(usize, 22), block2.initialized);
 
     // Test success with complex floats
-    try tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.75, 3.75), std.math.Complex(f32).init(4.25, 5.25) }});
-    try std.testing.expectEqual(@as(usize, 55), block.initialized);
-    try tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.45, 1.55), std.math.Complex(f32).init(2.70, 3.80), std.math.Complex(f32).init(4.20, 5.30) }});
-    try std.testing.expectEqual(@as(usize, 55), block.initialized);
+    try tester3.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.75, 3.75), std.math.Complex(f32).init(4.25, 5.25) }});
+    try std.testing.expectEqual(@as(usize, 33), block3.initialized);
 
     // Silence output on block tester for error tests
-    tester.silent = true;
+    tester1.silent = true;
+    tester2.silent = true;
+    tester3.silent = true;
 
     // Test vector mismatch
-    try std.testing.expectError(BlockTesterError.LengthMismatch, tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5 }}));
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 8 }}));
-    try std.testing.expectError(BlockTesterError.LengthMismatch, tester.check(8000, &[2]type{ u8, u16 }, .{ &[_]u8{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u16}, .{&[_]u16{ 4, 8 }}));
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ u8, u16 }, .{ &[_]u8{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u16}, .{&[_]u16{ 4, 8, 11 }}));
+    try std.testing.expectError(BlockTesterError.LengthMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5 }}));
+    try std.testing.expectError(BlockTesterError.ValueMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 8 }}));
 
     // Test vector mismatch with epsilon
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
+    try std.testing.expectError(BlockTesterError.ValueMismatch, tester2.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
+    try std.testing.expectError(BlockTesterError.ValueMismatch, tester3.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
 }
 
 const TestSource = struct {
@@ -333,7 +345,7 @@ test "BlockTester for Source" {
     var tester = BlockTester.init(&block.block, 0.1);
 
     // Test output data type count mismatch
-    try std.testing.expectError(BlockError.OutputNotFound, tester.checkSource(&[2]type{ f32, f32 }, .{ &[_]f32{ 3, 5, 7 }, &[_]f32{ 3, 5, 7 } }));
+    try std.testing.expectError(BlockTesterError.OutputMismatch, tester.checkSource(&[2]type{ f32, f32 }, .{ &[_]f32{ 3, 5, 7 }, &[_]f32{ 3, 5, 7 } }));
 
     // Test output data type mismatch
     try std.testing.expectError(BlockTesterError.DataTypeMismatch, tester.checkSource(&[1]type{u32}, .{&[_]u32{ 3, 5, 7 }}));
