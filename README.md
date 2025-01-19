@@ -86,6 +86,7 @@ $ ./zig-out/bin/example-rtlsdr_wbfm_mono 89.7e6
     * [utils/](src/utils) - Utility functions
     * [vectors/](src/vectors) - Generated test vectors
 * [examples/](examples) - Examples
+* [benchmarks/](benchmarks) - Benchmark Suite
 * [docs/](docs) - Documentation
 * [build.zig](build.zig) - Zig build script
 * [CHANGELOG.md](CHANGELOG.md) - Change log
