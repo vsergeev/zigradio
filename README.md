@@ -63,7 +63,7 @@ $ cd zigradio
 Build examples:
 
 ``` shell
-$ zig build --release=fast examples
+$ zig build examples
 ```
 
 Try out one of the [examples](examples) with an
