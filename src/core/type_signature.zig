@@ -41,49 +41,37 @@ pub const ComptimeTypeSignature = struct {
 // Runtime Type Signatures
 ////////////////////////////////////////////////////////////////////////////////
 
-pub const RuntimeDataType = enum {
-    ComplexFloat32,
-    ComplexFloat64,
-    Float32,
-    Float64,
-    Unsigned8,
-    Unsigned16,
-    Unsigned32,
-    Unsigned64,
-    Signed8,
-    Signed16,
-    Signed32,
-    Signed64,
+pub const RuntimeTypeSignature = struct {
+    inputs: []const []const u8,
+    outputs: []const []const u8,
 
-    pub fn map(comptime data_type: type) RuntimeDataType {
+    pub fn map(comptime data_type: type) []const u8 {
         return switch (data_type) {
-            std.math.Complex(f32) => RuntimeDataType.ComplexFloat32,
-            std.math.Complex(f64) => RuntimeDataType.ComplexFloat64,
-            f32 => RuntimeDataType.Float32,
-            f64 => RuntimeDataType.Float64,
-            u8 => RuntimeDataType.Unsigned8,
-            u16 => RuntimeDataType.Unsigned16,
-            u32 => RuntimeDataType.Unsigned32,
-            u64 => RuntimeDataType.Unsigned64,
-            i8 => RuntimeDataType.Signed8,
-            i16 => RuntimeDataType.Signed16,
-            i32 => RuntimeDataType.Signed32,
-            i64 => RuntimeDataType.Signed64,
-            else => unreachable,
+            std.math.Complex(f32) => "ComplexFloat32",
+            std.math.Complex(f64) => "ComplexFloat64",
+            f32 => "Float32",
+            f64 => "Float64",
+            u8 => "Unsigned8",
+            u16 => "Unsigned16",
+            u32 => "Unsigned32",
+            u64 => "Unsigned64",
+            i8 => "Signed8",
+            i16 => "Signed16",
+            i32 => "Signed32",
+            i64 => "Signed64",
+            else => {
+                if (@hasDecl(data_type, "typeName")) return data_type.typeName();
+                @compileError("User-defined type " ++ @typeName(data_type) ++ " is missing a typeName() getter.");
+            },
         };
     }
-};
-
-pub const RuntimeTypeSignature = struct {
-    inputs: []const RuntimeDataType,
-    outputs: []const RuntimeDataType,
 
     pub fn init(comptime type_signature: ComptimeTypeSignature) RuntimeTypeSignature {
-        var _runtime_inputs: [type_signature.inputs.len]RuntimeDataType = undefined;
-        var _runtime_outputs: [type_signature.outputs.len]RuntimeDataType = undefined;
+        comptime var _runtime_inputs: [type_signature.inputs.len][]const u8 = undefined;
+        comptime var _runtime_outputs: [type_signature.outputs.len][]const u8 = undefined;
 
-        inline for (type_signature.inputs, 0..) |input, i| _runtime_inputs[i] = comptime RuntimeDataType.map(input);
-        inline for (type_signature.outputs, 0..) |output, i| _runtime_outputs[i] = comptime RuntimeDataType.map(output);
+        inline for (type_signature.inputs, 0..) |input, i| _runtime_inputs[i] = comptime RuntimeTypeSignature.map(input);
+        inline for (type_signature.outputs, 0..) |output, i| _runtime_outputs[i] = comptime RuntimeTypeSignature.map(output);
 
         const runtime_inputs = _runtime_inputs;
         const runtime_outputs = _runtime_outputs;
@@ -150,27 +138,36 @@ test "ComptimeTypeSignature.init" {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// RuntimeDataType Tests
-////////////////////////////////////////////////////////////////////////////////
-
-test "RuntimeDataType.map" {
-    try std.testing.expectEqual(RuntimeDataType.ComplexFloat32, RuntimeDataType.map(std.math.Complex(f32)));
-    try std.testing.expectEqual(RuntimeDataType.ComplexFloat64, RuntimeDataType.map(std.math.Complex(f64)));
-    try std.testing.expectEqual(RuntimeDataType.Float32, RuntimeDataType.map(f32));
-    try std.testing.expectEqual(RuntimeDataType.Float64, RuntimeDataType.map(f64));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned8, RuntimeDataType.map(u8));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned16, RuntimeDataType.map(u16));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, RuntimeDataType.map(u32));
-    try std.testing.expectEqual(RuntimeDataType.Unsigned64, RuntimeDataType.map(u64));
-    try std.testing.expectEqual(RuntimeDataType.Signed8, RuntimeDataType.map(i8));
-    try std.testing.expectEqual(RuntimeDataType.Signed16, RuntimeDataType.map(i16));
-    try std.testing.expectEqual(RuntimeDataType.Signed32, RuntimeDataType.map(i32));
-    try std.testing.expectEqual(RuntimeDataType.Signed64, RuntimeDataType.map(i64));
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // RuntimeTypeSignature Tests
 ////////////////////////////////////////////////////////////////////////////////
+
+const Foo = struct {
+    a: f32,
+    b: f32,
+
+    pub fn typeName() []const u8 {
+        return "Foo";
+    }
+};
+
+const Bar = Foo;
+
+test "RuntimeTypeSignature.map" {
+    try std.testing.expectEqualStrings("ComplexFloat32", RuntimeTypeSignature.map(std.math.Complex(f32)));
+    try std.testing.expectEqualStrings("ComplexFloat64", RuntimeTypeSignature.map(std.math.Complex(f64)));
+    try std.testing.expectEqualStrings("Float32", RuntimeTypeSignature.map(f32));
+    try std.testing.expectEqualStrings("Float64", RuntimeTypeSignature.map(f64));
+    try std.testing.expectEqualStrings("Unsigned8", RuntimeTypeSignature.map(u8));
+    try std.testing.expectEqualStrings("Unsigned16", RuntimeTypeSignature.map(u16));
+    try std.testing.expectEqualStrings("Unsigned32", RuntimeTypeSignature.map(u32));
+    try std.testing.expectEqualStrings("Unsigned64", RuntimeTypeSignature.map(u64));
+    try std.testing.expectEqualStrings("Signed8", RuntimeTypeSignature.map(i8));
+    try std.testing.expectEqualStrings("Signed16", RuntimeTypeSignature.map(i16));
+    try std.testing.expectEqualStrings("Signed32", RuntimeTypeSignature.map(i32));
+    try std.testing.expectEqualStrings("Signed64", RuntimeTypeSignature.map(i64));
+    try std.testing.expectEqualStrings("Foo", RuntimeTypeSignature.map(Foo));
+    try std.testing.expectEqualStrings("Foo", RuntimeTypeSignature.map(Bar));
+}
 
 test "RuntimeTypeSignature.init" {
     // 1 input, 0 outputs
@@ -178,30 +175,49 @@ test "RuntimeTypeSignature.init" {
         fn process(_: *@This(), _: []const u32) void {}
     };
     const ts10 = RuntimeTypeSignature.init(ComptimeTypeSignature.init(TestProcess10.process));
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned32}, ts10.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[0]RuntimeDataType{}, ts10.outputs);
+    try std.testing.expectEqual(1, ts10.inputs.len);
+    try std.testing.expectEqualStrings("Unsigned32", ts10.inputs[0]);
+    try std.testing.expectEqual(0, ts10.outputs.len);
 
     // 0 inputs, 1 outputs
     const TestProcess01 = struct {
         fn process(_: *@This(), _: []u32) void {}
     };
     const ts01 = RuntimeTypeSignature.init(ComptimeTypeSignature.init(TestProcess01.process));
-    try std.testing.expectEqualSlices(RuntimeDataType, &[0]RuntimeDataType{}, ts01.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned32}, ts01.outputs);
+    try std.testing.expectEqual(0, ts01.inputs.len);
+    try std.testing.expectEqual(1, ts01.outputs.len);
+    try std.testing.expectEqualStrings("Unsigned32", ts01.outputs[0]);
 
     // 1 inputs, 1 outputs
     const TestProcess11 = struct {
         fn process(_: *@This(), _: []const f32, _: []u32) void {}
     };
     const ts11 = RuntimeTypeSignature.init(ComptimeTypeSignature.init(TestProcess11.process));
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Float32}, ts11.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[1]RuntimeDataType{RuntimeDataType.Unsigned32}, ts11.outputs);
+    try std.testing.expectEqual(1, ts11.inputs.len);
+    try std.testing.expectEqualStrings("Float32", ts11.inputs[0]);
+    try std.testing.expectEqual(1, ts11.outputs.len);
+    try std.testing.expectEqualStrings("Unsigned32", ts11.outputs[0]);
 
     // 2 inputs, 2 outputs
     const TestProcess22 = struct {
         fn process(_: *@This(), _: []const f32, _: []const u16, _: []u32, _: []f64) void {}
     };
     const ts22 = RuntimeTypeSignature.init(ComptimeTypeSignature.init(TestProcess22.process));
-    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Float32, RuntimeDataType.Unsigned16 }, ts22.inputs);
-    try std.testing.expectEqualSlices(RuntimeDataType, &[2]RuntimeDataType{ RuntimeDataType.Unsigned32, RuntimeDataType.Float64 }, ts22.outputs);
+    try std.testing.expectEqual(2, ts22.inputs.len);
+    try std.testing.expectEqualStrings("Float32", ts22.inputs[0]);
+    try std.testing.expectEqualStrings("Unsigned16", ts22.inputs[1]);
+    try std.testing.expectEqual(2, ts22.outputs.len);
+    try std.testing.expectEqualStrings("Unsigned32", ts22.outputs[0]);
+    try std.testing.expectEqualStrings("Float64", ts22.outputs[1]);
+
+    // 2 inputs, 1 outputs, with user defined type
+    const TestProcess21 = struct {
+        fn process(_: *@This(), _: []const f32, _: []const u16, _: []Foo) void {}
+    };
+    const ts21 = RuntimeTypeSignature.init(ComptimeTypeSignature.init(TestProcess21.process));
+    try std.testing.expectEqual(2, ts21.inputs.len);
+    try std.testing.expectEqualStrings("Float32", ts21.inputs[0]);
+    try std.testing.expectEqualStrings("Unsigned16", ts21.inputs[1]);
+    try std.testing.expectEqual(1, ts21.outputs.len);
+    try std.testing.expectEqualStrings("Foo", ts21.outputs[0]);
 }

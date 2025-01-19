@@ -4,7 +4,7 @@ const util = @import("util.zig");
 const platform = @import("platform.zig");
 
 const Block = @import("block.zig").Block;
-const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
+const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 
@@ -73,21 +73,21 @@ pub const BlockTester = struct {
         }
 
         // Create runtime data types
-        var runtime_data_types: [input_data_types.len]RuntimeDataType = undefined;
+        var runtime_data_types: [input_data_types.len][]const u8 = undefined;
         inline for (input_data_types, 0..) |t, i| {
-            runtime_data_types[i] = comptime RuntimeDataType.map(t);
+            runtime_data_types[i] = comptime RuntimeTypeSignature.map(t);
         }
 
         // Validate block input data types
         inline for (runtime_data_types, 0..) |_, i| {
-            if (self.instance.type_signature.inputs[i] != runtime_data_types[i]) {
+            if (!std.mem.eql(u8, self.instance.type_signature.inputs[i], runtime_data_types[i])) {
                 return BlockTesterError.DataTypeMismatch;
             }
         }
 
         // Validate block output data types
         inline for (output_data_types, 0..) |t, i| {
-            if (self.instance.type_signature.outputs[i] != comptime RuntimeDataType.map(t)) {
+            if (!std.mem.eql(u8, self.instance.type_signature.outputs[i], comptime RuntimeTypeSignature.map(t))) {
                 return BlockTesterError.DataTypeMismatch;
             }
         }
@@ -137,7 +137,7 @@ pub const BlockTester = struct {
 
         // Validate block output data types
         inline for (output_data_types, 0..) |t, i| {
-            if (self.instance.type_signature.outputs[i] != comptime RuntimeDataType.map(t)) {
+            if (!std.mem.eql(u8, self.instance.type_signature.outputs[i], comptime RuntimeTypeSignature.map(t))) {
                 return BlockTesterError.DataTypeMismatch;
             }
         }

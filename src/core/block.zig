@@ -2,7 +2,6 @@ const std = @import("std");
 
 const ComptimeTypeSignature = @import("type_signature.zig").ComptimeTypeSignature;
 const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
-const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,9 +310,9 @@ test "Block.init" {
     try std.testing.expectEqualSlices(u8, "in2", test_block.block.inputs[1]);
     try std.testing.expectEqualSlices(u8, "out1", test_block.block.outputs[0]);
 
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, test_block.block.type_signature.inputs[0]);
-    try std.testing.expectEqual(RuntimeDataType.Unsigned8, test_block.block.type_signature.inputs[1]);
-    try std.testing.expectEqual(RuntimeDataType.Unsigned32, test_block.block.type_signature.outputs[0]);
+    try std.testing.expectEqualStrings("Unsigned32", test_block.block.type_signature.inputs[0]);
+    try std.testing.expectEqualStrings("Unsigned8", test_block.block.type_signature.inputs[1]);
+    try std.testing.expectEqualStrings("Unsigned32", test_block.block.type_signature.outputs[0]);
 }
 
 test "Block.initialize and Block.deinitialize" {

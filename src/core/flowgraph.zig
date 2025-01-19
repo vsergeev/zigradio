@@ -333,7 +333,7 @@ pub const Flowgraph = struct {
                     return FlowgraphError.InputPortUnconnected;
                 }
 
-                if (k.*.type_signature.inputs[i] != upstream_connection.?.block.type_signature.outputs[upstream_connection.?.index]) {
+                if (!std.mem.eql(u8, k.*.type_signature.inputs[i], upstream_connection.?.block.type_signature.outputs[upstream_connection.?.index])) {
                     return FlowgraphError.DataTypeMismatch;
                 }
             }
@@ -403,7 +403,7 @@ pub const Flowgraph = struct {
                 const output_port = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?;
                 const output_port_name = output_port.block.outputs[output_port.index];
                 const block_name = output_port.block.name;
-                std.debug.print("[Flowgraph]        .{s} [{any}] <- {s}.{s}\n", .{ input_port_name, input_port_type, block_name, output_port_name });
+                std.debug.print("[Flowgraph]        .{s} [{s}] <- {s}.{s}\n", .{ input_port_name, input_port_type, block_name, output_port_name });
             }
 
             // For each output port
@@ -411,7 +411,7 @@ pub const Flowgraph = struct {
                 const output_port_name = block.outputs[i];
                 const output_port_type = block.type_signature.outputs[i];
 
-                std.debug.print("[Flowgraph]        .{s} [{any}] -> ", .{ output_port_name, output_port_type });
+                std.debug.print("[Flowgraph]        .{s} [{s}] -> ", .{ output_port_name, output_port_type });
 
                 // Find all connected input ports (quadratic, but this is a debug dump)
                 var it = self.flattened_connections.keyIterator();
