@@ -107,6 +107,14 @@ Test vectors are generated with Python 3 and NumPy/SciPy:
 $ zig build generate
 ```
 
+## Benchmarking
+
+Run the benchmark suite with:
+
+```
+$ zig build benchmark
+```
+
 ## License
 
 ZigRadio is MIT licensed. See the included [LICENSE](LICENSE) file.
