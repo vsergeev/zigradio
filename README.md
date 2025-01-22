@@ -32,7 +32,7 @@ pub fn main() !void {
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(15e3, .{});
     var af_deemphasis = radio.blocks.FMDeemphasisFilterBlock.init(75e-6);
     var af_downsampler = radio.blocks.DownsamplerBlock(f32).init(5);
-    var sink = radio.blocks.PulseAudioSink.init();
+    var sink = radio.blocks.PulseAudioSink(1).init();
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();
