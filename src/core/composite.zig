@@ -1,22 +1,21 @@
 const std = @import("std");
 
-const extractBlockName = @import("block.zig").extractBlockName;
-
 const Flowgraph = @import("flowgraph.zig").Flowgraph;
+
+const extractBlockName = @import("block.zig").extractBlockName;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn wrapConnectFunction(comptime block_type: anytype, comptime connect_fn: anytype) fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
-    const impl = struct {
+fn wrapConnectFunction(comptime CompositeType: anytype, comptime connectFn: fn (self: *CompositeType, flowgraph: *Flowgraph) anyerror!void) fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
+    const gen = struct {
         fn connect(block: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
-            const self: *block_type = @fieldParentPtr("composite", block);
-
-            try connect_fn(self, flowgraph);
+            const self: *CompositeType = @fieldParentPtr("composite", block);
+            try connectFn(self, flowgraph);
         }
     };
-    return impl.connect;
+    return gen.connect;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,20 +26,24 @@ pub const CompositeBlock = struct {
     name: []const u8,
     inputs: []const []const u8,
     outputs: []const []const u8,
+    connect_fn: *const fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void,
 
-    _connect_fn: *const fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void,
+    pub fn init(comptime CompositeType: type, inputs: []const []const u8, outputs: []const []const u8) CompositeBlock {
+        // Composite needs to have a connect method
+        if (!@hasDecl(CompositeType, "connect")) {
+            @compileError("Composite " ++ @typeName(CompositeType) ++ " is missing the connect() method.");
+        }
 
-    pub fn init(comptime block_type: type, inputs: []const []const u8, outputs: []const []const u8) CompositeBlock {
-        return CompositeBlock{
-            .name = comptime extractBlockName(block_type),
+        return .{
+            .name = comptime extractBlockName(CompositeType),
             .inputs = inputs,
             .outputs = outputs,
-            ._connect_fn = wrapConnectFunction(block_type, @field(block_type, "connect")),
+            .connect_fn = comptime wrapConnectFunction(CompositeType, CompositeType.connect),
         };
     }
 
     pub fn connect(self: *CompositeBlock, flowgraph: *Flowgraph) !void {
-        try self._connect_fn(self, flowgraph);
+        try self.connect_fn(self, flowgraph);
     }
 };
 
