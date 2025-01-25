@@ -136,7 +136,7 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
 
                 if (min_input_samples != null and min_input_samples.? == 0) {
                     // No input samples available for at least one input
-                    self.readers.items[min_input_samples_index].wait(0);
+                    self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
                 } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
                     // Insufficient output samples available for at least one output
                     self.writers.items[min_output_samples_index].wait(min_input_samples.? * output_element_sizes[min_output_samples_index]);
