@@ -963,7 +963,7 @@ test "Flowgraph validate" {
     try std.testing.expectError(FlowgraphError.InputPortUnconnected, top2._validate());
 }
 
-test "Flowgraph differentiate (type signature)" {
+test "Flowgraph initialize type signature validation" {
     //
     //          a        c        d        f
     //    [ 1 ] -> [ 3 ] -> [ 4 ] -> [ 6 ] -> [ 7 ]
@@ -1030,7 +1030,7 @@ test "Flowgraph differentiate (type signature)" {
     try std.testing.expectError(FlowgraphError.DataTypeMismatch, top2._initialize());
 }
 
-test "Flowgraph differentiate (rate validation)" {
+test "Flowgraph initialize rate validation" {
     //
     //          a        c
     //    [ 1 ] -> [ 3 ] -> [ 4 ]
