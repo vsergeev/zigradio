@@ -109,21 +109,19 @@ fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytyp
         fn process(block: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
             const self: *block_type = @fieldParentPtr("block", block);
 
-            // Get buffers, catching read EOF
-            const buffers = sample_mux.getBuffers(type_signature.inputs, type_signature.outputs) catch |err| {
-                if (err == error.EndOfFile) {
+            // Get sample buffers, catching read EOF
+            const buffers = sample_mux.get(type_signature) catch |err| switch (err) {
+                error.EndOfFile => {
                     sample_mux.setEOF();
                     return ProcessResult.eof();
-                } else {
-                    return err;
-                }
+                },
             };
 
-            // Process buffers
+            // Process sample buffers
             const process_result = try @call(.auto, process_fn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
-            // Update buffers
-            sample_mux.updateBuffers(type_signature.inputs, &process_result.samples_consumed, type_signature.outputs, &process_result.samples_produced);
+            // Update sample buffers
+            sample_mux.update(type_signature, process_result);
 
             // If block completed, set write EOF
             if (process_result.eof) {
@@ -341,7 +339,9 @@ test "Block.process" {
 
     var test_block = TestAddBlock.init();
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
+    const ts = ComptimeTypeSignature.init(TestAddBlock.process);
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
     defer test_sample_mux.deinit();
     var sample_mux = test_sample_mux.sampleMux();
 

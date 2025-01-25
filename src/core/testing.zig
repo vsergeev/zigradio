@@ -109,7 +109,7 @@ pub const BlockTester = struct {
             defer self.instance.deinitialize(std.testing.allocator);
 
             // Create sample mux
-            var tester_sample_mux = try TestSampleMux(input_data_types.len, output_data_types.len).init(input_buffers, .{ .single_input_samples = single_samples });
+            var tester_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(input_buffers, .{ .single_input_samples = single_samples });
             defer tester_sample_mux.deinit();
 
             // Run block
@@ -155,7 +155,7 @@ pub const BlockTester = struct {
             defer self.instance.deinitialize(std.testing.allocator);
 
             // Create sample mux
-            var tester_sample_mux = try TestSampleMux(0, output_data_types.len).init([0][]const u8{}, .{ .single_output_samples = single_samples });
+            var tester_sample_mux = try TestSampleMux(&[0]type{}, output_data_types).init([0][]const u8{}, .{ .single_output_samples = single_samples });
             defer tester_sample_mux.deinit();
 
             // Run block
@@ -166,7 +166,7 @@ pub const BlockTester = struct {
                     break;
                 }
                 inline for (output_data_types, 0..) |_, i| {
-                    if (tester_sample_mux.getNumOutputSamples(output_data_types[i], i) >= output_vectors[i].len) {
+                    if (tester_sample_mux.getOutputVector(output_data_types[i], i).len >= output_vectors[i].len) {
                         break :blk;
                     }
                 }

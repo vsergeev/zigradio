@@ -161,9 +161,11 @@ fn RingBuffer(comptime MemoryImpl: type) type {
         ////////////////////////////////////////////////////////////////////////
 
         pub fn _minReadIndex(self: *Self) usize {
-            // Optimize for single reader
+            // Optimize for single reader and no reader
             if (self.num_readers == 1) {
                 return self.read_index[0];
+            } else if (self.num_readers == 0) {
+                return 0;
             }
 
             // Find lagging reader index
@@ -281,29 +283,6 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 return self.ring_buffer.impl.getWriteAvailable();
             }
 
-            pub fn getBuffer(self: *@This(), count: usize) []u8 {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
-
-                return self.ring_buffer.impl.getWriteBuffer(count);
-            }
-
-            pub fn update(self: *@This(), count: usize) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
-
-                self.ring_buffer.impl.updateWriteIndex(count);
-
-                self.ring_buffer.cond_read_available.signal();
-            }
-
-            pub fn setEOF(self: *@This()) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
-
-                self.ring_buffer.impl.setEOF();
-            }
-
             pub fn wait(self: *@This(), min_count: usize) void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
@@ -313,10 +292,33 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 }
             }
 
+            pub fn getBuffer(self: *@This()) []u8 {
+                self.ring_buffer.mutex.lock();
+                defer self.ring_buffer.mutex.unlock();
+
+                return self.ring_buffer.impl.getWriteBuffer(self.ring_buffer.impl.getWriteAvailable());
+            }
+
+            pub fn update(self: *@This(), count: usize) void {
+                self.ring_buffer.mutex.lock();
+                defer self.ring_buffer.mutex.unlock();
+
+                self.ring_buffer.impl.updateWriteIndex(count);
+                self.ring_buffer.cond_read_available.signal();
+            }
+
+            pub fn setEOF(self: *@This()) void {
+                self.ring_buffer.mutex.lock();
+                defer self.ring_buffer.mutex.unlock();
+
+                self.ring_buffer.impl.setEOF();
+                self.ring_buffer.cond_read_available.signal();
+            }
+
             // Write interface for testing
             pub fn write(self: *@This(), data: []const u8) void {
                 std.debug.assert(self.getAvailable() >= data.len);
-                @memcpy(self.getBuffer(data.len), data);
+                @memcpy(self.getBuffer()[0..data.len], data);
                 self.update(data.len);
             }
         };
@@ -337,11 +339,27 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 return available;
             }
 
-            pub fn getBuffer(self: *@This(), count: usize) []const u8 {
+            pub fn wait(self: *@This(), min_count: usize) !void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
-                return self.ring_buffer.impl.getReadBuffer(self.index, count);
+                var available = self.ring_buffer.impl.getReadAvailable(self.index);
+
+                while (available < min_count) {
+                    if (available == 0 and self.ring_buffer.impl.getEOF()) {
+                        return error.EndOfFile;
+                    }
+
+                    self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
+                    available = self.ring_buffer.impl.getReadAvailable(self.index);
+                }
+            }
+
+            pub fn getBuffer(self: *@This()) []const u8 {
+                self.ring_buffer.mutex.lock();
+                defer self.ring_buffer.mutex.unlock();
+
+                return self.ring_buffer.impl.getReadBuffer(self.index, self.ring_buffer.impl.getReadAvailable(self.index));
             }
 
             pub fn update(self: *@This(), count: usize) void {
@@ -349,23 +367,13 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 defer self.ring_buffer.mutex.unlock();
 
                 self.ring_buffer.impl.updateReadIndex(self.index, count);
-
                 self.ring_buffer.cond_write_available.signal();
-            }
-
-            pub fn wait(self: *@This(), min_count: usize) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
-
-                while (self.ring_buffer.impl.getReadAvailable(self.index) < min_count) {
-                    self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
-                }
             }
 
             // Read interface for testing
             pub fn read(self: *@This(), data: []u8) []u8 {
                 std.debug.assert(self.getAvailable() catch unreachable >= data.len);
-                @memcpy(data, self.getBuffer(data.len));
+                @memcpy(data, self.getBuffer()[0..data.len]);
                 self.update(data.len);
                 return data;
             }
@@ -792,7 +800,7 @@ test "RingBuffer read wait" {
         const ReadWaiter = struct {
             fn run(rd: *RingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
                 // Wait for 5
-                rd.wait(5);
+                try rd.wait(5);
                 // Signal done
                 done.set();
             }

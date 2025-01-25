@@ -1,8 +1,10 @@
 const std = @import("std");
 
-const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
-
 const util = @import("util.zig");
+const ComptimeTypeSignature = @import("type_signature.zig").ComptimeTypeSignature;
+const ProcessResult = @import("block.zig").ProcessResult;
+
+const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 // SampleMux
@@ -10,32 +12,51 @@ const util = @import("util.zig");
 
 pub const SampleMux = struct {
     ptr: *anyopaque,
-    getBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void,
-    updateBuffersFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void,
+    waitAvailableFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
+    getInputBufferFn: *const fn (ptr: *anyopaque, index: usize) []const u8,
+    getOutputBufferFn: *const fn (ptr: *anyopaque, index: usize) []u8,
+    updateInputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
+    updateOutputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
     setEOFFn: *const fn (ptr: *anyopaque) void,
 
-    pub fn SampleBuffers(comptime input_data_types: []const type, comptime output_data_types: []const type) type {
-        return struct {
-            inputs: util.makeTupleConstSliceTypes(input_data_types),
-            outputs: util.makeTupleSliceTypes(output_data_types),
-        };
-    }
-
-    pub fn init(pointer: anytype, comptime getBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void, comptime updateBuffersFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void, comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void) SampleMux {
+    pub fn init(
+        pointer: anytype,
+        comptime waitAvailableFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
+        comptime getInputBufferFn: fn (ptr: @TypeOf(pointer), index: usize) []const u8,
+        comptime getOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize) []u8,
+        comptime updateInputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
+        comptime updateOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
+        comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void,
+    ) SampleMux {
         const Ptr = @TypeOf(pointer);
         std.debug.assert(@typeInfo(Ptr) == .Pointer); // Must be a pointer
         std.debug.assert(@typeInfo(Ptr).Pointer.size == .One); // Must be a single-item pointer
         std.debug.assert(@typeInfo(@typeInfo(Ptr).Pointer.child) == .Struct); // Must point to a struct
 
         const gen = struct {
-            fn getBuffers(ptr: *anyopaque, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void {
+            fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
                 const self: Ptr = @ptrCast(@alignCast(ptr));
-                try getBuffersFn(self, input_element_sizes, input_buffers, output_element_sizes, output_buffers);
+                return try waitAvailableFn(self, input_element_sizes, output_element_sizes);
             }
 
-            fn updateBuffers(ptr: *anyopaque, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
+            fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
                 const self: Ptr = @ptrCast(@alignCast(ptr));
-                updateBuffersFn(self, input_element_sizes, samples_consumed, output_element_sizes, samples_produced);
+                return getInputBufferFn(self, index);
+            }
+
+            fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
+                const self: Ptr = @ptrCast(@alignCast(ptr));
+                return getOutputBufferFn(self, index);
+            }
+
+            fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+                const self: Ptr = @ptrCast(@alignCast(ptr));
+                updateInputBufferFn(self, index, count);
+            }
+
+            fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+                const self: Ptr = @ptrCast(@alignCast(ptr));
+                updateOutputBufferFn(self, index, count);
             }
 
             fn setEOF(ptr: *anyopaque) void {
@@ -44,30 +65,55 @@ pub const SampleMux = struct {
             }
         };
 
-        return .{ .ptr = pointer, .getBuffersFn = gen.getBuffers, .updateBuffersFn = gen.updateBuffers, .setEOFFn = gen.setEOF };
+        return .{
+            .ptr = pointer,
+            .waitAvailableFn = gen.waitAvailable,
+            .getInputBufferFn = gen.getInputBuffer,
+            .getOutputBufferFn = gen.getOutputBuffer,
+            .updateInputBufferFn = gen.updateInputBuffer,
+            .updateOutputBufferFn = gen.updateOutputBuffer,
+            .setEOFFn = gen.setEOF,
+        };
     }
 
-    pub fn getBuffers(self: *SampleMux, comptime input_data_types: []const type, comptime output_data_types: []const type) error{EndOfFile}!SampleBuffers(input_data_types, output_data_types) {
-        // Get raw byte buffers
-        var input_buffers_raw: [input_data_types.len][]const u8 = undefined;
-        var output_buffers_raw: [output_data_types.len][]u8 = undefined;
-        try self.getBuffersFn(self.ptr, comptime util.dataTypeSizes(input_data_types), input_buffers_raw[0..], comptime util.dataTypeSizes(output_data_types), output_buffers_raw[0..]);
+    ////////////////////////////////////////////////////////////////////////////
+    // Sample Buffers API
+    ////////////////////////////////////////////////////////////////////////////
 
-        // Cast into typed buffers
-        var sample_buffers: SampleBuffers(input_data_types, output_data_types) = undefined;
-        inline for (input_data_types, 0..) |_, i| {
-            sample_buffers.inputs[i] = @alignCast(std.mem.bytesAsSlice(input_data_types[i], input_buffers_raw[i]));
+    pub fn SampleBuffers(comptime type_signature: ComptimeTypeSignature) type {
+        return struct {
+            inputs: util.makeTupleConstSliceTypes(type_signature.inputs),
+            outputs: util.makeTupleSliceTypes(type_signature.outputs),
+        };
+    }
+
+    pub fn get(self: *SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
+        // Wait for sufficient number of samples
+        const min_samples_available = try self.waitAvailableFn(self.ptr, comptime util.dataTypeSizes(type_signature.inputs), comptime util.dataTypeSizes(type_signature.outputs));
+
+        // Get sample buffers
+        var sample_buffers: SampleBuffers(type_signature) = undefined;
+        inline for (type_signature.inputs, 0..) |input_type, i| {
+            const buffer = self.getInputBufferFn(self.ptr, i);
+            sample_buffers.inputs[i] = @alignCast(std.mem.bytesAsSlice(input_type, buffer[0 .. min_samples_available * @sizeOf(type_signature.inputs[i])]));
         }
-        inline for (output_data_types, 0..) |_, i| {
-            sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_data_types[i], output_buffers_raw[i]));
+        inline for (type_signature.outputs, 0..) |output_type, i| {
+            const buffer = self.getOutputBufferFn(self.ptr, i);
+            sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_type, buffer[0..std.mem.alignBackward(usize, buffer.len, @sizeOf(type_signature.outputs[i]))]));
         }
 
         // Return typed input and output buffers
         return sample_buffers;
     }
 
-    pub fn updateBuffers(self: *SampleMux, comptime input_data_types: []const type, samples_consumed: []const usize, comptime output_data_types: []const type, samples_produced: []const usize) void {
-        self.updateBuffersFn(self.ptr, comptime util.dataTypeSizes(input_data_types), samples_consumed, comptime util.dataTypeSizes(output_data_types), samples_produced);
+    pub fn update(self: *SampleMux, comptime type_signature: ComptimeTypeSignature, process_result: ProcessResult) void {
+        // Update sample buffers
+        inline for (type_signature.inputs, 0..) |_, i| {
+            self.updateInputBufferFn(self.ptr, i, process_result.samples_consumed[i] * @sizeOf(type_signature.inputs[i]));
+        }
+        inline for (type_signature.outputs, 0..) |_, i| {
+            self.updateOutputBufferFn(self.ptr, i, process_result.samples_produced[i] * @sizeOf(type_signature.outputs[i]));
+        }
     }
 
     pub fn setEOF(self: *SampleMux) void {
@@ -108,12 +154,10 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn getBuffers(self: *Self, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void {
+        pub fn waitAvailable(self: *Self, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
             // Sanity checks
-            std.debug.assert(input_buffers.len == self.readers.items.len);
-            std.debug.assert(input_element_sizes.len == input_buffers.len);
-            std.debug.assert(output_buffers.len == self.writers.items.len);
-            std.debug.assert(output_element_sizes.len == output_buffers.len);
+            std.debug.assert(input_element_sizes.len == self.readers.items.len);
+            std.debug.assert(output_element_sizes.len == self.writers.items.len);
 
             var input_samples_available: [8]usize = undefined;
             var output_samples_available: [8]usize = undefined;
@@ -129,14 +173,14 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
                 }
 
                 // Compute minimum input and output samples available
-                const min_input_samples_index = if (input_buffers.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..input_buffers.len]) else 0;
-                const min_output_samples_index = if (output_buffers.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..output_buffers.len]) else 0;
-                const min_input_samples = if (input_buffers.len != 0) input_samples_available[min_input_samples_index] else null;
-                const min_output_samples = if (output_buffers.len != 0) output_samples_available[min_output_samples_index] else null;
+                const min_input_samples_index = if (input_element_sizes.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..input_element_sizes.len]) else 0;
+                const min_output_samples_index = if (output_element_sizes.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..output_element_sizes.len]) else 0;
+                const min_input_samples = if (input_element_sizes.len != 0) input_samples_available[min_input_samples_index] else null;
+                const min_output_samples = if (output_element_sizes.len != 0) output_samples_available[min_output_samples_index] else null;
 
                 if (min_input_samples != null and min_input_samples.? == 0) {
                     // No input samples available for at least one input
-                    self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
+                    try self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
                 } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
                     // Insufficient output samples available for at least one output
                     self.writers.items[min_output_samples_index].wait(min_input_samples.? * output_element_sizes[min_output_samples_index]);
@@ -148,22 +192,27 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
                 }
             }
 
-            // Get buffers for inputs and outputs
-            for (self.readers.items, 0..) |*reader, i| {
-                input_buffers[i] = reader.getBuffer(min_samples_available * input_element_sizes[i]);
-            }
-            for (self.writers.items, 0..) |*writer, i| {
-                output_buffers[i] = writer.getBuffer(output_samples_available[i] * output_element_sizes[i]);
-            }
+            return min_samples_available;
         }
 
-        pub fn updateBuffers(self: *Self, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
-            for (self.readers.items, 0..) |*reader, i| {
-                reader.update(samples_consumed[i] * input_element_sizes[i]);
-            }
-            for (self.writers.items, 0..) |*writer, i| {
-                writer.update(samples_produced[i] * output_element_sizes[i]);
-            }
+        pub fn getInputBuffer(self: *Self, index: usize) []const u8 {
+            std.debug.assert(index < self.readers.items.len);
+            return self.readers.items[index].getBuffer();
+        }
+
+        pub fn getOutputBuffer(self: *Self, index: usize) []u8 {
+            std.debug.assert(index < self.writers.items.len);
+            return self.writers.items[index].getBuffer();
+        }
+
+        pub fn updateInputBuffer(self: *Self, index: usize, count: usize) void {
+            std.debug.assert(index < self.readers.items.len);
+            self.readers.items[index].update(count);
+        }
+
+        pub fn updateOutputBuffer(self: *Self, index: usize, count: usize) void {
+            std.debug.assert(index < self.writers.items.len);
+            self.writers.items[index].update(count);
         }
 
         pub fn setEOF(self: *Self) void {
@@ -173,7 +222,7 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, getBuffers, updateBuffers, setEOF);
+            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, setEOF);
         }
     };
 }
@@ -182,7 +231,7 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
 // TestSampleMux
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: comptime_int) type {
+pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_data_types: []const type) type {
     return struct {
         const Self = @This();
 
@@ -191,16 +240,16 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
             single_output_samples: bool = false,
         };
 
-        input_buffers: [num_inputs][]const u8,
-        input_buffer_indices: [num_inputs]usize = .{0x00} ** num_inputs,
-        output_buffers: [num_outputs][]u8,
-        output_buffer_indices: [num_outputs]usize = .{0x00} ** num_outputs,
+        input_buffers: [input_data_types.len][]const u8,
+        input_buffer_indices: [input_data_types.len]usize = .{0} ** input_data_types.len,
+        output_buffers: [output_data_types.len][]u8,
+        output_buffer_indices: [output_data_types.len]usize = .{0} ** output_data_types.len,
         options: Options,
         eof: bool = false,
 
-        pub fn init(input_buffers: [num_inputs][]const u8, options: Options) !Self {
-            var output_buffers: [num_outputs][]u8 = undefined;
-            inline for (&output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 1048576);
+        pub fn init(input_buffers: [input_data_types.len][]const u8, options: Options) !Self {
+            var output_buffers: [output_data_types.len][]u8 = undefined;
+            inline for (&output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 16384);
 
             return .{
                 .input_buffers = input_buffers,
@@ -221,53 +270,77 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
             return @alignCast(std.mem.bytesAsSlice(T, self.output_buffers[index][0..self.output_buffer_indices[index]]));
         }
 
-        pub fn getNumOutputSamples(self: *Self, comptime T: type, index: usize) usize {
-            return self.output_buffer_indices[index] / @sizeOf(T);
-        }
-
         ////////////////////////////////////////////////////////////////////////////
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn getBuffers(self: *Self, input_element_sizes: []const usize, input_buffers: [][]const u8, output_element_sizes: []const usize, output_buffers: [][]u8) error{EndOfFile}!void {
+        pub fn waitAvailable(self: *Self, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
             if (self.eof) {
                 return error.EndOfFile;
             }
+
+            var input_samples_available: [input_data_types.len]usize = undefined;
+            var output_samples_available: [output_data_types.len]usize = undefined;
 
             for (self.input_buffer_indices, 0..) |_, i| {
                 if (self.input_buffer_indices[i] == self.input_buffers[i].len) {
                     return error.EndOfFile;
                 } else if (self.options.single_input_samples) {
-                    input_buffers[i] = self.input_buffers[i][self.input_buffer_indices[i] .. self.input_buffer_indices[i] + input_element_sizes[i]];
+                    input_samples_available[i] = @min(1, (self.input_buffers[i].len - self.input_buffer_indices[i]) / input_element_sizes[i]);
                 } else {
-                    input_buffers[i] = self.input_buffers[i][self.input_buffer_indices[i]..];
+                    input_samples_available[i] = (self.input_buffers[i].len - self.input_buffer_indices[i]) / input_element_sizes[i];
                 }
             }
 
             for (self.output_buffer_indices, 0..) |_, i| {
                 if (self.options.single_output_samples) {
-                    output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i] .. self.output_buffer_indices[i] + output_element_sizes[i]];
+                    output_samples_available[i] = @min(1, (self.output_buffers[i].len - self.output_buffer_indices[i]) / output_element_sizes[i]);
                 } else {
-                    output_buffers[i] = self.output_buffers[i][self.output_buffer_indices[i]..];
+                    output_samples_available[i] = (self.output_buffers[i].len - self.output_buffer_indices[i]) / output_element_sizes[i];
                 }
+            }
+
+            return if (input_data_types.len != 0) std.mem.min(usize, input_samples_available[0..]) else std.mem.min(usize, output_samples_available[0..]);
+        }
+
+        pub fn getInputBuffer(self: *Self, index: usize) []const u8 {
+            if (input_data_types.len == 0) return &.{};
+
+            if (self.options.single_input_samples) {
+                const input_element_sizes = comptime util.dataTypeSizes(input_data_types);
+                return self.input_buffers[index][self.input_buffer_indices[index] .. self.input_buffer_indices[index] + input_element_sizes[index]];
+            } else {
+                return self.input_buffers[index][self.input_buffer_indices[index]..];
             }
         }
 
-        pub fn updateBuffers(self: *Self, input_element_sizes: []const usize, samples_consumed: []const usize, output_element_sizes: []const usize, samples_produced: []const usize) void {
-            inline for (&self.input_buffer_indices, 0..) |*input_buffer_index, i| input_buffer_index.* += samples_consumed[i] * input_element_sizes[i];
-            inline for (&self.output_buffer_indices, 0..) |*output_buffer_index, i| output_buffer_index.* += samples_produced[i] * output_element_sizes[i];
+        pub fn getOutputBuffer(self: *Self, index: usize) []u8 {
+            if (output_data_types.len == 0) return &.{};
+
+            if (self.options.single_output_samples) {
+                const output_element_sizes = comptime util.dataTypeSizes(output_data_types);
+                return self.output_buffers[index][self.output_buffer_indices[index] .. self.output_buffer_indices[index] + output_element_sizes[index]];
+            } else {
+                return self.output_buffers[index][self.output_buffer_indices[index]..];
+            }
+        }
+
+        pub fn updateInputBuffer(self: *Self, index: usize, count: usize) void {
+            if (input_data_types.len == 0) return;
+            self.input_buffer_indices[index] += count;
+        }
+
+        pub fn updateOutputBuffer(self: *Self, index: usize, count: usize) void {
+            if (output_data_types.len == 0) return;
+            self.output_buffer_indices[index] += count;
         }
 
         pub fn setEOF(self: *Self) void {
             self.eof = true;
         }
 
-        ////////////////////////////////////////////////////////////////////////////
-        // SampleMux Factory
-        ////////////////////////////////////////////////////////////////////////////
-
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, getBuffers, updateBuffers, setEOF);
+            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, setEOF);
         }
     };
 }
@@ -276,16 +349,20 @@ pub fn TestSampleMux(comptime num_inputs: comptime_int, comptime num_outputs: co
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
+const builtin = @import("builtin");
+
 test "TestSampleMux multiple input, single output" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
 
-    var buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    var buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs[0].len);
@@ -300,11 +377,11 @@ test "TestSampleMux multiple input, single output" {
 
     @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 });
 
-    sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 1 }, &[1]type{u16}, &[1]usize{4});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{4}));
 
     try std.testing.expectEqualSlices(u16, &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 }, test_sample_mux.getOutputVector(u16, 0));
 
-    buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), buffers.inputs[0].len);
@@ -317,23 +394,25 @@ test "TestSampleMux multiple input, single output" {
 
     @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 });
 
-    sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 0 }, &[1]type{u16}, &[1]usize{4});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 0 }, &[1]usize{4}));
 
     try std.testing.expectEqualSlices(u16, &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 }, test_sample_mux.getOutputVector(u16, 0)[4..]);
 
-    try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
+    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
 }
 
 test "TestSampleMux single input samples" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{ .single_input_samples = true });
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{ .single_input_samples = true });
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
 
-    var buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    var buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), buffers.inputs[0].len);
@@ -344,9 +423,9 @@ test "TestSampleMux single input samples" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0xaabbccdd), buffers.inputs[0][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x11223344), buffers.inputs[1][0]);
 
-    sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 1 }, &[1]type{u16}, &[1]usize{0});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
-    buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), buffers.inputs[0].len);
@@ -357,26 +436,28 @@ test "TestSampleMux single input samples" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0xabcdeeff), buffers.inputs[0][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x55667788), buffers.inputs[1][0]);
 
-    sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 1 }, &[1]type{u16}, &[1]usize{0});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
-    try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
+    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
 }
 
 test "TestSampleMux single output samples" {
-    var test_sample_mux = try TestSampleMux(0, 1).init([0][]const u8{}, .{ .single_output_samples = true });
+    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{u32});
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([0][]const u8{}, .{ .single_output_samples = true });
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
 
-    var buffers = try sample_mux.getBuffers(&[0]type{}, &[1]type{u32});
+    var buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 0), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
     try std.testing.expect(buffers.outputs[0].len == 1);
 
-    sample_mux.updateBuffers(&[0]type{}, &[0]usize{}, &[1]type{u32}, &[1]usize{1});
+    sample_mux.update(ts, ProcessResult.init(&[0]usize{}, &[1]usize{1}));
 
-    buffers = try sample_mux.getBuffers(&[0]type{}, &[1]type{u32});
+    buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 0), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
@@ -387,12 +468,14 @@ test "TestSampleMux eof" {
     const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    var test_sample_mux = try TestSampleMux(2, 1).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
     defer test_sample_mux.deinit();
 
     var sample_mux = test_sample_mux.sampleMux();
 
-    const buffers = try sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16});
+    const buffers = try sample_mux.get(ts);
 
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs[0].len);
@@ -400,14 +483,17 @@ test "TestSampleMux eof" {
     try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
     try std.testing.expect(buffers.outputs[0].len > 4);
 
-    sample_mux.updateBuffers(&[2]type{ u32, u32 }, &[2]usize{ 1, 1 }, &[1]type{u16}, &[1]usize{0});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
     sample_mux.setEOF();
 
-    try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u32, u32 }, &[1]type{u16}));
+    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
 }
 
 test "ThreadSafeRingBufferSampleMux single input, single output" {
+    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+
+    // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input_ring_buffer.deinit();
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -428,7 +514,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     input_writer.write(&[_]u8{0xcc} ** 2);
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[1]type{u16}, &[1]type{u32});
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 1), buffers.inputs.len);
@@ -444,7 +530,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][2] = 0xcccccccc;
 
     // Update sample mux
-    sample_mux.updateBuffers(&[1]type{u16}, &[1]usize{3}, &[1]type{u32}, &[1]usize{3});
+    sample_mux.update(ts, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 0), input_ring_buffer.impl.getReadAvailable(0));
@@ -462,7 +548,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     input_writer.write(&[_]u8{0xff} ** 2);
 
     // Get sample buffers
-    buffers = try sample_mux.getBuffers(&[1]type{u16}, &[1]type{u32});
+    buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 3), buffers.inputs[0].len);
@@ -475,7 +561,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][1] = 0x22222222;
 
     // Update sample mux with 1 consumed and 2 produced
-    sample_mux.updateBuffers(&[1]type{u16}, &[1]usize{1}, &[1]type{u32}, &[1]usize{2});
+    sample_mux.update(ts, ProcessResult.init(&[1]usize{1}, &[1]usize{2}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input_ring_buffer.impl.getReadAvailable(0));
@@ -486,7 +572,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x22, 0x22, 0x22, 0x22 }, output_reader.read(b[0..]));
 
     // Get sample buffers
-    buffers = try sample_mux.getBuffers(&[1]type{u16}, &[1]type{u32});
+    buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs[0].len);
@@ -497,7 +583,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][0] = 0x33333333;
 
     // Update sample mux with 1 consumed and 1 produced
-    sample_mux.updateBuffers(&[1]type{u16}, &[1]usize{2}, &[1]type{u32}, &[1]usize{1});
+    sample_mux.update(ts, ProcessResult.init(&[1]usize{2}, &[1]usize{1}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 0), input_ring_buffer.impl.getReadAvailable(0));
@@ -508,6 +594,9 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
 }
 
 test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+
+    // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -540,7 +629,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     input2_writer.write(&[_]u8{0x44} ** 1);
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
@@ -564,7 +653,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     buffers.outputs[1][2] = 0xee;
 
     // Update sample mux
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 1, 2 }, &[2]type{ u32, u8 }, &[2]usize{ 2, 3 });
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -582,6 +671,9 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
 }
 
 test "ThreadSafeRingBufferSampleMux only inputs" {
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[0]type{});
+
+    // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -608,7 +700,7 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     input2_writer.write(&[_]u8{0x44} ** 1);
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[2]type{ u16, u8 }, &[0]type{});
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
@@ -623,14 +715,14 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     try std.testing.expectEqual(@as(u16, 0x33), buffers.inputs[1][2]);
 
     // Update sample mux
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 2, 3 }, &[0]type{}, &[0]usize{});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 2, 3 }, &[0]usize{}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 2), input1_ring_buffer.impl.getReadAvailable(0));
     try std.testing.expectEqual(@as(usize, 1), input2_ring_buffer.impl.getReadAvailable(0));
 
     // Get sample buffers
-    buffers = try sample_mux.getBuffers(&[2]type{ u16, u8 }, &[0]type{});
+    buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
@@ -642,6 +734,9 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
 }
 
 test "ThreadSafeRingBufferSampleMux only outputs" {
+    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[2]type{ u32, u8 });
+
+    // Create ring buffers
     var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer output1_ring_buffer.deinit();
     var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -657,7 +752,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[0]type{}, &[2]type{ u32, u8 });
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 0), buffers.inputs.len);
@@ -673,7 +768,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     buffers.outputs[1][2] = 0xee;
 
     // Update sample mux
-    sample_mux.updateBuffers(&[0]type{}, &[0]usize{}, &[2]type{ u32, u8 }, &[2]usize{ 2, 3 });
+    sample_mux.update(ts, ProcessResult.init(&[0]usize{}, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 8), try output1_reader.getAvailable());
@@ -689,6 +784,9 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
 }
 
 test "ThreadSafeRingBufferSampleMux read eof" {
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[1]type{u32});
+
+    // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -717,7 +815,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     input2_writer.write(&[_]u8{0x33} ** 1);
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[2]type{ u16, u8 }, &[1]type{u32});
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
@@ -735,7 +833,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     buffers.outputs[0][0] = 0xaaaaaaaa;
 
     // Update sample mux to consume one sample
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 1, 1 }, &[1]type{u32}, &[1]usize{1});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -750,7 +848,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     input2_writer.setEOF();
 
     // Get sample buffers
-    buffers = try sample_mux.getBuffers(&[2]type{ u16, u8 }, &[1]type{u32});
+    buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
@@ -767,13 +865,16 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     buffers.outputs[0][1] = 0xcccccccc;
 
     // Update sample mux to consume remaining sample
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 2, 2 }, &[1]type{u32}, &[1]usize{2});
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 2, 2 }, &[1]usize{2}));
 
     // Get sample buffers should return EOF
-    try std.testing.expectError(error.EndOfFile, sample_mux.getBuffers(&[2]type{ u16, u8 }, &[1]type{u32}));
+    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
 }
 
 test "ThreadSafeRingBufferSampleMux write eof" {
+    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+
+    // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input_ring_buffer.deinit();
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -794,7 +895,7 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     input_writer.write(&[_]u8{0xcc} ** 2);
 
     // Get sample buffers
-    var buffers = try sample_mux.getBuffers(&[1]type{u16}, &[1]type{u32});
+    var buffers = try sample_mux.get(ts);
 
     // Verify lengths and input samples
     try std.testing.expectEqual(@as(usize, 1), buffers.inputs.len);
@@ -810,7 +911,7 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     buffers.outputs[0][2] = 0xcccccccc;
 
     // Update sample mux
-    sample_mux.updateBuffers(&[1]type{u16}, &[1]usize{3}, &[1]type{u32}, &[1]usize{3});
+    sample_mux.update(ts, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
 
     // Set write EOF
     sample_mux.setEOF();
@@ -830,6 +931,14 @@ test "ThreadSafeRingBufferSampleMux write eof" {
 }
 
 test "ThreadSafeRingBufferSampleMux blocking read" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+
+    // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -855,19 +964,17 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 
     // Leave input 2 ring buffer empty
 
-    const BufferType = SampleMux.SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
-
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *BufferType) !void {
+        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
-            _buffers.* = try sm.getBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+            _buffers.* = try sm.get(ts);
             // Signal done
             done.set();
         }
     };
 
     // Spawn a thread that blocks until sample buffers are available
-    var buffers: BufferType = undefined;
+    var buffers: SampleMux.SampleBuffers(ts) = undefined;
     var done_event = std.Thread.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
@@ -893,7 +1000,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     try std.testing.expectEqual(@as(u16, 0xee), buffers.inputs[1][1]);
 
     // Update sample mux
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 1, 2 }, &[2]type{ u32, u8 }, &[2]usize{ 2, 3 });
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -903,6 +1010,14 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 }
 
 test "ThreadSafeRingBufferSampleMux blocking write" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+
+    // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer input1_ring_buffer.deinit();
     var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -937,19 +1052,17 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     output2_writer.write(&[_]u8{0x11} ** (std.mem.page_size - 3));
     try std.testing.expectEqual(@as(usize, 2), output2_writer.getAvailable());
 
-    const BufferType = SampleMux.SampleBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
-
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *BufferType) !void {
+        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
-            _buffers.* = try sm.getBuffers(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+            _buffers.* = try sm.get(ts);
             // Signal done
             done.set();
         }
     };
 
     // Spawn a thread that blocks until sample buffers are available
-    var buffers: BufferType = undefined;
+    var buffers: SampleMux.SampleBuffers(ts) = undefined;
     var done_event = std.Thread.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
@@ -977,7 +1090,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     try std.testing.expectEqual(@as(u16, 0xff), buffers.inputs[1][2]);
 
     // Update sample mux
-    sample_mux.updateBuffers(&[2]type{ u16, u8 }, &[2]usize{ 1, 2 }, &[2]type{ u32, u8 }, &[2]usize{ 2, 3 });
+    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
