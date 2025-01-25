@@ -39,75 +39,40 @@ pub const ProcessResult = struct {
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn wrapInitializeFunction(comptime block_type: anytype, comptime initialize_fn: anytype) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
-    if (@TypeOf(initialize_fn) != @TypeOf(null)) {
-        const impl = struct {
-            fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
-                const self: *block_type = @fieldParentPtr("block", block);
-
-                try initialize_fn(self, allocator);
-            }
-        };
-        return impl.initialize;
-    } else {
-        const impl = struct {
-            fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
-                _ = block;
-                _ = allocator;
-            }
-        };
-        return impl.initialize;
-    }
+fn wrapInitializeFunction(comptime BlockType: type, comptime initializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) anyerror!void) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
+    const gen = struct {
+        fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
+            const self: *BlockType = @fieldParentPtr("block", block);
+            try initializeFn(self, allocator);
+        }
+    };
+    return gen.initialize;
 }
 
-fn wrapDeinitializeFunction(comptime block_type: anytype, comptime deinitialize_fn: anytype) fn (self: *Block, allocator: std.mem.Allocator) void {
-    if (@TypeOf(deinitialize_fn) != @TypeOf(null)) {
-        const impl = struct {
-            fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
-                const self: *block_type = @fieldParentPtr("block", block);
-
-                deinitialize_fn(self, allocator);
-            }
-        };
-        return impl.deinitialize;
-    } else {
-        const impl = struct {
-            fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
-                _ = block;
-                _ = allocator;
-            }
-        };
-        return impl.deinitialize;
-    }
+fn wrapDeinitializeFunction(comptime BlockType: type, comptime deinitializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) void) fn (self: *Block, allocator: std.mem.Allocator) void {
+    const gen = struct {
+        fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
+            const self: *BlockType = @fieldParentPtr("block", block);
+            deinitializeFn(self, allocator);
+        }
+    };
+    return gen.deinitialize;
 }
 
-fn wrapSetRateFunction(comptime block_type: anytype, comptime set_rate_fn: anytype) fn (self: *Block, upstream_rate: f64) anyerror!f64 {
-    if (@TypeOf(set_rate_fn) != @TypeOf(null)) {
-        const impl = struct {
-            fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
-                const self: *block_type = @fieldParentPtr("block", block);
-
-                return try set_rate_fn(self, upstream_rate);
-            }
-        };
-        return impl.setRate;
-    } else {
-        const impl = struct {
-            fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
-                _ = block;
-
-                // Default setRate() retains upstream rate
-                return upstream_rate;
-            }
-        };
-        return impl.setRate;
-    }
+fn wrapSetRateFunction(comptime BlockType: type, comptime setRateFn: fn (self: *BlockType, upstream_rate: f64) anyerror!f64) fn (self: *Block, upstream_rate: f64) anyerror!f64 {
+    const gen = struct {
+        fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
+            const self: *BlockType = @fieldParentPtr("block", block);
+            return try setRateFn(self, upstream_rate);
+        }
+    };
+    return gen.setRate;
 }
 
-fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytype, comptime type_signature: ComptimeTypeSignature) fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
-    const impl = struct {
+fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: ComptimeTypeSignature, comptime processFn: anytype) fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
+    const gen = struct {
         fn process(block: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
-            const self: *block_type = @fieldParentPtr("block", block);
+            const self: *BlockType = @fieldParentPtr("block", block);
 
             // Get sample buffers, catching read EOF
             const buffers = sample_mux.get(type_signature) catch |err| switch (err) {
@@ -118,7 +83,7 @@ fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytyp
             };
 
             // Process sample buffers
-            const process_result = try @call(.auto, process_fn, .{self} ++ buffers.inputs ++ buffers.outputs);
+            const process_result = try @call(.auto, processFn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
             // Update sample buffers
             sample_mux.update(type_signature, process_result);
@@ -132,12 +97,12 @@ fn wrapProcessFunction(comptime block_type: anytype, comptime process_fn: anytyp
             return process_result;
         }
     };
-    return impl.process;
+    return gen.process;
 }
 
-pub fn extractBlockName(comptime block_type: type) []const u8 {
+pub fn extractBlockName(comptime BlockType: type) []const u8 {
     // Split ( for generic blocks
-    comptime var it = std.mem.split(u8, @typeName(block_type), "(");
+    comptime var it = std.mem.split(u8, @typeName(BlockType), "(");
     const first = comptime it.first();
     const suffix = comptime it.rest();
     // Split . backwards for block name
@@ -157,29 +122,26 @@ pub const Block = struct {
     inputs: []const []const u8,
     outputs: []const []const u8,
     type_signature: RuntimeTypeSignature,
-    set_rate_fn: *const fn (self: *Block, upstream_rate: f64) anyerror!f64,
-    initialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
-    deinitialize_fn: *const fn (self: *Block, allocator: std.mem.Allocator) void,
+    set_rate_fn: ?*const fn (self: *Block, upstream_rate: f64) anyerror!f64,
+    initialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
+    deinitialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) void,
     process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
 
     rate: ?f64 = null,
 
-    pub fn init(comptime block_type: type) Block {
-        const process_fn = if (@hasDecl(block_type, "process")) @field(block_type, "process") else null;
-        const set_rate_fn = if (@hasDecl(block_type, "setRate")) @field(block_type, "setRate") else null;
-        const initialize_fn = if (@hasDecl(block_type, "initialize")) @field(block_type, "initialize") else null;
-        const deinitialize_fn = if (@hasDecl(block_type, "deinitialize")) @field(block_type, "deinitialize") else null;
-
-        if (@TypeOf(process_fn) == @TypeOf(null)) {
-            @compileError("Block " ++ @typeName(block_type) ++ " is missing the process() method.");
+    pub fn init(comptime BlockType: type) Block {
+        // Block needs to have a process method
+        if (!@hasDecl(BlockType, "process")) {
+            @compileError("Block " ++ @typeName(BlockType) ++ " is missing the process() method.");
         }
 
-        const type_signature = ComptimeTypeSignature.init(process_fn);
-
-        if (type_signature.inputs.len == 0 and @TypeOf(set_rate_fn) == @TypeOf(null)) {
-            @compileError("Source block " ++ @typeName(block_type) ++ " is missing the setRate() method.");
+        // Derive type signature from process method
+        const type_signature = ComptimeTypeSignature.init(BlockType.process);
+        if (type_signature.inputs.len == 0 and !@hasDecl(BlockType, "setRate")) {
+            @compileError("Source block " ++ @typeName(BlockType) ++ " is missing the setRate() method.");
         }
 
+        // Generate input and output names
         comptime var _inputs: [type_signature.inputs.len][]const u8 = undefined;
         comptime var _outputs: [type_signature.outputs.len][]const u8 = undefined;
         inline for (type_signature.inputs, 0..) |_, i| _inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
@@ -188,29 +150,31 @@ pub const Block = struct {
         const outputs = _outputs;
 
         return .{
-            .name = comptime extractBlockName(block_type),
-            .inputs = inputs[0..],
-            .outputs = outputs[0..],
+            .name = comptime extractBlockName(BlockType),
+            .inputs = &inputs,
+            .outputs = &outputs,
             .type_signature = comptime RuntimeTypeSignature.init(type_signature),
-            .set_rate_fn = comptime wrapSetRateFunction(block_type, set_rate_fn),
-            .initialize_fn = comptime wrapInitializeFunction(block_type, initialize_fn),
-            .deinitialize_fn = comptime wrapDeinitializeFunction(block_type, deinitialize_fn),
-            .process_fn = comptime wrapProcessFunction(block_type, process_fn, type_signature),
+            .set_rate_fn = if (@hasDecl(BlockType, "setRate")) comptime wrapSetRateFunction(BlockType, BlockType.setRate) else null,
+            .initialize_fn = if (@hasDecl(BlockType, "initialize")) comptime wrapInitializeFunction(BlockType, BlockType.initialize) else null,
+            .deinitialize_fn = if (@hasDecl(BlockType, "deinitialize")) comptime wrapDeinitializeFunction(BlockType, BlockType.deinitialize) else null,
+            .process_fn = comptime wrapProcessFunction(BlockType, type_signature, BlockType.process),
         };
     }
 
-    // Primary Block API
+    ////////////////////////////////////////////////////////////////////////////
+    // Block API
+    ////////////////////////////////////////////////////////////////////////////
 
     pub fn setRate(self: *Block, rate: f64) !void {
-        self.rate = try self.set_rate_fn(self, rate);
+        self.rate = if (self.set_rate_fn) |set_rate_fn| try set_rate_fn(self, rate) else rate;
     }
 
     pub fn initialize(self: *Block, allocator: std.mem.Allocator) !void {
-        try self.initialize_fn(self, allocator);
+        if (self.initialize_fn) |initialize_fn| try initialize_fn(self, allocator);
     }
 
     pub fn deinitialize(self: *Block, allocator: std.mem.Allocator) void {
-        self.deinitialize_fn(self, allocator);
+        if (self.deinitialize_fn) |deinitialize_fn| deinitialize_fn(self, allocator);
     }
 
     pub fn process(self: *Block, sample_mux: *SampleMux) !ProcessResult {
@@ -218,8 +182,7 @@ pub const Block = struct {
     }
 
     pub fn getRate(self: *const Block, comptime T: type) BlockError!T {
-        if (self.rate == null) return BlockError.RateNotSet;
-        return std.math.lossyCast(T, self.rate.?);
+        return if (self.rate) |rate| std.math.lossyCast(T, rate) else BlockError.RateNotSet;
     }
 };
 
