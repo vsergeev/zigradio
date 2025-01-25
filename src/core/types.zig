@@ -88,6 +88,52 @@ pub const RuntimeTypeSignature = struct {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// Special Types
+////////////////////////////////////////////////////////////////////////////////
+
+const TypeTag = enum {
+    RefCounted,
+};
+
+pub fn hasTypeTag(T: type, tag: TypeTag) bool {
+    return @typeInfo(T) == .Struct and @hasDecl(T, "typeTag") and T.typeTag() == tag;
+}
+
+pub fn RefCounted(T: type) type {
+    // Atomic reference count implementation based on zig stdlib atomic.zig and
+    // https://www.boost.org/doc/libs/1_87_0/libs/atomic/doc/html/atomic/usage_examples.html#boost_atomic.usage_examples.example_reference_counters
+    return struct {
+        const Self = @This();
+
+        value: T,
+        rc: std.atomic.Value(usize),
+
+        pub fn init(args: anytype) Self {
+            return .{ .value = @call(.auto, T.init, args), .rc = std.atomic.Value(usize).init(1) };
+        }
+
+        pub fn ref(self: *Self, count: usize) void {
+            _ = self.rc.fetchAdd(count, .monotonic);
+        }
+
+        pub fn unref(self: *Self) void {
+            if (self.rc.fetchSub(1, .release) == 1) {
+                self.rc.fence(.acquire);
+                self.value.deinit();
+            }
+        }
+
+        pub fn typeName() []const u8 {
+            return "RefCounted(" ++ comptime RuntimeTypeSignature.map(T) ++ ")";
+        }
+
+        pub fn typeTag() TypeTag {
+            return .RefCounted;
+        }
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // ComptimeTypeSignature Tests
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +209,7 @@ const Foo = struct {
     }
 };
 
-const Bar = Foo;
+const Foo2 = Foo;
 
 test "RuntimeTypeSignature.map" {
     try std.testing.expectEqualStrings("ComplexFloat32", RuntimeTypeSignature.map(std.math.Complex(f32)));
@@ -179,7 +225,7 @@ test "RuntimeTypeSignature.map" {
     try std.testing.expectEqualStrings("Signed32", RuntimeTypeSignature.map(i32));
     try std.testing.expectEqualStrings("Signed64", RuntimeTypeSignature.map(i64));
     try std.testing.expectEqualStrings("Foo", RuntimeTypeSignature.map(Foo));
-    try std.testing.expectEqualStrings("Foo", RuntimeTypeSignature.map(Bar));
+    try std.testing.expectEqualStrings("Foo", RuntimeTypeSignature.map(Foo2));
 }
 
 test "RuntimeTypeSignature.init" {
@@ -233,4 +279,44 @@ test "RuntimeTypeSignature.init" {
     try std.testing.expectEqualStrings("Unsigned16", ts21.inputs[1]);
     try std.testing.expectEqual(1, ts21.outputs.len);
     try std.testing.expectEqualStrings("Foo", ts21.outputs[0]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RefCounted Tests
+////////////////////////////////////////////////////////////////////////////////
+
+const Bar = struct {
+    x: usize,
+    valid: bool,
+
+    pub fn init(x: usize) Bar {
+        return .{ .x = x, .valid = true };
+    }
+
+    pub fn deinit(self: *Bar) void {
+        self.valid = false;
+    }
+
+    pub fn typeName() []const u8 {
+        return "Bar";
+    }
+};
+
+test "RefCounted" {
+    try std.testing.expectEqualStrings("RefCounted(Bar)", RefCounted(Bar).typeName());
+    try std.testing.expectEqual(false, hasTypeTag(Bar, .RefCounted));
+    try std.testing.expectEqual(true, hasTypeTag(RefCounted(Bar), .RefCounted));
+
+    var bar = RefCounted(Bar).init(.{123});
+    try std.testing.expectEqual(123, bar.value.x);
+    try std.testing.expectEqual(true, bar.value.valid);
+    try std.testing.expectEqual(1, bar.rc.load(.seq_cst));
+
+    bar.ref(1);
+    try std.testing.expectEqual(2, bar.rc.load(.seq_cst));
+
+    bar.unref();
+    try std.testing.expectEqual(true, bar.value.valid);
+    bar.unref();
+    try std.testing.expectEqual(false, bar.value.valid);
 }
