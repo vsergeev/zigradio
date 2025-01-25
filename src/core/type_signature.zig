@@ -35,6 +35,10 @@ pub const ComptimeTypeSignature = struct {
             .outputs = comptime_outputs[0..num_outputs],
         };
     }
+
+    pub fn fromTypes(comptime input_data_types: []const type, comptime output_data_types: []const type) ComptimeTypeSignature {
+        return .{ .inputs = input_data_types, .outputs = output_data_types };
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +139,15 @@ test "ComptimeTypeSignature.init" {
     try std.testing.expectEqual(2, ts22.outputs.len);
     try std.testing.expectEqual(u8, ts22.outputs[0]);
     try std.testing.expectEqual(bool, ts22.outputs[1]);
+}
+
+test "ComptimeTypeSignature.fromTypes" {
+    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ f32, u16 }, &[1]type{u8});
+    try std.testing.expectEqual(2, ts.inputs.len);
+    try std.testing.expectEqual(f32, ts.inputs[0]);
+    try std.testing.expectEqual(u16, ts.inputs[1]);
+    try std.testing.expectEqual(1, ts.outputs.len);
+    try std.testing.expectEqual(u8, ts.outputs[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
