@@ -307,6 +307,10 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 self.ring_buffer.cond_read_available.signal();
             }
 
+            pub fn getNumReaders(self: *@This()) usize {
+                return self.ring_buffer.impl.num_readers;
+            }
+
             pub fn setEOF(self: *@This()) void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();

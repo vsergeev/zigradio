@@ -3,6 +3,8 @@ const std = @import("std");
 const util = @import("util.zig");
 const ComptimeTypeSignature = @import("types.zig").ComptimeTypeSignature;
 const ProcessResult = @import("block.zig").ProcessResult;
+const RefCounted = @import("types.zig").RefCounted;
+const hasTypeTag = @import("types.zig").hasTypeTag;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
@@ -17,6 +19,7 @@ pub const SampleMux = struct {
     getOutputBufferFn: *const fn (ptr: *anyopaque, index: usize) []u8,
     updateInputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
     updateOutputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
+    getNumReadersForOutputFn: *const fn (ptr: *anyopaque, index: usize) usize,
     setEOFFn: *const fn (ptr: *anyopaque) void,
 
     pub fn init(
@@ -26,6 +29,7 @@ pub const SampleMux = struct {
         comptime getOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize) []u8,
         comptime updateInputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
         comptime updateOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
+        comptime getNumReadersForOutputFn: fn (ptr: @TypeOf(pointer), index: usize) usize,
         comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void,
     ) SampleMux {
         const Ptr = @TypeOf(pointer);
@@ -59,6 +63,11 @@ pub const SampleMux = struct {
                 updateOutputBufferFn(self, index, count);
             }
 
+            fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
+                const self: Ptr = @ptrCast(@alignCast(ptr));
+                return getNumReadersForOutputFn(self, index);
+            }
+
             fn setEOF(ptr: *anyopaque) void {
                 const self: Ptr = @ptrCast(@alignCast(ptr));
                 setEOFFn(self);
@@ -72,6 +81,7 @@ pub const SampleMux = struct {
             .getOutputBufferFn = gen.getOutputBuffer,
             .updateInputBufferFn = gen.updateInputBuffer,
             .updateOutputBufferFn = gen.updateOutputBuffer,
+            .getNumReadersForOutputFn = gen.getNumReadersForOutput,
             .setEOFFn = gen.setEOF,
         };
     }
@@ -106,7 +116,27 @@ pub const SampleMux = struct {
         return sample_buffers;
     }
 
-    pub fn update(self: *SampleMux, comptime type_signature: ComptimeTypeSignature, process_result: ProcessResult) void {
+    pub fn update(self: *SampleMux, comptime type_signature: ComptimeTypeSignature, buffers: SampleBuffers(type_signature), process_result: ProcessResult) void {
+        // Handle RefCounted(T) inputs (decrement reference count)
+        inline for (type_signature.inputs, 0..) |input_type, i| {
+            if (comptime hasTypeTag(input_type, .RefCounted)) {
+                // TODO @constCast() here is ugly, but safe
+                for (buffers.inputs[i]) |*e| @constCast(e).unref();
+            }
+        }
+
+        // Handle RefCounted(T) outputs (increment reference count for additional readers)
+        inline for (type_signature.outputs, 0..) |output_type, i| {
+            if (comptime hasTypeTag(output_type, .RefCounted)) {
+                const num_readers = self.getNumReadersForOutputFn(self.ptr, i);
+                switch (num_readers) {
+                    0 => for (buffers.outputs[i]) |*e| e.unref(), // No readers
+                    1 => {}, // Elements already initialized with an rc of 1
+                    else => for (buffers.outputs[i]) |*e| e.ref(num_readers - 1), // Ref additional readers
+                }
+            }
+        }
+
         // Update sample buffers
         inline for (type_signature.inputs, 0..) |_, i| {
             self.updateInputBufferFn(self.ptr, i, process_result.samples_consumed[i] * @sizeOf(type_signature.inputs[i]));
@@ -215,6 +245,11 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
             self.writers.items[index].update(count);
         }
 
+        pub fn getNumReadersForOutput(self: *Self, index: usize) usize {
+            std.debug.assert(index < self.writers.items.len);
+            return self.writers.items[index].getNumReaders();
+        }
+
         pub fn setEOF(self: *Self) void {
             for (self.writers.items) |*writer| {
                 writer.setEOF();
@@ -222,7 +257,7 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, setEOF);
+            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, getNumReadersForOutput, setEOF);
         }
     };
 }
@@ -335,12 +370,17 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             self.output_buffer_indices[index] += count;
         }
 
+        pub fn getNumReadersForOutput(_: *Self, _: usize) usize {
+            if (output_data_types.len == 0) return 0;
+            return 1;
+        }
+
         pub fn setEOF(self: *Self) void {
             self.eof = true;
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, setEOF);
+            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, getNumReadersForOutput, setEOF);
         }
     };
 }
@@ -377,7 +417,7 @@ test "TestSampleMux multiple input, single output" {
 
     @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 });
 
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{4}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{4}));
 
     try std.testing.expectEqualSlices(u16, &[_]u16{ 0x1122, 0x3344, 0x5566, 0x7788 }, test_sample_mux.getOutputVector(u16, 0));
 
@@ -394,7 +434,7 @@ test "TestSampleMux multiple input, single output" {
 
     @memcpy(buffers.outputs[0][0..4], &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 });
 
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 0 }, &[1]usize{4}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 0 }, &[1]usize{4}));
 
     try std.testing.expectEqualSlices(u16, &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 }, test_sample_mux.getOutputVector(u16, 0)[4..]);
 
@@ -423,7 +463,7 @@ test "TestSampleMux single input samples" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0xaabbccdd), buffers.inputs[0][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x11223344), buffers.inputs[1][0]);
 
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
     buffers = try sample_mux.get(ts);
 
@@ -436,7 +476,7 @@ test "TestSampleMux single input samples" {
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0xabcdeeff), buffers.inputs[0][0]);
     try std.testing.expectEqual(std.mem.bigToNative(u32, 0x55667788), buffers.inputs[1][0]);
 
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
     try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
 }
@@ -455,7 +495,7 @@ test "TestSampleMux single output samples" {
     try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
     try std.testing.expect(buffers.outputs[0].len == 1);
 
-    sample_mux.update(ts, ProcessResult.init(&[0]usize{}, &[1]usize{1}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[0]usize{}, &[1]usize{1}));
 
     buffers = try sample_mux.get(ts);
 
@@ -483,7 +523,7 @@ test "TestSampleMux eof" {
     try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
     try std.testing.expect(buffers.outputs[0].len > 4);
 
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
     sample_mux.setEOF();
 
@@ -530,7 +570,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][2] = 0xcccccccc;
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 0), input_ring_buffer.impl.getReadAvailable(0));
@@ -561,7 +601,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][1] = 0x22222222;
 
     // Update sample mux with 1 consumed and 2 produced
-    sample_mux.update(ts, ProcessResult.init(&[1]usize{1}, &[1]usize{2}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{1}, &[1]usize{2}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input_ring_buffer.impl.getReadAvailable(0));
@@ -583,7 +623,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     buffers.outputs[0][0] = 0x33333333;
 
     // Update sample mux with 1 consumed and 1 produced
-    sample_mux.update(ts, ProcessResult.init(&[1]usize{2}, &[1]usize{1}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{2}, &[1]usize{1}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 0), input_ring_buffer.impl.getReadAvailable(0));
@@ -653,7 +693,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     buffers.outputs[1][2] = 0xee;
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -715,7 +755,7 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     try std.testing.expectEqual(@as(u16, 0x33), buffers.inputs[1][2]);
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 2, 3 }, &[0]usize{}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 2, 3 }, &[0]usize{}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 2), input1_ring_buffer.impl.getReadAvailable(0));
@@ -768,7 +808,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     buffers.outputs[1][2] = 0xee;
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[0]usize{}, &[2]usize{ 2, 3 }));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[0]usize{}, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 8), try output1_reader.getAvailable());
@@ -833,7 +873,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     buffers.outputs[0][0] = 0xaaaaaaaa;
 
     // Update sample mux to consume one sample
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{1}));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -865,7 +905,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     buffers.outputs[0][1] = 0xcccccccc;
 
     // Update sample mux to consume remaining sample
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 2, 2 }, &[1]usize{2}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 2, 2 }, &[1]usize{2}));
 
     // Get sample buffers should return EOF
     try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
@@ -911,7 +951,7 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     buffers.outputs[0][2] = 0xcccccccc;
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
 
     // Set write EOF
     sample_mux.setEOF();
@@ -1000,7 +1040,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     try std.testing.expectEqual(@as(u16, 0xee), buffers.inputs[1][1]);
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
@@ -1090,11 +1130,168 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     try std.testing.expectEqual(@as(u16, 0xff), buffers.inputs[1][2]);
 
     // Update sample mux
-    sample_mux.update(ts, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
+    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 2 }, &[2]usize{ 2, 3 }));
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 4), input1_ring_buffer.impl.getReadAvailable(0));
     try std.testing.expectEqual(@as(usize, 1), input2_ring_buffer.impl.getReadAvailable(0));
     try std.testing.expectEqual(@as(usize, 8), output1_ring_buffer.impl.getReadAvailable(0));
     try std.testing.expectEqual(@as(usize, std.mem.page_size - 1), output2_ring_buffer.impl.getReadAvailable(0));
+}
+
+const Foo = struct {
+    valid: bool,
+
+    pub fn init() Foo {
+        return .{ .valid = true };
+    }
+
+    pub fn deinit(self: *Foo) void {
+        self.valid = false;
+    }
+
+    pub fn typeName() []const u8 {
+        return "Foo";
+    }
+};
+
+test "RefCounted output with no readers" {
+    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+
+    // Create ring buffers
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer output_ring_buffer.deinit();
+
+    // Create ring buffer sample mux
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    defer ring_buffer_sample_mux.deinit();
+    var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Get sample buffers
+    var buffers = try sample_mux.get(ts);
+
+    // Create two samples
+    buffers.outputs[0][0] = RefCounted(Foo).init(.{});
+    buffers.outputs[0][1] = RefCounted(Foo).init(.{});
+
+    // Verify valid
+    try std.testing.expectEqual(1, buffers.outputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(1, buffers.outputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(true, buffers.outputs[0][0].value.valid);
+    try std.testing.expectEqual(true, buffers.outputs[0][1].value.valid);
+
+    // Update sample mux
+    sample_mux.update(ts, buffers, ProcessResult.init(&[0]usize{}, &[1]usize{2}));
+
+    // Verify samples are deinited
+    try std.testing.expectEqual(0, buffers.outputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(0, buffers.outputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(false, buffers.outputs[0][0].value.valid);
+    try std.testing.expectEqual(false, buffers.outputs[0][1].value.valid);
+}
+
+test "RefCounted output with one reader" {
+    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+
+    // Create ring buffers
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer output_ring_buffer.deinit();
+
+    // Create reader
+    _ = output_ring_buffer.reader();
+
+    // Create ring buffer sample mux
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    defer ring_buffer_sample_mux.deinit();
+    var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Get sample buffers
+    var buffers = try sample_mux.get(ts);
+
+    // Create two samples
+    buffers.outputs[0][0] = RefCounted(Foo).init(.{});
+    buffers.outputs[0][1] = RefCounted(Foo).init(.{});
+
+    // Update sample mux
+    sample_mux.update(ts, buffers, ProcessResult.init(&[0]usize{}, &[1]usize{2}));
+
+    // Verify samples are still valid
+    try std.testing.expectEqual(1, buffers.outputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(1, buffers.outputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(true, buffers.outputs[0][0].value.valid);
+    try std.testing.expectEqual(true, buffers.outputs[0][1].value.valid);
+}
+
+test "RefCounted output with two readers" {
+    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+
+    // Create ring buffers
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer output_ring_buffer.deinit();
+
+    // Create two readers
+    _ = output_ring_buffer.reader();
+    _ = output_ring_buffer.reader();
+
+    // Create ring buffer sample mux
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    defer ring_buffer_sample_mux.deinit();
+    var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Get sample buffers
+    var buffers = try sample_mux.get(ts);
+
+    // Create two samples
+    buffers.outputs[0][0] = RefCounted(Foo).init(.{});
+    buffers.outputs[0][1] = RefCounted(Foo).init(.{});
+
+    // Update sample mux
+    sample_mux.update(ts, buffers, ProcessResult.init(&[0]usize{}, &[1]usize{2}));
+
+    // Verify samples are still valid with incremented ref count
+    try std.testing.expectEqual(2, buffers.outputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(2, buffers.outputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(true, buffers.outputs[0][0].value.valid);
+    try std.testing.expectEqual(true, buffers.outputs[0][1].value.valid);
+}
+
+test "RefCounted input" {
+    const ts = ComptimeTypeSignature.fromTypes(&[1]type{RefCounted(Foo)}, &[0]type{});
+
+    // Create ring buffers
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer input_ring_buffer.deinit();
+
+    // Create one writer
+    var writer = input_ring_buffer.writer();
+
+    // Create ring buffer sample mux
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    defer ring_buffer_sample_mux.deinit();
+    var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Write two samples of RefCounted(Foo)
+    var buf = writer.getBuffer();
+    var slice: []RefCounted(Foo) = @alignCast(std.mem.bytesAsSlice(RefCounted(Foo), buf[0..std.mem.alignBackward(usize, buf.len, @sizeOf(RefCounted(Foo)))]));
+    slice[0] = RefCounted(Foo).init(.{});
+    slice[1] = RefCounted(Foo).init(.{});
+    writer.update(2 * @sizeOf(RefCounted(Foo)));
+
+    // Get sample buffers
+    var buffers = try sample_mux.get(ts);
+
+    // Verify samples
+    try std.testing.expectEqual(1, buffers.inputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(1, buffers.inputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(true, buffers.inputs[0][0].value.valid);
+    try std.testing.expectEqual(true, buffers.inputs[0][1].value.valid);
+
+    // Update sample mux
+    sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{2}, &[0]usize{}));
+
+    // Verify samples are deinited
+    try std.testing.expectEqual(0, buffers.inputs[0][0].rc.load(.seq_cst));
+    try std.testing.expectEqual(0, buffers.inputs[0][1].rc.load(.seq_cst));
+    try std.testing.expectEqual(false, buffers.inputs[0][0].value.valid);
+    try std.testing.expectEqual(false, buffers.inputs[0][1].value.valid);
 }

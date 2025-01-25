@@ -86,7 +86,7 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
             const process_result = try @call(.auto, processFn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
             // Update sample buffers
-            sample_mux.update(type_signature, process_result);
+            sample_mux.update(type_signature, buffers, process_result);
 
             // If block completed, set write EOF
             if (process_result.eof) {
