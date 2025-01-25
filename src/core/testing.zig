@@ -4,7 +4,7 @@ const util = @import("util.zig");
 const platform = @import("platform.zig");
 
 const Block = @import("block.zig").Block;
-const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
+const RuntimeTypeSignature = @import("types.zig").RuntimeTypeSignature;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 

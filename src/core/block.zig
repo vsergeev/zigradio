@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const ComptimeTypeSignature = @import("type_signature.zig").ComptimeTypeSignature;
-const RuntimeTypeSignature = @import("type_signature.zig").RuntimeTypeSignature;
+const ComptimeTypeSignature = @import("types.zig").ComptimeTypeSignature;
+const RuntimeTypeSignature = @import("types.zig").RuntimeTypeSignature;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////

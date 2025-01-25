@@ -72,7 +72,7 @@ pub const ThreadedBlockRunner = struct {
 const builtin = @import("builtin");
 
 const ProcessResult = @import("block.zig").ProcessResult;
-const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
+const RuntimeDataType = @import("types.zig").RuntimeDataType;
 
 const TestSource = struct {
     block: Block,

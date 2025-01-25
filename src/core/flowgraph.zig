@@ -5,7 +5,7 @@ const platform = @import("platform.zig");
 
 const Block = @import("block.zig").Block;
 const CompositeBlock = @import("composite.zig").CompositeBlock;
-const RuntimeDataType = @import("type_signature.zig").RuntimeDataType;
+const RuntimeDataType = @import("types.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;

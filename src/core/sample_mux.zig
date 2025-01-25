@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const util = @import("util.zig");
-const ComptimeTypeSignature = @import("type_signature.zig").ComptimeTypeSignature;
+const ComptimeTypeSignature = @import("types.zig").ComptimeTypeSignature;
 const ProcessResult = @import("block.zig").ProcessResult;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
