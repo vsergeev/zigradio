@@ -20,3 +20,4 @@ pub const ComplexBandstopFilterBlock = @import("complexbandstopfilter.zig").Comp
 pub const ComplexToRealBlock = @import("complextoreal.zig").ComplexToRealBlock;
 pub const ComplexToImagBlock = @import("complextoimag.zig").ComplexToImagBlock;
 pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitudeBlock;
+pub const AGCBlock = @import("agc.zig").AGCBlock;
