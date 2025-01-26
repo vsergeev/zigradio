@@ -22,6 +22,7 @@ pub fn main() !void {
     var am_demod = radio.blocks.ComplexMagnitudeBlock.init();
     var dcr_filter = radio.blocks.SinglepoleHighpassFilterBlock(f32).init(100);
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(bandwidth, .{});
+    var af_gain = radio.blocks.AGCBlock(f32).init(.Slow, .{});
     var sink = radio.blocks.PulseAudioSink(1).init();
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
@@ -30,7 +31,8 @@ pub fn main() !void {
     try top.connect(&tuner.composite, &am_demod.block);
     try top.connect(&am_demod.block, &dcr_filter.block);
     try top.connect(&dcr_filter.block, &af_filter.block);
-    try top.connect(&af_filter.block, &sink.block);
+    try top.connect(&af_filter.block, &af_gain.block);
+    try top.connect(&af_gain.block, &sink.block);
 
     try top.start();
     radio.platform.waitForInterrupt();
