@@ -1,3 +1,12 @@
+* v0.4.0 - 01/26/2025
+    * Fix spinning on read available wait in SampleMux.
+    * Refactor SampleMux API.
+    * Refactor block wrapping in Block and Composite.
+    * Add support for RefCounted(T) wrapper type.
+    * Add new signal blocks:
+        * AGCBlock
+    * Add AGCBlock to rtlsdr_ssb and rtlsdr_am_envelope examples.
+
 * v0.3.0 - 01/18/2025
     * Migrate to dynamically loaded libraries.
     * Add acceleration (VOLK, liquid-dsp) to signal blocks.
