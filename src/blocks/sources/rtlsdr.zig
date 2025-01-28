@@ -40,7 +40,7 @@ pub const RtlSdrSource = struct {
 
     // Options
     pub const Options = struct {
-        biastee: bool = false,
+        bias_tee: bool = false,
         direct_sampling: ?DirectSamplingMode = null,
         bandwidth: ?f32 = null,
         rf_gain: ?f32 = null,
@@ -130,7 +130,7 @@ pub const RtlSdrSource = struct {
         }
 
         // Turn on bias tee if required, ignore if not required
-        if (self.options.biastee) {
+        if (self.options.bias_tee) {
             ret = rtlsdr_set_bias_tee(self.dev, 1);
             if (ret != 0) {
                 std.debug.print("rtlsdr_set_bias_tee(): {d}\n", .{ret});
@@ -239,7 +239,7 @@ pub const RtlSdrSource = struct {
 
     pub fn deinitialize(self: *RtlSdrSource, allocator: std.mem.Allocator) void {
         // Turn off bias tee if it was enabled
-        if (self.options.biastee) {
+        if (self.options.bias_tee) {
             // Turn off bias tee
             const ret = rtlsdr_set_bias_tee(self.dev, 0);
             if (ret != 0) {
