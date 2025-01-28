@@ -106,7 +106,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
 
 const FlowgraphRunState = struct {
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
-    block_runners: std.ArrayList(ThreadedBlockRunner),
+    block_runners: std.AutoArrayHashMap(*Block, ThreadedBlockRunner),
 
     const RING_BUFFER_SIZE = 8 * 1048576;
 
@@ -119,9 +119,12 @@ const FlowgraphRunState = struct {
             ring_buffers.deinit();
         }
 
-        // Allocate block runner list
-        var block_runners = std.ArrayList(ThreadedBlockRunner).init(allocator);
-        errdefer block_runners.deinit();
+        // Allocate block runner map
+        var block_runners = std.AutoArrayHashMap(*Block, ThreadedBlockRunner).init(allocator);
+        errdefer {
+            for (block_runners.values()) |*block_runner| block_runner.deinit();
+            block_runners.deinit();
+        }
 
         // For each block output, create an output ring buffer
         var block_it = block_set.keyIterator();
@@ -158,7 +161,7 @@ const FlowgraphRunState = struct {
             }
 
             // Create block runner
-            try block_runners.append(try ThreadedBlockRunner.init(allocator, block.*, input_ring_buffers.items, output_ring_buffers.items));
+            try block_runners.put(block.*, try ThreadedBlockRunner.init(allocator, block.*, input_ring_buffers.items, output_ring_buffers.items));
         }
 
         return .{
@@ -168,7 +171,7 @@ const FlowgraphRunState = struct {
     }
 
     pub fn deinit(self: *FlowgraphRunState) void {
-        for (self.block_runners.items) |*block_runner| block_runner.deinit();
+        for (self.block_runners.values()) |*block_runner| block_runner.deinit();
         self.block_runners.deinit();
 
         var ring_buffers_it = self.ring_buffers.valueIterator();
@@ -445,7 +448,7 @@ pub const Flowgraph = struct {
         self.run_state = try FlowgraphRunState.init(self.allocator, &self.flattened_connections, &self.block_set);
 
         // Spawn block runners
-        for (self.run_state.?.block_runners.items) |*block_runner| {
+        for (self.run_state.?.block_runners.values()) |*block_runner| {
             try block_runner.spawn();
         }
     }
@@ -454,7 +457,7 @@ pub const Flowgraph = struct {
         if (self.run_state == null) return FlowgraphError.NotRunning;
 
         // Join all block runners
-        for (self.run_state.?.block_runners.items) |*block_runner| {
+        for (self.run_state.?.block_runners.values()) |*block_runner| {
             block_runner.join();
         }
 
@@ -470,7 +473,7 @@ pub const Flowgraph = struct {
         if (self.run_state == null) return FlowgraphError.NotRunning;
 
         // For each block runner
-        for (self.run_state.?.block_runners.items) |*block_runner| {
+        for (self.run_state.?.block_runners.values()) |*block_runner| {
             // If this block is a source
             if (block_runner.block.inputs.len == 0) {
                 // Stop the block
