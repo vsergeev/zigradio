@@ -10,7 +10,7 @@ jobs:
       matrix:
         zig-version: [ 0.13.0 ]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v3
@@ -20,5 +20,16 @@ jobs:
       with:
         zig-version: ${{ matrix.zig-version }}
 
+    - name: Install acceleration libraries
+      run: sudo apt-get install -y libvolk-dev libliquid-dev libfftw3-dev
+
     - name: Run Tests
-      run: zig build test
+      run: |
+        ZIGRADIO_DISABLE_VOLK=0 ZIGRADIO_DISABLE_LIQUID=0 ZIGRADIO_DISABLE_FFTW3F=0 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=0 ZIGRADIO_DISABLE_LIQUID=0 ZIGRADIO_DISABLE_FFTW3F=1 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=0 ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_FFTW3F=0 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=0 ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_FFTW3F=1 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_LIQUID=0 ZIGRADIO_DISABLE_FFTW3F=0 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_LIQUID=0 ZIGRADIO_DISABLE_FFTW3F=1 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_FFTW3F=0 ZIGRADIO_DEBUG=1 zig build test
+        ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_FFTW3F=1 ZIGRADIO_DEBUG=1 zig build test
