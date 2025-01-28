@@ -242,7 +242,9 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
 
         pub fn updateOutputBuffer(self: *Self, index: usize, count: usize) void {
             std.debug.assert(index < self.writers.items.len);
-            self.writers.items[index].update(count);
+            if (self.writers.items[index].getNumReaders() > 0) {
+                self.writers.items[index].update(count);
+            }
         }
 
         pub fn getNumReadersForOutput(self: *Self, index: usize) usize {
@@ -991,6 +993,8 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     // Get ring buffer reader/write interfaces
     var input1_writer = input1_ring_buffer.writer();
     var input2_writer = input2_ring_buffer.writer();
+    _ = output1_ring_buffer.reader();
+    _ = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
     var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
@@ -1070,6 +1074,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     // Get ring buffer reader/write interfaces
     var input1_writer = input1_ring_buffer.writer();
     var input2_writer = input2_ring_buffer.writer();
+    _ = output1_ring_buffer.reader();
     var output2_reader = output2_ring_buffer.reader();
     var output2_writer = output2_ring_buffer.writer();
 
