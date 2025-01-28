@@ -123,11 +123,13 @@ const FlowgraphRunState = struct {
         var block_runners = std.ArrayList(ThreadedBlockRunner).init(allocator);
         errdefer block_runners.deinit();
 
-        // For each connection, create an output ring buffer
-        var output_it = flattened_connections.valueIterator();
-        while (output_it.next()) |output| {
-            if (ring_buffers.contains(output.*)) continue;
-            try ring_buffers.put(output.*, try ThreadSafeRingBuffer.init(allocator, RING_BUFFER_SIZE));
+        // For each block output, create an output ring buffer
+        var block_it = block_set.keyIterator();
+        while (block_it.next()) |block| {
+            for (0..block.*.outputs.len) |i| {
+                const output = BlockOutputPort{ .block = block.*, .index = i };
+                try ring_buffers.put(output, try ThreadSafeRingBuffer.init(allocator, RING_BUFFER_SIZE));
+            }
         }
 
         // Temporary storage for input and output ring buffer slices
@@ -137,7 +139,7 @@ const FlowgraphRunState = struct {
         defer output_ring_buffers.deinit();
 
         // For each block, collect ring buffers and create a block runner
-        var block_it = block_set.keyIterator();
+        block_it = block_set.keyIterator();
         while (block_it.next()) |block| {
             // Clear temporary ring buffer arrays
             input_ring_buffers.clearRetainingCapacity();
@@ -151,7 +153,8 @@ const FlowgraphRunState = struct {
 
             // Collect output ring buffers
             for (0..block.*.outputs.len) |i| {
-                try output_ring_buffers.append(ring_buffers.getPtr(BlockOutputPort{ .block = block.*, .index = i }).?);
+                const output = BlockOutputPort{ .block = block.*, .index = i };
+                try output_ring_buffers.append(ring_buffers.getPtr(output).?);
             }
 
             // Create block runner
