@@ -15,6 +15,8 @@ pub const ThreadedBlockRunner = struct {
 
     running: bool = false,
     thread: std.Thread = undefined,
+    mutex: std.Thread.Mutex = .{},
+    call_event: std.Thread.ResetEvent = .{},
     stop_event: std.Thread.ResetEvent = .{},
 
     pub fn init(allocator: std.mem.Allocator, block: *Block, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !ThreadedBlockRunner {
@@ -41,7 +43,13 @@ pub const ThreadedBlockRunner = struct {
                     if (runner.stop_event.isSet()) {
                         sample_mux.setEOF();
                         break;
+                    } else if (runner.call_event.isSet()) {
+                        // Give calling thread a chance to lock the mutex
+                        std.time.sleep(std.time.ns_per_us);
                     }
+
+                    runner.mutex.lock();
+                    defer runner.mutex.unlock();
 
                     const process_result = try runner.block.process(&sample_mux);
                     if (process_result.eof) {
@@ -53,6 +61,16 @@ pub const ThreadedBlockRunner = struct {
 
         self.thread = try std.Thread.spawn(.{}, Runner.run, .{self});
         self.running = true;
+    }
+
+    pub fn call(self: *ThreadedBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).Fn.return_type.? {
+        self.call_event.set();
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        defer self.call_event.reset();
+
+        const block = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", self.block));
+        return @call(.auto, function, .{block} ++ args);
     }
 
     pub fn stop(self: *ThreadedBlockRunner) void {
@@ -164,6 +182,48 @@ const TestSink2 = struct {
     }
 };
 
+const TestSource3 = struct {
+    block: Block,
+
+    pub fn init() TestSource3 {
+        return .{ .block = Block.init(@This()) };
+    }
+
+    pub fn setRate(_: *TestSource3, _: f64) !f64 {
+        return 8000;
+    }
+
+    pub fn process(_: *TestSource3, z: []f32) !ProcessResult {
+        return ProcessResult.init(&[0]usize{}, &[1]usize{@min(1024, z.len)});
+    }
+};
+
+const TestCallableBlock = struct {
+    block: Block,
+    foo: usize,
+
+    pub fn init() TestCallableBlock {
+        return .{ .block = Block.init(@This()), .foo = 123 };
+    }
+
+    pub fn setFoo(self: *TestCallableBlock, value: usize) !void {
+        if (value == 234) return error.Unsupported;
+        self.foo = value;
+    }
+
+    pub fn resetFoo(self: *TestCallableBlock) void {
+        self.foo = 123;
+    }
+
+    pub fn getFoo(self: *TestCallableBlock) usize {
+        return self.foo;
+    }
+
+    pub fn process(_: *TestCallableBlock, x: []const f32, _: []f32) !ProcessResult {
+        return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
+    }
+};
+
 test "ThreadedBlockRunner finite run" {
     // This test requires spawning threads
     if (builtin.single_threaded) {
@@ -251,4 +311,49 @@ test "ThreadedBlockRunner infinite run" {
 
     // Check results in test sink
     try std.testing.expect(test_sink.count > 0);
+}
+
+test "ThreadedBlockRunner call" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    // Create blocks
+    var test_source = TestSource3.init();
+    var test_block = TestCallableBlock.init();
+
+    // Create ring buffer
+    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer ring_buffer1.deinit();
+    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer ring_buffer2.deinit();
+
+    // Set rates
+    try test_block.block.setRate(800);
+
+    // Create block runners
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    defer test_source_runner.deinit();
+    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    defer test_block_runner.deinit();
+
+    // Spawn block runners
+    try test_source_runner.spawn();
+    try test_block_runner.spawn();
+
+    // Call block
+    try std.testing.expectEqual(@as(usize, 123), test_block_runner.call(TestCallableBlock.getFoo, .{}));
+    try test_block_runner.call(TestCallableBlock.setFoo, .{456});
+    try std.testing.expectEqual(@as(usize, 456), test_block_runner.call(TestCallableBlock.getFoo, .{}));
+    test_block_runner.call(TestCallableBlock.resetFoo, .{});
+    try std.testing.expectEqual(@as(usize, 123), test_block_runner.call(TestCallableBlock.getFoo, .{}));
+    try std.testing.expectError(error.Unsupported, test_block_runner.call(TestCallableBlock.setFoo, .{234}));
+
+    // Stop source runner
+    test_source_runner.stop();
+
+    // Join block runners
+    test_source_runner.join();
+    test_block_runner.join();
 }
