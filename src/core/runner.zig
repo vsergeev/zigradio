@@ -34,16 +34,16 @@ pub const ThreadedBlockRunner = struct {
 
     pub fn spawn(self: *ThreadedBlockRunner) !void {
         const Runner = struct {
-            fn run(block: *Block, threadsafe_sample_mux: *ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer), stop_event: *std.Thread.ResetEvent) !void {
-                var sample_mux = threadsafe_sample_mux.sampleMux();
+            fn run(runner: *ThreadedBlockRunner) !void {
+                var sample_mux = runner.threadsafe_sample_mux.sampleMux();
 
                 while (true) {
-                    if (stop_event.isSet()) {
+                    if (runner.stop_event.isSet()) {
                         sample_mux.setEOF();
                         break;
                     }
 
-                    const process_result = try block.process(&sample_mux);
+                    const process_result = try runner.block.process(&sample_mux);
                     if (process_result.eof) {
                         break;
                     }
@@ -51,7 +51,7 @@ pub const ThreadedBlockRunner = struct {
             }
         };
 
-        self.thread = try std.Thread.spawn(.{}, Runner.run, .{ self.block, &self.threadsafe_sample_mux, &self.stop_event });
+        self.thread = try std.Thread.spawn(.{}, Runner.run, .{self});
         self.running = true;
     }
 
