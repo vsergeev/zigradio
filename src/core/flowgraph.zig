@@ -25,6 +25,7 @@ pub const FlowgraphError = error{
     RateMismatch,
     NotRunning,
     AlreadyRunning,
+    BlockNotFound,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,6 +491,30 @@ pub const Flowgraph = struct {
 
         try self.start();
         try self.wait();
+    }
+
+    fn CallReturnType(comptime function: anytype) type {
+        const return_type = @typeInfo(@TypeOf(function)).Fn.return_type.?;
+        return switch (@typeInfo(return_type)) {
+            .ErrorUnion => |t| (FlowgraphError || t.error_set)!t.payload,
+            else => FlowgraphError!return_type,
+        };
+    }
+
+    pub fn call(self: *Flowgraph, block: anytype, comptime function: anytype, args: anytype) CallReturnType(function) {
+        if (@TypeOf(block) != *Block and @TypeOf(block) != *CompositeBlock) @compileError("Unsupported block type, expected *Block or *CompositeBlock");
+
+        if (self.run_state == null) return FlowgraphError.NotRunning;
+
+        if (@TypeOf(block) == *Block) {
+            // Call block via block runner
+            const block_runner = self.run_state.?.block_runners.getPtr(block) orelse return FlowgraphError.BlockNotFound;
+            return block_runner.call(function, args);
+        } else {
+            // Call composite directly, passing in flowgraph for downstream block calls
+            const composite = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("composite", block));
+            return @call(.auto, function, .{ composite, self } ++ args);
+        }
     }
 };
 
@@ -1495,4 +1520,111 @@ test "Flowgraph start, stop" {
 
     // Validate output vector
     try std.testing.expectEqualSlices(u8, expected_output_vector, sink_block.buf.items);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Flowgraph Tests
+////////////////////////////////////////////////////////////////////////////////
+
+const TestCallableBlock = struct {
+    block: Block,
+    foo: usize,
+
+    pub fn init() TestCallableBlock {
+        return .{ .block = Block.init(@This()), .foo = 123 };
+    }
+
+    pub fn setFoo(self: *TestCallableBlock, value: usize) !void {
+        if (value == 234) return error.Unsupported;
+        self.foo = value;
+    }
+
+    pub fn getFoo(self: *TestCallableBlock) usize {
+        return self.foo;
+    }
+
+    pub fn process(_: *TestCallableBlock, x: []const f32, _: []f32) !ProcessResult {
+        return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
+    }
+};
+
+const TestCallableCompositeBlock = struct {
+    composite: CompositeBlock,
+    b1: TestCallableBlock,
+    b2: TestCallableBlock,
+
+    pub fn init() TestCallableCompositeBlock {
+        return .{
+            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
+            .b1 = TestCallableBlock.init(),
+            .b2 = TestCallableBlock.init(),
+        };
+    }
+
+    pub fn connect(self: *TestCallableCompositeBlock, flowgraph: *Flowgraph) !void {
+        // Internal connections
+        try flowgraph.connect(&self.b1.block, &self.b2.block);
+
+        // Alias inputs and outputs
+        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+    }
+
+    pub fn setFoos(self: *TestCallableCompositeBlock, flowgraph: *Flowgraph, foos: struct { usize, usize }) !void {
+        try flowgraph.call(&self.b1.block, TestCallableBlock.setFoo, .{foos[0]});
+        try flowgraph.call(&self.b2.block, TestCallableBlock.setFoo, .{foos[1]});
+    }
+
+    pub fn getCombinedFoo(self: *TestCallableCompositeBlock, flowgraph: *Flowgraph) !usize {
+        const foo1 = try flowgraph.call(&self.b1.block, TestCallableBlock.getFoo, .{});
+        const foo2 = try flowgraph.call(&self.b2.block, TestCallableBlock.getFoo, .{});
+        return foo1 + foo2;
+    }
+};
+
+test "Flowgraph call block" {
+    var top = Flowgraph.init(std.testing.allocator, .{});
+    defer top.deinit();
+
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestCallableBlock.init();
+    var b3 = TestCallableBlock.init(); // unconnected
+
+    try top.connect(&b1.block, &b2.block);
+    try top.start();
+
+    try std.testing.expectEqual(123, try top.call(&b2.block, TestCallableBlock.getFoo, .{}));
+    try top.call(&b2.block, TestCallableBlock.setFoo, .{456});
+    try std.testing.expectEqual(456, try top.call(&b2.block, TestCallableBlock.getFoo, .{}));
+
+    try std.testing.expectError(error.Unsupported, top.call(&b2.block, TestCallableBlock.setFoo, .{234}));
+
+    try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.block, TestCallableBlock.setFoo, .{456}));
+
+    try top.stop();
+}
+
+test "Flowgraph call composite" {
+    var top = Flowgraph.init(std.testing.allocator, .{});
+    defer top.deinit();
+
+    var b1 = TestSource(f32).init(8000);
+    var b2 = TestCallableCompositeBlock.init();
+    var b3 = TestCallableCompositeBlock.init(); // unconnected
+
+    try top.connect(&b1.block, &b2.composite);
+    try top.start();
+
+    try std.testing.expectEqual(246, try top.call(&b2.composite, TestCallableCompositeBlock.getCombinedFoo, .{}));
+    try top.call(&b2.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 250 }});
+    try std.testing.expectEqual(350, try top.call(&b2.composite, TestCallableCompositeBlock.getCombinedFoo, .{}));
+
+    try std.testing.expectEqual(100, try top.call(&b2.b1.block, TestCallableBlock.getFoo, .{}));
+    try std.testing.expectEqual(250, try top.call(&b2.b2.block, TestCallableBlock.getFoo, .{}));
+
+    try std.testing.expectError(error.Unsupported, top.call(&b2.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 234 }}));
+
+    try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 200 }}));
+
+    try top.stop();
 }
