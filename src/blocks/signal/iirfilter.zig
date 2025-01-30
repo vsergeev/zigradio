@@ -15,9 +15,8 @@ const innerProduct = @import("../../radio.zig").utils.math.innerProduct;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int, comptime Context: type) type {
-    if (M < 1) {
-        @compileLog("Feedback taps length must be at least 1");
-    }
+    if (T != std.math.Complex(f32) and T != f32) @compileError("Only std.math.Complex(f32) and f32 data types supported");
+    if (M < 1) @compileError("Feedback taps length must be at least 1");
 
     return struct {
         const Self = @This();
