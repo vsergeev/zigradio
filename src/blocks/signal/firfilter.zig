@@ -13,6 +13,10 @@ const innerProduct = @import("../../radio.zig").utils.math.innerProduct;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Context: type) type {
+    if (!((T == std.math.Complex(f32) and U == std.math.Complex(f32)) or
+        (T == std.math.Complex(f32) and U == f32) or
+        (T == f32 and U == f32))) @compileError("Data types combination not supported");
+
     return struct {
         const Self = @This();
 
@@ -139,8 +143,6 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: compt
                 for (0..x.len) |i| volk_32fc_32f_dot_prod_32fc.*(@ptrCast(&y[i]), @ptrCast(self.state.items[i .. i + N]), self.taps.items.ptr, N);
             } else if (T == f32 and U == f32) {
                 for (0..x.len) |i| volk_32f_x2_dot_prod_32f.*(&y[i], @ptrCast(self.state.items[i .. i + N]), self.taps.items.ptr, N);
-            } else {
-                @compileError("Data and taps type combination not implemented");
             }
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
