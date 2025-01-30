@@ -23,7 +23,7 @@ pub fn main() !void {
     var sb_filter = radio.blocks.ComplexBandpassFilterBlock(129).init(if (sideband == .LSB) .{ 0, -bandwidth } else .{ 0, bandwidth }, .{});
     var am_demod = radio.blocks.ComplexToRealBlock.init();
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(bandwidth, .{});
-    var af_gain = radio.blocks.AGCBlock(f32).init(.Fast, .{});
+    var af_gain = radio.blocks.AGCBlock(f32).init(.{ .preset = .Fast }, .{});
     var sink = radio.blocks.PulseAudioSink(1).init();
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
