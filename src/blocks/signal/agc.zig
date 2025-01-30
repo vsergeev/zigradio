@@ -82,6 +82,17 @@ pub fn AGCBlock(comptime T: type) type {
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
+
+        pub fn setMode(self: *Self, mode: Mode) void {
+            self.mode = mode;
+
+            // Compute normalized alpha for gain filter
+            const gain_tau = switch (self.mode) {
+                .preset => |p| GainTauPresets[@intFromEnum(p)],
+                .custom => |c| c,
+            };
+            self.gain_alpha = 1 / (1 + gain_tau * self.block.getRate(f32));
+        }
     };
 }
 
