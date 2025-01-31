@@ -14,15 +14,45 @@ const innerProduct = @import("../../radio.zig").utils.math.innerProduct;
 // IIR Filter Block
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int, comptime Context: type) type {
+pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int) type {
+    return struct {
+        const Self = @This();
+
+        block: Block,
+        filter: IIRFilter(T, N, M),
+
+        pub fn init(b_taps: [N]f32, a_taps: [M]f32) Self {
+            var filter = IIRFilter(T, N, M).init();
+            @memcpy(&filter.b_taps, &b_taps);
+            @memcpy(&filter.a_taps, &a_taps);
+            return .{ .block = Block.init(@This()), .filter = filter };
+        }
+
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+            return self.filter.initialize(allocator);
+        }
+
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            return self.filter.deinitialize(allocator);
+        }
+
+        pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
+            return self.filter.process(x, y);
+        }
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// IIR Filter (Standalone)
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn IIRFilter(comptime T: type, comptime N: comptime_int, comptime M: comptime_int) type {
     if (T != std.math.Complex(f32) and T != f32) @compileError("Only std.math.Complex(f32) and f32 data types supported");
     if (M < 1) @compileError("Feedback taps length must be at least 1");
 
     return struct {
         const Self = @This();
 
-        block: Block,
-        context: Context,
         b_taps: [N]f32 = [_]f32{0} ** N,
         a_taps: [M]f32 = [_]f32{0} ** M,
         impl: union(enum) {
@@ -32,17 +62,11 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
             zig: _IIRFilterBlockZigImpl(T, N, M, Self),
         } = .none,
 
-        pub const init = Context.init;
-
-        pub fn _init(context: Context) Self {
-            return .{ .block = Block.init(@This()), .context = context };
+        pub fn init() Self {
+            return .{};
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            if (@hasDecl(Context, "initialize")) {
-                try Context.initialize(self, allocator);
-            }
-
             // Prefer pure Zig implementation for now (benchmarks better)
             self.impl = .{ .zig = _IIRFilterBlockZigImpl(T, N, M, Self){ .parent = self } };
 
@@ -66,17 +90,6 @@ pub fn _IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: c
             }
         }
     };
-}
-
-pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int) type {
-    return _IIRFilterBlock(T, N, M, struct {
-        pub fn init(b_taps: [N]f32, a_taps: [M]f32) IIRFilterBlock(T, N, M) {
-            var block = IIRFilterBlock(T, N, M)._init(.{});
-            @memcpy(&block.b_taps, &b_taps);
-            @memcpy(&block.a_taps, &a_taps);
-            return block;
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

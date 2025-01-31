@@ -3,32 +3,47 @@ const std = @import("std");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
-const _IIRFilterBlock = @import("./iirfilter.zig")._IIRFilterBlock;
+const IIRFilter = @import("./iirfilter.zig").IIRFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Singlepole Lowpass Filter Block
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
-    return _IIRFilterBlock(T, 2, 2, struct {
-        cutoff: f32,
+    return struct {
+        const Self = @This();
 
-        pub fn init(cutoff: f32) SinglepoleLowpassFilterBlock(T) {
-            return SinglepoleLowpassFilterBlock(T)._init(.{ .cutoff = cutoff });
+        block: Block,
+        cutoff: f32,
+        filter: IIRFilter(T, 2, 2),
+
+        pub fn init(cutoff: f32) Self {
+            return .{ .block = Block.init(@This()), .cutoff = cutoff, .filter = IIRFilter(T, 2, 2).init() };
         }
 
-        pub fn initialize(self: *SinglepoleLowpassFilterBlock(T), _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             // Compute wraped tau
             const rate = self.block.getRate(f32);
-            const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.context.cutoff) / rate));
+            const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.cutoff) / rate));
 
             // Populate taps
-            self.b_taps[0] = 1 / (1 + 2 * tau * rate);
-            self.b_taps[1] = 1 / (1 + 2 * tau * rate);
-            self.a_taps[0] = 1;
-            self.a_taps[1] = (1 - 2 * tau * rate) / (1 + 2 * tau * rate);
+            self.filter.b_taps[0] = 1 / (1 + 2 * tau * rate);
+            self.filter.b_taps[1] = 1 / (1 + 2 * tau * rate);
+            self.filter.a_taps[0] = 1;
+            self.filter.a_taps[1] = (1 - 2 * tau * rate) / (1 + 2 * tau * rate);
+
+            // Initialize filter
+            return self.filter.initialize(allocator);
         }
-    });
+
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            self.filter.deinitialize(allocator);
+        }
+
+        pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
+            return self.filter.process(x, y);
+        }
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
