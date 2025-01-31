@@ -91,6 +91,20 @@ pub fn FIRFilter(comptime T: type, comptime U: type, comptime N: comptime_int) t
                 inline else => |*impl| return impl.process(x, y),
             }
         }
+
+        pub fn updateTaps(self: *Self) void {
+            switch (self.impl) {
+                .none => unreachable,
+                inline else => |*impl| impl.updateTaps(),
+            }
+        }
+
+        pub fn reset(self: *Self) void {
+            switch (self.impl) {
+                .none => unreachable,
+                inline else => |*impl| impl.reset(),
+            }
+        }
     };
 }
 
@@ -160,6 +174,14 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: compt
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
+
+        pub fn updateTaps(self: *Self) void {
+            for (0..N) |i| self.taps.items[i] = self.parent.taps[N - 1 - i];
+        }
+
+        pub fn reset(self: *Self) void {
+            @memset(self.state.items, zero(T));
+        }
     };
 }
 
@@ -175,20 +197,26 @@ const liquid_float_complex = extern struct {
 const struct_firfilt_cccf_s = opaque {};
 const firfilt_cccf = ?*struct_firfilt_cccf_s;
 var firfilt_cccf_create: *const fn (_h: [*c]liquid_float_complex, _n: c_uint) firfilt_cccf = undefined;
+var firfilt_cccf_recreate: *const fn (_q: firfilt_cccf, _h: [*c]liquid_float_complex, _n: c_uint) firfilt_cccf = undefined;
 var firfilt_cccf_destroy: *const fn (_q: firfilt_cccf) c_int = undefined;
 var firfilt_cccf_execute_block: *const fn (_q: firfilt_cccf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) c_int = undefined;
+var firfilt_cccf_reset: *const fn (_q: firfilt_cccf) c_int = undefined;
 
 const struct_firfilt_crcf_s = opaque {};
 const firfilt_crcf = ?*struct_firfilt_crcf_s;
 var firfilt_crcf_create: *const fn (_h: [*c]f32, _n: c_uint) firfilt_crcf = undefined;
+var firfilt_crcf_recreate: *const fn (_q: firfilt_crcf, _h: [*c]f32, _n: c_uint) firfilt_crcf = undefined;
 var firfilt_crcf_destroy: *const fn (_q: firfilt_crcf) c_int = undefined;
 var firfilt_crcf_execute_block: *const fn (_q: firfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) c_int = undefined;
+var firfilt_crcf_reset: *const fn (_q: firfilt_crcf) c_int = undefined;
 
 const struct_firfilt_rrrf_s = opaque {};
 const firfilt_rrrf = ?*struct_firfilt_rrrf_s;
 var firfilt_rrrf_create: *const fn (_h: [*c]f32, _n: c_uint) firfilt_rrrf = undefined;
+var firfilt_rrrf_recreate: *const fn (_q: firfilt_rrrf, _h: [*c]f32, _n: c_uint) firfilt_rrrf = undefined;
 var firfilt_rrrf_destroy: *const fn (_q: firfilt_rrrf) c_int = undefined;
 var firfilt_rrrf_execute_block: *const fn (_q: firfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) c_int = undefined;
+var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) c_int = undefined;
 
 var liquid_loaded: bool = false;
 
@@ -202,14 +230,20 @@ fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: com
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
             if (!liquid_loaded) {
                 firfilt_cccf_create = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_create), "firfilt_cccf_create") orelse return error.LookupFail;
+                firfilt_cccf_recreate = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_recreate), "firfilt_cccf_recreate") orelse return error.LookupFail;
                 firfilt_cccf_destroy = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_destroy), "firfilt_cccf_destroy") orelse return error.LookupFail;
                 firfilt_cccf_execute_block = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_execute_block), "firfilt_cccf_execute_block") orelse return error.LookupFail;
+                firfilt_cccf_reset = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_reset), "firfilt_cccf_reset") orelse return error.LookupFail;
                 firfilt_crcf_create = platform.libs.liquid.?.lookup(@TypeOf(firfilt_crcf_create), "firfilt_crcf_create") orelse return error.LookupFail;
+                firfilt_crcf_recreate = platform.libs.liquid.?.lookup(@TypeOf(firfilt_crcf_recreate), "firfilt_crcf_recreate") orelse return error.LookupFail;
                 firfilt_crcf_destroy = platform.libs.liquid.?.lookup(@TypeOf(firfilt_crcf_destroy), "firfilt_crcf_destroy") orelse return error.LookupFail;
                 firfilt_crcf_execute_block = platform.libs.liquid.?.lookup(@TypeOf(firfilt_crcf_execute_block), "firfilt_crcf_execute_block") orelse return error.LookupFail;
+                firfilt_crcf_reset = platform.libs.liquid.?.lookup(@TypeOf(firfilt_crcf_reset), "firfilt_crcf_reset") orelse return error.LookupFail;
                 firfilt_rrrf_create = platform.libs.liquid.?.lookup(@TypeOf(firfilt_rrrf_create), "firfilt_rrrf_create") orelse return error.LookupFail;
+                firfilt_rrrf_recreate = platform.libs.liquid.?.lookup(@TypeOf(firfilt_rrrf_recreate), "firfilt_rrrf_recreate") orelse return error.LookupFail;
                 firfilt_rrrf_destroy = platform.libs.liquid.?.lookup(@TypeOf(firfilt_rrrf_destroy), "firfilt_rrrf_destroy") orelse return error.LookupFail;
                 firfilt_rrrf_execute_block = platform.libs.liquid.?.lookup(@TypeOf(firfilt_rrrf_execute_block), "firfilt_rrrf_execute_block") orelse return error.LookupFail;
+                firfilt_rrrf_reset = platform.libs.liquid.?.lookup(@TypeOf(firfilt_rrrf_reset), "firfilt_rrrf_reset") orelse return error.LookupFail;
                 liquid_loaded = true;
             }
 
@@ -247,6 +281,26 @@ fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: com
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
+
+        pub fn updateTaps(self: *Self) void {
+            if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
+                _ = firfilt_cccf_recreate(self.filter, @ptrCast(@constCast(self.parent.taps[0..])), N);
+            } else if (T == std.math.Complex(f32) and U == f32) {
+                _ = firfilt_crcf_recreate(self.filter, @constCast(self.parent.taps[0..]), N);
+            } else if (T == f32 and U == f32) {
+                _ = firfilt_rrrf_recreate(self.filter, @constCast(self.parent.taps[0..]), N);
+            }
+        }
+
+        pub fn reset(self: *Self) void {
+            if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
+                _ = firfilt_cccf_reset(self.filter);
+            } else if (T == std.math.Complex(f32) and U == f32) {
+                _ = firfilt_crcf_reset(self.filter);
+            } else if (T == f32 and U == f32) {
+                _ = firfilt_rrrf_reset(self.filter);
+            }
+        }
     };
 }
 
@@ -282,6 +336,12 @@ fn _FIRFilterBlockZigImpl(comptime T: type, comptime U: type, comptime N: compti
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
+
+        pub fn updateTaps(_: *Self) void {}
+
+        pub fn reset(self: *Self) void {
+            @memset(&self.state, zero(T));
+        }
     };
 }
 
@@ -290,6 +350,8 @@ fn _FIRFilterBlockZigImpl(comptime T: type, comptime U: type, comptime N: compti
 ////////////////////////////////////////////////////////////////////////////////
 
 const BlockTester = @import("../../radio.zig").testing.BlockTester;
+const BlockFixture = @import("../../radio.zig").testing.BlockFixture;
+const expectEqualVectors = @import("../../radio.zig").testing.expectEqualVectors;
 
 const vectors = @import("../../vectors/blocks/signal/firfilter.zig");
 
@@ -334,5 +396,24 @@ test "FIRFilterBlock" {
         var block = FIRFilterBlock(std.math.Complex(f32), std.math.Complex(f32), 8).init(vectors.input_complex_taps_8);
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
         try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_complex_taps_8_complexfloat32});
+    }
+}
+
+test "FIRFilterBlock change taps" {
+    // 8 real taps, ComplexFloat32, with taps change
+    {
+        var block = FIRFilterBlock(std.math.Complex(f32), f32, 8).init(vectors.input_taps_8);
+        var fixture = try BlockFixture(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 2.0);
+        defer fixture.deinit();
+
+        const outputs1 = try fixture.process(.{&vectors.input_complexfloat32});
+        try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_8_complexfloat32, outputs1[0], 1e-6);
+
+        @memcpy(&block.filter.taps, &vectors.input_taps_8_alt);
+        block.filter.updateTaps();
+        block.filter.reset();
+
+        const outputs2 = try fixture.process(.{&vectors.input_complexfloat32});
+        try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_8_alt_complexfloat32, outputs2[0], 1e-6);
     }
 }
