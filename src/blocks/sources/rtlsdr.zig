@@ -279,4 +279,15 @@ pub const RtlSdrSource = struct {
 
         return ProcessResult.init(&[0]usize{}, &[1]usize{num_samples});
     }
+
+    pub fn setFrequency(self: *RtlSdrSource, frequency: f64) !void {
+        // Set frequency
+        const ret = rtlsdr_set_center_freq(self.dev, @as(u32, @intFromFloat(frequency)));
+        if (ret != 0) {
+            std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
+            return RtlSdrError.InitializationError;
+        }
+
+        self.frequency = frequency;
+    }
 };
