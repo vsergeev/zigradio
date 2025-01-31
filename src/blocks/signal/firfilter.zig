@@ -12,7 +12,38 @@ const innerProduct = @import("../../radio.zig").utils.math.innerProduct;
 // FIR Filter Block
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Context: type) type {
+pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int) type {
+    return struct {
+        const Self = @This();
+
+        block: Block,
+        filter: FIRFilter(T, U, N),
+
+        pub fn init(taps: [N]U) Self {
+            var filter = FIRFilter(T, U, N).init();
+            @memcpy(&filter.taps, &taps);
+            return .{ .block = Block.init(@This()), .filter = filter };
+        }
+
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+            return self.filter.initialize(allocator);
+        }
+
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            return self.filter.deinitialize(allocator);
+        }
+
+        pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
+            return self.filter.process(x, y);
+        }
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FIR Filter (Standalone)
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn FIRFilter(comptime T: type, comptime U: type, comptime N: comptime_int) type {
     if (!((T == std.math.Complex(f32) and U == std.math.Complex(f32)) or
         (T == std.math.Complex(f32) and U == f32) or
         (T == f32 and U == f32))) @compileError("Data types combination not supported");
@@ -20,8 +51,6 @@ pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_
     return struct {
         const Self = @This();
 
-        block: Block,
-        context: Context,
         taps: [N]U = [_]U{zero(U)} ** N,
         impl: union(enum) {
             none,
@@ -30,17 +59,11 @@ pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_
             zig: _FIRFilterBlockZigImpl(T, U, N, Self),
         } = .none,
 
-        pub const init = Context.init;
-
-        pub fn _init(context: Context) Self {
-            return .{ .block = Block.init(@This()), .context = context };
+        pub fn init() Self {
+            return .{};
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            if (@hasDecl(Context, "initialize")) {
-                try Context.initialize(self, allocator);
-            }
-
             if (platform.libs.volk != null) {
                 self.impl = .{ .volk = _FIRFilterBlockVolkImpl(T, U, N, Self){ .parent = self } };
             } else if (platform.libs.liquid != null) {
@@ -69,16 +92,6 @@ pub fn _FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_
             }
         }
     };
-}
-
-pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_int) type {
-    return _FIRFilterBlock(T, U, N, struct {
-        pub fn init(taps: [N]U) FIRFilterBlock(T, U, N) {
-            var block = FIRFilterBlock(T, U, N)._init(.{});
-            @memcpy(&block.taps, &taps);
-            return block;
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

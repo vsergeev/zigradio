@@ -3,7 +3,7 @@ const std = @import("std");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
-const _FIRFilterBlock = @import("./firfilter.zig")._FIRFilterBlock;
+const FIRFilter = @import("./firfilter.zig").FIRFilter;
 
 const WindowFunction = @import("../../radio.zig").utils.window.WindowFunction;
 const firwinLowpass = @import("../../radio.zig").utils.filter.firwinLowpass;
@@ -13,27 +13,42 @@ const firwinLowpass = @import("../../radio.zig").utils.filter.firwinLowpass;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
-    return _FIRFilterBlock(T, f32, N, struct {
+    return struct {
+        const Self = @This();
+
         pub const Options = struct {
             nyquist: ?f32 = null,
             window: WindowFunction = WindowFunction.Hamming,
         };
 
+        block: Block,
         cutoff: f32,
         options: Options,
+        filter: FIRFilter(T, f32, N),
 
-        pub fn init(cutoff: f32, options: Options) LowpassFilterBlock(T, N) {
-            return LowpassFilterBlock(T, N)._init(.{ .cutoff = cutoff, .options = options });
+        pub fn init(cutoff: f32, options: Options) Self {
+            return .{ .block = Block.init(@This()), .cutoff = cutoff, .options = options, .filter = FIRFilter(T, f32, N).init() };
         }
 
-        pub fn initialize(self: *LowpassFilterBlock(T, N), _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             // Compute Nyquist frequency
-            const nyquist = self.context.options.nyquist orelse (self.block.getRate(f32) / 2);
+            const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
-            self.taps = firwinLowpass(N, self.context.cutoff / nyquist, self.context.options.window);
+            self.filter.taps = firwinLowpass(N, self.cutoff / nyquist, self.options.window);
+
+            // Initialize filter
+            return self.filter.initialize(allocator);
         }
-    });
+
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            self.filter.deinitialize(allocator);
+        }
+
+        pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
+            return self.filter.process(x, y);
+        }
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

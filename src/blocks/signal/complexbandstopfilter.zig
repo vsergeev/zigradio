@@ -3,7 +3,7 @@ const std = @import("std");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
-const _FIRFilterBlock = @import("./firfilter.zig")._FIRFilterBlock;
+const FIRFilter = @import("./firfilter.zig").FIRFilter;
 
 const WindowFunction = @import("../../radio.zig").utils.window.WindowFunction;
 const firwinComplexBandstop = @import("../../radio.zig").utils.filter.firwinComplexBandstop;
@@ -13,27 +13,42 @@ const firwinComplexBandstop = @import("../../radio.zig").utils.filter.firwinComp
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn ComplexBandstopFilterBlock(comptime N: comptime_int) type {
-    return _FIRFilterBlock(std.math.Complex(f32), std.math.Complex(f32), N, struct {
+    return struct {
+        const Self = @This();
+
         pub const Options = struct {
             nyquist: ?f32 = null,
             window: WindowFunction = WindowFunction.Hamming,
         };
 
+        block: Block,
         cutoffs: struct { f32, f32 },
         options: Options,
+        filter: FIRFilter(std.math.Complex(f32), std.math.Complex(f32), N),
 
-        pub fn init(cutoffs: struct { f32, f32 }, options: Options) ComplexBandstopFilterBlock(N) {
-            return ComplexBandstopFilterBlock(N)._init(.{ .cutoffs = cutoffs, .options = options });
+        pub fn init(cutoffs: struct { f32, f32 }, options: Options) Self {
+            return .{ .block = Block.init(@This()), .cutoffs = cutoffs, .options = options, .filter = FIRFilter(std.math.Complex(f32), std.math.Complex(f32), N).init() };
         }
 
-        pub fn initialize(self: *ComplexBandstopFilterBlock(N), _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             // Compute Nyquist frequency
-            const nyquist = self.context.options.nyquist orelse (self.block.getRate(f32) / 2);
+            const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
-            self.taps = firwinComplexBandstop(N, .{ self.context.cutoffs[0] / nyquist, self.context.cutoffs[1] / nyquist }, self.context.options.window);
+            self.filter.taps = firwinComplexBandstop(N, .{ self.cutoffs[0] / nyquist, self.cutoffs[1] / nyquist }, self.options.window);
+
+            // Initialize filter
+            return self.filter.initialize(allocator);
         }
-    });
+
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            self.filter.deinitialize(allocator);
+        }
+
+        pub fn process(self: *Self, x: []const std.math.Complex(f32), y: []std.math.Complex(f32)) !ProcessResult {
+            return self.filter.process(x, y);
+        }
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
