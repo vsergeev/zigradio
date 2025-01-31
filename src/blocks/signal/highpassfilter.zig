@@ -48,6 +48,23 @@ pub fn HighpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
             return self.filter.process(x, y);
         }
+
+        pub fn setCutoff(self: *Self, cutoff: f32) void {
+            self.cutoff = cutoff;
+
+            // Compute Nyquist frequency
+            const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
+
+            // Generate taps
+            self.filter.taps = firwinHighpass(N, self.cutoff / nyquist, self.options.window);
+
+            // Update filter
+            self.filter.updateTaps();
+        }
+
+        pub fn reset(self: *Self) void {
+            self.filter.reset();
+        }
     };
 }
 
@@ -56,6 +73,8 @@ pub fn HighpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
 ////////////////////////////////////////////////////////////////////////////////
 
 const BlockTester = @import("../../radio.zig").testing.BlockTester;
+const BlockFixture = @import("../../radio.zig").testing.BlockFixture;
+const expectEqualVectors = @import("../../radio.zig").testing.expectEqualVectors;
 
 const vectors = @import("../../vectors/blocks/signal/highpassfilter.zig");
 
@@ -86,5 +105,23 @@ test "HighpassFilterBlock" {
         var block = HighpassFilterBlock(f32, 129).init(0.7, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
         var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
         try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_129_cutoff_0_7_nyquist_3_0_window_bartlett_float32});
+    }
+}
+
+test "HighpassFilterBlock change cutoff" {
+    // 129 real taps, ComplexFloat32, 0.2 cutoff to 0.3 cutoff
+    {
+        var block = HighpassFilterBlock(std.math.Complex(f32), 129).init(0.2, .{});
+        var fixture = try BlockFixture(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 2.0);
+        defer fixture.deinit();
+
+        const outputs1 = try fixture.process(.{&vectors.input_complexfloat32});
+        try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_129_cutoff_0_2_complexfloat32, outputs1[0], 1e-6);
+
+        block.setCutoff(0.3);
+        block.reset();
+
+        const outputs2 = try fixture.process(.{&vectors.input_complexfloat32});
+        try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_129_cutoff_0_3_complexfloat32, outputs2[0], 1e-6);
     }
 }
