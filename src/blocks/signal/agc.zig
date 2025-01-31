@@ -21,7 +21,7 @@ pub fn AGCBlock(comptime T: type) type {
         };
 
         pub const Options = struct {
-            target_dbfs: f32 = -35,
+            target_dbfs: f32 = -15,
             threshold_dbfs: f32 = -75,
             power_tau: f32 = 1.0,
         };
