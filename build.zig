@@ -29,7 +29,6 @@ pub fn build(b: *std.Build) !void {
 
     // Create radio module
     const radio_module = b.addModule("radio", .{ .root_source_file = b.path("src/radio.zig") });
-    radio_module.addImport("radio", radio_module);
 
     // Discover examples
     var examples = try discoverExamples(b.allocator);
@@ -44,16 +43,17 @@ pub fn build(b: *std.Build) !void {
     // Build examples
     const examples_step = b.step("examples", "Build examples");
     for (examples.items) |example| {
-        const exe = b.addExecutable(.{
+        const example_exe = b.addExecutable(.{
             .name = example.name,
             .root_source_file = b.path(example.path),
             .target = target,
             .optimize = .ReleaseFast,
         });
-        exe.root_module.addImport("radio", radio_module);
-        exe.linkLibC();
+        example_exe.root_module.addImport("radio", radio_module);
+        example_exe.linkLibC();
+        const install_example = b.addInstallArtifact(example_exe, .{});
 
-        examples_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
+        examples_step.dependOn(&install_example.step);
     }
 
     // Run unit tests
@@ -69,7 +69,6 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_tests.step);
 
     // Run benchmark suite
-    const benchmark_step = b.step("benchmark", "Run benchmark suite");
     const benchmark_suite = b.addExecutable(.{
         .name = "benchmark",
         .root_source_file = b.path("benchmarks/benchmark.zig"),
@@ -80,10 +79,11 @@ pub fn build(b: *std.Build) !void {
     benchmark_suite.linkLibC();
     const run_benchmark_suite = b.addRunArtifact(benchmark_suite);
     if (b.args) |args| run_benchmark_suite.addArgs(args);
+    const benchmark_step = b.step("benchmark", "Run benchmark suite");
     benchmark_step.dependOn(&run_benchmark_suite.step);
 
     // Generate test vectors
-    const generate_step = b.step("generate", "Generate test vectors");
     const generate_cmd = b.addSystemCommand(&[_][]const u8{ "python3", "generate.py" });
+    const generate_step = b.step("generate", "Generate test vectors");
     generate_step.dependOn(&generate_cmd.step);
 }
