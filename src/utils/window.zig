@@ -40,26 +40,26 @@ const expectEqualVectors = @import("../core/testing.zig").expectEqualVectors;
 const vectors = @import("../vectors/utils/window.zig");
 
 test "rectangular window()" {
-    try expectEqualVectors(f32, &vectors.window_rectangular, &window(128, WindowFunction.Rectangular, false), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.window_rectangular_periodic, &window(128, WindowFunction.Rectangular, true), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.window_rectangular, &window(128, WindowFunction.Rectangular, false), 1e-6);
+    try expectEqualVectors(f32, &vectors.window_rectangular_periodic, &window(128, WindowFunction.Rectangular, true), 1e-6);
 }
 
 test "hamming window()" {
-    try expectEqualVectors(f32, &vectors.window_hamming, &window(128, WindowFunction.Hamming, false), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.window_hamming_periodic, &window(128, WindowFunction.Hamming, true), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.window_hamming, &window(128, WindowFunction.Hamming, false), 1e-6);
+    try expectEqualVectors(f32, &vectors.window_hamming_periodic, &window(128, WindowFunction.Hamming, true), 1e-6);
 }
 
 test "hanning window()" {
-    try expectEqualVectors(f32, &vectors.window_hanning, &window(128, WindowFunction.Hanning, false), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.window_hanning_periodic, &window(128, WindowFunction.Hanning, true), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.window_hanning, &window(128, WindowFunction.Hanning, false), 1e-6);
+    try expectEqualVectors(f32, &vectors.window_hanning_periodic, &window(128, WindowFunction.Hanning, true), 1e-6);
 }
 
 test "bartlett window()" {
-    try expectEqualVectors(f32, &vectors.window_bartlett, &window(128, WindowFunction.Bartlett, false), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.window_bartlett_periodic, &window(128, WindowFunction.Bartlett, true), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.window_bartlett, &window(128, WindowFunction.Bartlett, false), 1e-6);
+    try expectEqualVectors(f32, &vectors.window_bartlett_periodic, &window(128, WindowFunction.Bartlett, true), 1e-6);
 }
 
 test "blackman window()" {
-    try expectEqualVectors(f32, &vectors.window_blackman, &window(128, WindowFunction.Blackman, false), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.window_blackman_periodic, &window(128, WindowFunction.Blackman, true), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.window_blackman, &window(128, WindowFunction.Blackman, false), 1e-6);
+    try expectEqualVectors(f32, &vectors.window_blackman_periodic, &window(128, WindowFunction.Blackman, true), 1e-6);
 }

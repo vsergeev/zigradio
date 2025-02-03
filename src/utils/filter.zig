@@ -196,18 +196,18 @@ const expectEqualVectors = @import("../core/testing.zig").expectEqualVectors;
 const vectors = @import("../vectors/utils/filter.zig");
 
 test "firwin" {
-    try expectEqualVectors(f32, &vectors.firwin_lowpass, &firwinLowpass(128, 0.5, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.firwin_highpass, &firwinHighpass(129, 0.5, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.firwin_bandpass, &firwinBandpass(129, .{ 0.4, 0.6 }, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(f32, &vectors.firwin_bandstop, &firwinBandstop(129, .{ 0.4, 0.6 }, WindowFunction.Hamming), 0, 1e-6, false);
+    try expectEqualVectors(f32, &vectors.firwin_lowpass, &firwinLowpass(128, 0.5, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(f32, &vectors.firwin_highpass, &firwinHighpass(129, 0.5, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(f32, &vectors.firwin_bandpass, &firwinBandpass(129, .{ 0.4, 0.6 }, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(f32, &vectors.firwin_bandstop, &firwinBandstop(129, .{ 0.4, 0.6 }, WindowFunction.Hamming), 1e-6);
 }
 
 test "complexFirwin" {
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_positive, &firwinComplexBandpass(129, .{ 0.1, 0.3 }, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_negative, &firwinComplexBandpass(129, .{ -0.1, -0.3 }, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_zero, &firwinComplexBandpass(129, .{ -0.2, 0.2 }, WindowFunction.Hamming), 0, 1e-6, false);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_positive, &firwinComplexBandpass(129, .{ 0.1, 0.3 }, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_negative, &firwinComplexBandpass(129, .{ -0.1, -0.3 }, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandpass_zero, &firwinComplexBandpass(129, .{ -0.2, 0.2 }, WindowFunction.Hamming), 1e-6);
 
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_positive, &firwinComplexBandstop(129, .{ 0.1, 0.3 }, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_negative, &firwinComplexBandstop(129, .{ -0.1, -0.3 }, WindowFunction.Hamming), 0, 1e-6, false);
-    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_zero, &firwinComplexBandstop(129, .{ -0.2, 0.2 }, WindowFunction.Hamming), 0, 1e-6, false);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_positive, &firwinComplexBandstop(129, .{ 0.1, 0.3 }, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_negative, &firwinComplexBandstop(129, .{ -0.1, -0.3 }, WindowFunction.Hamming), 1e-6);
+    try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_zero, &firwinComplexBandstop(129, .{ -0.2, 0.2 }, WindowFunction.Hamming), 1e-6);
 }

@@ -24,7 +24,7 @@ pub const BlockTesterError = error{
 // BlockTester
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, epsilon: f32, silent: bool) !void {
+fn _expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, epsilon: f32, silent: bool) !void {
     const approx_equal = switch (T) {
         // Integers
         u8, u16, u32, u64, i8, i16, i32, i64 => expected == actual,
@@ -42,7 +42,7 @@ pub fn expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, 
     }
 }
 
-pub fn expectEqualVectors(comptime T: type, expected: []const T, actual: []const T, index: usize, epsilon: f32, silent: bool) !void {
+fn _expectEqualVectors(comptime T: type, expected: []const T, actual: []const T, index: usize, epsilon: f32, silent: bool) !void {
     // Compare vector length
     if (actual.len != expected.len) {
         if (!silent) std.debug.print("Mismatch in output vector (type {any}) index {d} length: expected {d}, got {d}\n", .{ T, index, expected.len, actual.len });
@@ -51,9 +51,17 @@ pub fn expectEqualVectors(comptime T: type, expected: []const T, actual: []const
 
     // Compare vector values
     for (expected, 0..) |_, i| {
-        try expectEqualValue(T, expected[i], actual[i], i, epsilon, silent);
+        try _expectEqualValue(T, expected[i], actual[i], i, epsilon, silent);
     }
 }
+
+pub fn expectEqualVectors(comptime T: type, expected: []const T, actual: []const T, epsilon: f32) !void {
+    try _expectEqualVectors(T, expected, actual, 0, epsilon, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BlockTester
+////////////////////////////////////////////////////////////////////////////////
 
 pub const BlockTester = struct {
     instance: *Block,
@@ -124,7 +132,7 @@ pub const BlockTester = struct {
             // Compare output vectors
             inline for (output_data_types, 0..) |data_type, i| {
                 const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
-                try expectEqualVectors(data_type, output_vectors[i], actual_vector, i, self.epsilon, self.silent);
+                try _expectEqualVectors(data_type, output_vectors[i], actual_vector, i, self.epsilon, self.silent);
             }
         }
     }
@@ -175,7 +183,7 @@ pub const BlockTester = struct {
             // Compare output vectors
             inline for (output_data_types, 0..) |data_type, i| {
                 const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
-                try expectEqualVectors(data_type, output_vectors[i], actual_vector[0..output_vectors[i].len], i, self.epsilon, self.silent);
+                try _expectEqualVectors(data_type, output_vectors[i], actual_vector[0..output_vectors[i].len], i, self.epsilon, self.silent);
             }
         }
     }
