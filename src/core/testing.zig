@@ -9,19 +9,7 @@ const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
-// BlockTester Errors
-////////////////////////////////////////////////////////////////////////////////
-
-pub const BlockTesterError = error{
-    InputMismatch,
-    OutputMismatch,
-    DataTypeMismatch,
-    LengthMismatch,
-    ValueMismatch,
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// BlockTester
+// Expect Helpers
 ////////////////////////////////////////////////////////////////////////////////
 
 fn _expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, epsilon: f32, silent: bool) !void {
@@ -38,7 +26,7 @@ fn _expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, eps
 
     if (!approx_equal) {
         if (!silent) std.debug.print("Mismatch in output vector (type {any}) at index {d}: expected {any}, got {any}\n", .{ T, index, expected, actual });
-        return BlockTesterError.ValueMismatch;
+        return error.TestExpectedEqual;
     }
 }
 
@@ -46,7 +34,7 @@ fn _expectEqualVectors(comptime T: type, expected: []const T, actual: []const T,
     // Compare vector length
     if (actual.len != expected.len) {
         if (!silent) std.debug.print("Mismatch in output vector (type {any}) index {d} length: expected {d}, got {d}\n", .{ T, index, expected.len, actual.len });
-        return BlockTesterError.LengthMismatch;
+        return error.TestExpectedEqual;
     }
 
     // Compare vector values
@@ -62,6 +50,12 @@ pub fn expectEqualVectors(comptime T: type, expected: []const T, actual: []const
 ////////////////////////////////////////////////////////////////////////////////
 // BlockTester
 ////////////////////////////////////////////////////////////////////////////////
+
+pub const BlockTesterError = error{
+    InputMismatch,
+    OutputMismatch,
+    DataTypeMismatch,
+};
 
 pub const BlockTester = struct {
     instance: *Block,
@@ -305,12 +299,12 @@ test "BlockTester for Block" {
     tester3.silent = true;
 
     // Test vector mismatch
-    try std.testing.expectError(BlockTesterError.LengthMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5 }}));
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 8 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, &[2]type{ u32, u16 }, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, &[1]type{u32}, .{&[_]u32{ 3, 5, 8 }}));
 
     // Test vector mismatch with epsilon
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester2.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester3.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester2.check(8000, &[2]type{ f32, f32 }, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, &[1]type{f32}, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester3.check(8000, &[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, &[1]type{std.math.Complex(f32)}, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
 }
 
 const TestSource = struct {
@@ -371,8 +365,8 @@ test "BlockTester for Source" {
     tester.silent = true;
 
     // Test vector mismatch
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 2, 3, 4 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 2, 3, 4 }}));
 
     // Test vector mismatch with epsilon
-    try std.testing.expectError(BlockTesterError.ValueMismatch, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 1, 2.5, 3 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(&[1]type{f32}, .{&[_]f32{ 1, 2.5, 3 }}));
 }
