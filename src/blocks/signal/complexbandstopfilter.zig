@@ -48,28 +48,28 @@ test "ComplexBandstopFilterBlock" {
     // 129 taps, [0.1, 0.3] cutoffs
     {
         var block = ComplexBandstopFilterBlock(129).init(.{ 0.1, 0.3 }, .{});
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_129_cutoff_0_1_0_3});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_1_0_3});
     }
 
     // 129 taps, [-0.1, -0.3] cutoffs
     {
         var block = ComplexBandstopFilterBlock(129).init(.{ -0.1, -0.3 }, .{});
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_129_cutoff_m0_1_m0_3});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_m0_1_m0_3});
     }
 
     // 129 taps, [-0.2, 0.2] cutoffs
     {
         var block = ComplexBandstopFilterBlock(129).init(.{ -0.2, 0.2 }, .{});
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_129_cutoff_m0_2_p0_2});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_m0_2_p0_2});
     }
 
     // 129 taps, [0.4, 0.6] cutoffs, 3.0 nyquist, Bartlett window
     {
         var block = ComplexBandstopFilterBlock(129).init(.{ 0.4, 0.6 }, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_129_cutoff_0_4_0_6_nyquist_3_0_window_bartlett});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_4_0_6_nyquist_3_0_window_bartlett});
     }
 }

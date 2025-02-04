@@ -38,18 +38,14 @@ test "ZeroSource" {
     // ComplexFloat32
     {
         var block = ZeroSource(std.math.Complex(f32)).init(2);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.checkSource(&[1]type{
-            std.math.Complex(f32),
-        }, .{&[_]std.math.Complex(f32){.{ .re = 0, .im = 0 }} ** 64});
+        var tester = try BlockTester(&[0]type{}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.checkSource(.{&[_]std.math.Complex(f32){.{ .re = 0, .im = 0 }} ** 64});
     }
 
     // Float32
     {
         var block = ZeroSource(f32).init(2);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.checkSource(&[1]type{
-            f32,
-        }, .{&[_]f32{0} ** 64});
+        var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.checkSource(.{&[_]f32{0} ** 64});
     }
 }

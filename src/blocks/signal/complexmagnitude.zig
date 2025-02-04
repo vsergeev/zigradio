@@ -112,7 +112,7 @@ const vectors = @import("../../vectors/blocks/signal/complexmagnitude.zig");
 test "ComplexMagnitudeBlock" {
     {
         var block = ComplexMagnitudeBlock.init();
-        var tester = BlockTester.init(&block.block, 1e-5);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{f32}, .{&vectors.output_magnitude});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_magnitude});
     }
 }

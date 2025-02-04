@@ -43,14 +43,14 @@ test "SinglepoleHighpassFilterBlock" {
     // 1e-2 cutoff, ComplexFloat32
     {
         var block = SinglepoleHighpassFilterBlock(std.math.Complex(f32)).init(0.01);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_cutoff_0_01_complexfloat32});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_cutoff_0_01_complexfloat32});
     }
 
     // 1e-2 cutoff, Float32
     {
         var block = SinglepoleHighpassFilterBlock(f32).init(0.01);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_cutoff_0_01_float32});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_cutoff_0_01_float32});
     }
 }

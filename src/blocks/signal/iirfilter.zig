@@ -300,28 +300,28 @@ test "IIRFilterBlock" {
     // 3 feedforward taps, 3 feedback taps, ComplexFloat32
     {
         var block = IIRFilterBlock(std.math.Complex(f32), 3, 3).init(vectors.input_taps_3_b, vectors.input_taps_3_a);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_3_3_complexfloat32});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_3_3_complexfloat32});
     }
 
     // 5 feedforward taps, 5 feedback taps, ComplexFloat32
     {
         var block = IIRFilterBlock(std.math.Complex(f32), 5, 5).init(vectors.input_taps_5_b, vectors.input_taps_5_a);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_5_5_complexfloat32});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_5_5_complexfloat32});
     }
 
     // 3 feedforward taps, 3 feedback taps, Float32
     {
         var block = IIRFilterBlock(f32, 3, 3).init(vectors.input_taps_3_b, vectors.input_taps_3_a);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_3_3_float32});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_3_3_float32});
     }
 
     // 5 feedforward taps, 5 feedback taps, Float32
     {
         var block = IIRFilterBlock(f32, 5, 5).init(vectors.input_taps_5_b, vectors.input_taps_5_a);
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_5_5_float32});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_5_5_float32});
     }
 }

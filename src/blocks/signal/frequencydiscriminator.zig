@@ -144,14 +144,14 @@ test "FrequencyDiscriminatorBlock" {
     // Modulation index 1.0
     {
         var block = FrequencyDiscriminatorBlock.init(1.0);
-        var tester = BlockTester.init(&block.block, 1e-5);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{f32}, .{&vectors.output_modulation_index_1});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_1});
     }
 
     // Modulation index 5.0
     {
         var block = FrequencyDiscriminatorBlock.init(5.0);
-        var tester = BlockTester.init(&block.block, 1e-5);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{f32}, .{&vectors.output_modulation_index_5});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_5});
     }
 }

@@ -98,42 +98,42 @@ test "AGCBlock" {
     // Real -63 dBFS cosine input, Fast, -35 dbFS target, -50 dbFS threshold (passthrough)
     {
         var block = AGCBlock(f32).init(.Fast, .{ .target_dbfs = -35, .threshold_dbfs = -50 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{f32}, .{&vectors.input_cosine}, &[1]type{f32}, .{&vectors.output_real_fast_target_35_threshold_50});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_cosine}, .{&vectors.output_real_fast_target_35_threshold_50});
     }
 
     // Real -63 dBFS cosine input, Fast, -35 dbFS target, -75 dbFS threshold
     {
         var block = AGCBlock(f32).init(.Fast, .{ .target_dbfs = -35, .threshold_dbfs = -75 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{f32}, .{&vectors.input_cosine}, &[1]type{f32}, .{&vectors.output_real_fast_target_35_threshold_75});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_cosine}, .{&vectors.output_real_fast_target_35_threshold_75});
     }
 
     // Real -63 dBFS cosine input, Slow, -35 dbFS target, -75 dbFS threshold
     {
         var block = AGCBlock(f32).init(.Slow, .{ .target_dbfs = -35, .threshold_dbfs = -75 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{f32}, .{&vectors.input_cosine}, &[1]type{f32}, .{&vectors.output_real_slow_target_35_threshold_75});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_cosine}, .{&vectors.output_real_slow_target_35_threshold_75});
     }
 
     // Complex -60 dBFS complex exponential input, Fast, -35 dbFS target, -50 dbFS threshold (passthrough)
     {
         var block = AGCBlock(std.math.Complex(f32)).init(.Fast, .{ .target_dbfs = -35, .threshold_dbfs = -50 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{std.math.Complex(f32)}, .{&vectors.input_exponential}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_complex_fast_target_35_threshold_50});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_exponential}, .{&vectors.output_complex_fast_target_35_threshold_50});
     }
 
     // Complex -60 dBFS complex exponential input, Fast, -35 dbFS target, -75 dbFS threshold
     {
         var block = AGCBlock(std.math.Complex(f32)).init(.Fast, .{ .target_dbfs = -35, .threshold_dbfs = -75 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{std.math.Complex(f32)}, .{&vectors.input_exponential}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_complex_fast_target_35_threshold_75});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_exponential}, .{&vectors.output_complex_fast_target_35_threshold_75});
     }
 
     // Complex -60 dBFS complex exponential input, Slow, -35 dbFS target, -75 dbFS threshold
     {
         var block = AGCBlock(std.math.Complex(f32)).init(.Slow, .{ .target_dbfs = -35, .threshold_dbfs = -75 });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2.0, &[1]type{std.math.Complex(f32)}, .{&vectors.input_exponential}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_complex_slow_target_35_threshold_75});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2.0, .{&vectors.input_exponential}, .{&vectors.output_complex_slow_target_35_threshold_75});
     }
 }

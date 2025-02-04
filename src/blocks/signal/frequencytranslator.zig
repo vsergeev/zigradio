@@ -191,14 +191,14 @@ test "FrequencyTranslatorBlock" {
     // Rotate by +0.2
     {
         var block = FrequencyTranslatorBlock.init(0.2);
-        var tester = BlockTester.init(&block.block, 5e-3);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_pos_0_2});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 5e-3);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_pos_0_2});
     }
 
     // Rotate by -0.2
     {
         var block = FrequencyTranslatorBlock.init(-0.2);
-        var tester = BlockTester.init(&block.block, 5e-3);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_neg_0_2});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 5e-3);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_neg_0_2});
     }
 }

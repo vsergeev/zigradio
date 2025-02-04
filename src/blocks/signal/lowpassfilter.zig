@@ -48,28 +48,28 @@ test "LowpassFilterBlock" {
     // 128 taps, 0.2 cutoff, ComplexFloat32
     {
         var block = LowpassFilterBlock(std.math.Complex(f32), 128).init(0.2, .{});
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_128_cutoff_0_2_complexfloat32});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_128_cutoff_0_2_complexfloat32});
     }
 
     // 128 taps, 0.7 cutoff, 3.0 nyquist, Bartlett window, ComplexFloat32
     {
         var block = LowpassFilterBlock(std.math.Complex(f32), 128).init(0.7, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{std.math.Complex(f32)}, .{&vectors.input_complexfloat32}, &[1]type{std.math.Complex(f32)}, .{&vectors.output_taps_128_cutoff_0_7_nyquist_3_0_window_bartlett_complexfloat32});
+        var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_128_cutoff_0_7_nyquist_3_0_window_bartlett_complexfloat32});
     }
 
     // 128 taps, 0.2 cutoff, Float32
     {
         var block = LowpassFilterBlock(f32, 128).init(0.2, .{});
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_128_cutoff_0_2_float32});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_128_cutoff_0_2_float32});
     }
 
     // 128 taps, 0.7 cutoff, 3.0 nyquist, Bartlett window, Float32
     {
         var block = LowpassFilterBlock(f32, 128).init(0.7, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
-        var tester = BlockTester.init(&block.block, 1e-6);
-        try tester.check(2, &[1]type{f32}, .{&vectors.input_float32}, &[1]type{f32}, .{&vectors.output_taps_128_cutoff_0_7_nyquist_3_0_window_bartlett_float32});
+        var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_128_cutoff_0_7_nyquist_3_0_window_bartlett_float32});
     }
 }
