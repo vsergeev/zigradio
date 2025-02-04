@@ -170,6 +170,61 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// BlockFixture
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn BlockFixture(comptime input_data_types: []const type, comptime output_data_types: []const type) type {
+    return struct {
+        const Self = @This();
+
+        instance: *Block,
+        test_sample_mux: TestSampleMux(input_data_types, output_data_types),
+
+        pub fn init(instance: *Block, rate: f64) !Self {
+            try platform.initialize(std.testing.allocator);
+
+            try instance.setRate(rate);
+            try instance.initialize(std.testing.allocator);
+
+            return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(.{&[_]u8{}} ** input_data_types.len, .{}) };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.test_sample_mux.deinit();
+            self.instance.deinitialize(std.testing.allocator);
+        }
+
+        pub fn process(self: *Self, input_vectors: util.makeTupleConstSliceTypes(input_data_types)) !util.makeTupleConstSliceTypes(output_data_types) {
+            // Convert input vectors to byte buffers in test sample mux
+            inline for (input_data_types, 0..) |_, i| {
+                self.test_sample_mux.input_buffers[i] = std.mem.sliceAsBytes(input_vectors[i][0..]);
+                self.test_sample_mux.input_buffer_indices[i] = 0;
+            }
+
+            // Reset output vectors in test sample mux
+            inline for (output_data_types, 0..) |_, i| {
+                self.test_sample_mux.output_buffer_indices[i] = 0;
+            }
+
+            // Run block
+            var sample_mux = self.test_sample_mux.sampleMux();
+            const process_result = try self.instance.process(&sample_mux);
+            if (process_result.eof) {
+                return error.EndOfFile;
+            }
+
+            // Convert output vectors in test sample mux to typed vcetors
+            var outputs: util.makeTupleConstSliceTypes(output_data_types) = undefined;
+            inline for (output_data_types, 0..) |data_type, i| {
+                outputs[i] = self.test_sample_mux.getOutputVector(data_type, i);
+            }
+
+            return outputs;
+        }
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,4 +410,37 @@ test "BlockTester for Source" {
 
     // Test vector mismatch with epsilon
     try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(.{&[_]f32{ 1, 2.5, 3 }}));
+}
+
+test "BlockFixture for Block" {
+    var block = TestBlock2.init();
+
+    var fixture = try BlockFixture(&[2]type{ f32, f32 }, &[1]type{f32}).init(&block.block, 2);
+    defer fixture.deinit();
+
+    // Validate initial block state
+    try std.testing.expectEqual(2, block.block.getRate(usize));
+    try std.testing.expectEqual(2, block.initialized);
+
+    // Run block
+    const outputs1 = try fixture.process(.{ &[_]f32{ 1, 2, 3 }, &[_]f32{ 4, 5, 6 } });
+    try std.testing.expectEqualSlices(f32, &[_]f32{ 5, 7, 9 }, outputs1[0]);
+    const outputs2 = try fixture.process(.{ &[_]f32{ 2, 2, 2 }, &[_]f32{ 3, 3, 3 } });
+    try std.testing.expectEqualSlices(f32, &[_]f32{ 5, 5, 5 }, outputs2[0]);
+}
+
+test "BlockFixture for Source" {
+    var block = TestSource.init();
+
+    var fixture = try BlockFixture(&[0]type{}, &[1]type{f32}).init(&block.block, 2);
+    defer fixture.deinit();
+
+    // Validate initial block state
+    try std.testing.expectEqual(8000, block.block.getRate(usize));
+
+    // Run block
+    const outputs1 = try fixture.process(.{});
+    for (outputs1[0], 0..) |e, i| try std.testing.expectEqual(@as(f32, @floatFromInt(i + 1)), e);
+    const outputs2 = try fixture.process(.{});
+    for (outputs2[0], 0..) |e, i| try std.testing.expectEqual(@as(f32, @floatFromInt(i + 1 + outputs1[0].len)), e);
 }
