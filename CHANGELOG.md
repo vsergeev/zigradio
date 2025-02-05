@@ -1,3 +1,17 @@
+* v0.5.0 - 02/05/2025
+    * Fix flowgraph initialization for blocks with unconnected outputs.
+    * Fix flowgraph stalls caused by blocks with unconnected outputs.
+    * Add support for asynchronous calls to running blocks.
+    * Add asynchronous APIs to several blocks:
+        * FIRFilterBlock: `updateTaps()`, `reset()`
+        * LowpassFilterBlock: `setCutoff()`, `reset()`
+        * HighpassFilterBlock: `setCutoff()`, `reset()`
+        * AGCBlock: `setMode()`
+        * RtlSdrSource: `setFrequency()`
+    * Refactor testing helpers.
+    * Add testing with acceleration libraries to CI.
+    * Add package manifest.
+
 * v0.4.0 - 01/26/2025
     * Fix spinning on read available wait in SampleMux.
     * Refactor SampleMux API.
