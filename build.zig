@@ -5,10 +5,10 @@ const Example = struct {
     path: []const u8,
 };
 
-fn discoverExamples(allocator: std.mem.Allocator) !std.ArrayList(Example) {
+fn discoverExamples(allocator: std.mem.Allocator, dir_path: []const u8) !std.ArrayList(Example) {
     var examples = std.ArrayList(Example).init(allocator);
 
-    var examples_dir = try std.fs.cwd().openDir("examples", .{ .iterate = true });
+    var examples_dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer examples_dir.close();
 
     var examples_it = examples_dir.iterate();
@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) !void {
     const radio_module = b.addModule("radio", .{ .root_source_file = b.path("src/radio.zig") });
 
     // Discover examples
-    var examples = try discoverExamples(b.allocator);
+    var examples = try discoverExamples(b.allocator, b.path("examples").getPath(b));
     defer {
         for (examples.items) |example| {
             examples.allocator.free(example.name);
