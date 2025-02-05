@@ -351,7 +351,7 @@ pub const Flowgraph = struct {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Get upstream rate
-            const upstream_rate = if (block.inputs.len > 0) try self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
+            const upstream_rate = if (block.inputs.len > 0) self.flattened_connections.get(BlockInputPort{ .block = block, .index = 0 }).?.block.getRate(f64) else 0;
 
             // Set rate on the block
             try block.setRate(upstream_rate);
@@ -359,7 +359,7 @@ pub const Flowgraph = struct {
             // Compare other input port rates
             var i: usize = 1;
             while (i < block.inputs.len) : (i += 1) {
-                const rate = try self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?.block.getRate(f64);
+                const rate = self.flattened_connections.get(BlockInputPort{ .block = block, .index = i }).?.block.getRate(f64);
                 if (rate != upstream_rate) return FlowgraphError.RateMismatch;
             }
         }
@@ -401,7 +401,7 @@ pub const Flowgraph = struct {
 
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
-            std.debug.print("[Flowgraph]    {s} [{d} Hz]\n", .{ block.name, block.getRate(f64) catch unreachable });
+            std.debug.print("[Flowgraph]    {s} [{d} Hz]\n", .{ block.name, block.getRate(f64) });
 
             // For each input port
             for (0..block.inputs.len) |i| {
@@ -1029,15 +1029,15 @@ test "Flowgraph initialize type signature validation" {
 
     try top1._initialize();
 
-    try std.testing.expectEqual(@as(usize, 8000), try b1.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 8000), try b2.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 8000), try b3.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 4000), try b4.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 4000), try b5.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 4000), try b6.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 4000), try b7.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 2000), try b8.block.getRate(usize));
-    try std.testing.expectEqual(@as(usize, 2000), try b9.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 8000), b1.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 8000), b2.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 8000), b3.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 4000), b4.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 4000), b5.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 4000), b6.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 4000), b7.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 2000), b8.block.getRate(usize));
+    try std.testing.expectEqual(@as(usize, 2000), b9.block.getRate(usize));
 
     //
     //          a        c                 f

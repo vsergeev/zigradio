@@ -5,14 +5,6 @@ const RuntimeTypeSignature = @import("types.zig").RuntimeTypeSignature;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Block Errors
-////////////////////////////////////////////////////////////////////////////////
-
-pub const BlockError = error{
-    RateNotSet,
-};
-
-////////////////////////////////////////////////////////////////////////////////
 // Process Result
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,8 +173,8 @@ pub const Block = struct {
         return try self.process_fn(self, sample_mux);
     }
 
-    pub fn getRate(self: *const Block, comptime T: type) BlockError!T {
-        return if (self.rate) |rate| std.math.lossyCast(T, rate) else BlockError.RateNotSet;
+    pub fn getRate(self: *const Block, comptime T: type) T {
+        return std.math.lossyCast(T, self.rate orelse 0);
     }
 };
 
@@ -289,11 +281,11 @@ test "Block.initialize and Block.deinitialize" {
 test "Block.setRate and Block.getRate" {
     var test_block = TestBlock.init();
 
-    try std.testing.expectError(BlockError.RateNotSet, test_block.block.getRate(u32));
+    try std.testing.expectEqual(0, test_block.block.getRate(u32));
     try std.testing.expectError(error.Unsupported, test_block.block.setRate(4000));
 
     try test_block.block.setRate(8000);
-    try std.testing.expectEqual(4000, try test_block.block.getRate(u32));
+    try std.testing.expectEqual(4000, test_block.block.getRate(u32));
 }
 
 test "Block.process" {

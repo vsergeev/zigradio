@@ -28,7 +28,7 @@ pub fn BandpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
 
         pub fn initialize(self: *BandpassFilterBlock(T, N), _: std.mem.Allocator) !void {
             // Compute Nyquist frequency
-            const nyquist = self.context.options.nyquist orelse try self.block.getRate(f32) / 2;
+            const nyquist = self.context.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
             self.taps = firwinBandpass(N, .{ self.context.cutoffs[0] / nyquist, self.context.cutoffs[1] / nyquist }, self.context.options.window);

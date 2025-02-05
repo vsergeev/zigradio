@@ -88,7 +88,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
             // Prepare sample spec
             const sample_spec = pa_sample_spec{
                 .format = if (builtin.target.cpu.arch.endian() == std.builtin.Endian.little) PA_SAMPLE_FLOAT32LE else PA_SAMPLE_FLOAT32BE,
-                .rate = try self.block.getRate(u32),
+                .rate = self.block.getRate(u32),
                 .channels = N,
             };
 

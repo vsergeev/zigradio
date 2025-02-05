@@ -19,7 +19,7 @@ pub fn SinglepoleHighpassFilterBlock(comptime T: type) type {
 
         pub fn initialize(self: *SinglepoleHighpassFilterBlock(T), _: std.mem.Allocator) !void {
             // Compute wraped tau
-            const rate = try self.block.getRate(f32);
+            const rate = self.block.getRate(f32);
             const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.context.cutoff) / rate));
 
             // Populate taps

@@ -75,7 +75,7 @@ pub const _FrequencyTranslatorBlockVolkImpl = struct {
             volk_loaded = true;
         }
 
-        const omega = 2 * std.math.pi * (self.parent.offset / try self.parent.block.getRate(f32));
+        const omega = 2 * std.math.pi * (self.parent.offset / self.parent.block.getRate(f32));
         self.rotation = std.math.Complex(f32).init(std.math.cos(omega), std.math.sin(omega));
         self.phi = std.math.Complex(f32).init(1, 0);
 
@@ -130,7 +130,7 @@ pub const _FrequencyTranslatorBlockLiquidImpl = struct {
 
         if (self.nco == null) return error.OutOfMemory;
 
-        _ = nco_crcf_set_frequency(self.nco, 2 * std.math.pi * (self.parent.offset / try self.parent.block.getRate(f32)));
+        _ = nco_crcf_set_frequency(self.nco, 2 * std.math.pi * (self.parent.offset / self.parent.block.getRate(f32)));
         _ = nco_crcf_set_phase(self.nco, 0.0);
 
         if (platform.debug.enabled) std.debug.print("[FrequencyTranslatorBlock] Using liquid-dsp implementation\n", .{});
@@ -157,7 +157,7 @@ pub const _FrequencyTranslatorBlockZigImpl = struct {
     phase: f32 = 0,
 
     pub fn initialize(self: *_FrequencyTranslatorBlockZigImpl, _: std.mem.Allocator) !void {
-        self.omega = 2 * std.math.pi * (self.parent.offset / try self.parent.block.getRate(f32));
+        self.omega = 2 * std.math.pi * (self.parent.offset / self.parent.block.getRate(f32));
         self.phase = 0;
 
         if (platform.debug.enabled) std.debug.print("[FrequencyTranslatorBlock] Using Zig implementation\n", .{});

@@ -57,7 +57,7 @@ pub const SignalSource = struct {
         };
 
         self.phase = self.options.phase;
-        self.omega = 2 * std.math.pi * (self.frequency / try self.block.getRate(f32));
+        self.omega = 2 * std.math.pi * (self.frequency / self.block.getRate(f32));
     }
 
     pub fn _processCosine(self: *SignalSource, z: []f32) !ProcessResult {

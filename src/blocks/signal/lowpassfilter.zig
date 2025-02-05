@@ -28,7 +28,7 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
 
         pub fn initialize(self: *LowpassFilterBlock(T, N), _: std.mem.Allocator) !void {
             // Compute Nyquist frequency
-            const nyquist = self.context.options.nyquist orelse try self.block.getRate(f32) / 2;
+            const nyquist = self.context.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
             self.taps = firwinLowpass(N, self.context.cutoff / nyquist, self.context.options.window);

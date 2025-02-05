@@ -55,9 +55,9 @@ pub fn AGCBlock(comptime T: type) type {
             // Linearize logarithmic power threshold
             self.threshold = std.math.pow(f32, 10, self.options.threshold_dbfs / 10);
             // Compute normalized alpha for power estimator
-            self.power_alpha = 1 / (1 + self.options.power_tau * try self.block.getRate(f32));
+            self.power_alpha = 1 / (1 + self.options.power_tau * self.block.getRate(f32));
             // Compute normalized alpha for gain filter
-            self.gain_alpha = 1 / (1 + self.options.gain_tau * try self.block.getRate(f32));
+            self.gain_alpha = 1 / (1 + self.options.gain_tau * self.block.getRate(f32));
 
             // Initialize average power and gain state
             self.average_power = 0.0;
