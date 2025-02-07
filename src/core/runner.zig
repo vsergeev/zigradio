@@ -51,7 +51,7 @@ pub const ThreadedBlockRunner = struct {
                     runner.mutex.lock();
                     defer runner.mutex.unlock();
 
-                    const process_result = try runner.block.process(&sample_mux);
+                    const process_result = try runner.block.process(sample_mux);
                     if (process_result.eof) {
                         break;
                     }

@@ -61,9 +61,9 @@ fn wrapSetRateFunction(comptime BlockType: type, comptime setRateFn: fn (self: *
     return gen.setRate;
 }
 
-fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: ComptimeTypeSignature, comptime processFn: anytype) fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
+fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: ComptimeTypeSignature, comptime processFn: anytype) fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
     const gen = struct {
-        fn process(block: *Block, sample_mux: *SampleMux) anyerror!ProcessResult {
+        fn process(block: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
             const self: *BlockType = @fieldParentPtr("block", block);
 
             // Get sample buffers, catching read EOF
@@ -117,7 +117,7 @@ pub const Block = struct {
     set_rate_fn: ?*const fn (self: *Block, upstream_rate: f64) anyerror!f64,
     initialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
     deinitialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) void,
-    process_fn: *const fn (self: *Block, sample_mux: *SampleMux) anyerror!ProcessResult,
+    process_fn: *const fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult,
 
     rate: ?f64 = null,
 
@@ -169,7 +169,7 @@ pub const Block = struct {
         if (self.deinitialize_fn) |deinitialize_fn| deinitialize_fn(self, allocator);
     }
 
-    pub fn process(self: *Block, sample_mux: *SampleMux) !ProcessResult {
+    pub fn process(self: *Block, sample_mux: SampleMux) !ProcessResult {
         return try self.process_fn(self, sample_mux);
     }
 
@@ -298,15 +298,15 @@ test "Block.process" {
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
     defer test_sample_mux.deinit();
-    var sample_mux = test_sample_mux.sampleMux();
+    const sample_mux = test_sample_mux.sampleMux();
 
-    var process_result = try test_block.block.process(&sample_mux);
+    var process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
     try std.testing.expectEqualSlices(u32, &[_]u32{ 0x48362412, 0xc8a78665 }, test_sample_mux.getOutputVector(u32, 0));
 
-    process_result = try test_block.block.process(&sample_mux);
+    process_result = try test_block.block.process(sample_mux);
     try std.testing.expect(process_result.eof);
 }
 
@@ -328,7 +328,7 @@ test "Block.process read eof" {
     // Create ring buffer sample mux
     var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
-    var sample_mux = ring_buffer_sample_mux.sampleMux();
+    const sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Create block
     var test_block = TestAddBlock.init();
@@ -342,7 +342,7 @@ test "Block.process read eof" {
     input2_writer.update(4);
 
     // Process 1 sample
-    var process_result = try test_block.block.process(&sample_mux);
+    var process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_produced[0]);
@@ -356,7 +356,7 @@ test "Block.process read eof" {
     input2_writer.setEOF();
 
     // Process 1 sample
-    process_result = try test_block.block.process(&sample_mux);
+    process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_produced[0]);
@@ -364,7 +364,7 @@ test "Block.process read eof" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x65, 0x86, 0xa7, 0xc8 }, output1_reader.read(b[0..]));
 
     // Process now return EOF
-    process_result = try test_block.block.process(&sample_mux);
+    process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
@@ -383,13 +383,13 @@ test "Block.process write eof" {
     // Create ring buffer sample mux
     var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
-    var sample_mux = ring_buffer_sample_mux.sampleMux();
+    const sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Create block
     var test_source = TestSource.init();
 
     // Process
-    var process_result = try test_source.block.process(&sample_mux);
+    var process_result = try test_source.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
     try std.testing.expectEqual(false, process_result.eof);
@@ -397,7 +397,7 @@ test "Block.process write eof" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x33, 0x33 }, output1_reader.read(b[0..]));
 
     // Process should return EOF
-    process_result = try test_source.block.process(&sample_mux);
+    process_result = try test_source.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
     try std.testing.expectEqual(true, process_result.eof);

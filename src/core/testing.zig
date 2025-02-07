@@ -112,9 +112,9 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 defer tester_sample_mux.deinit();
 
                 // Run block
-                var sample_mux = tester_sample_mux.sampleMux();
+                const sample_mux = tester_sample_mux.sampleMux();
                 while (true) {
-                    const process_result = try self.instance.process(&sample_mux);
+                    const process_result = try self.instance.process(sample_mux);
                     if (process_result.eof) {
                         break;
                     }
@@ -146,9 +146,9 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 defer tester_sample_mux.deinit();
 
                 // Run block
-                var sample_mux = tester_sample_mux.sampleMux();
+                const sample_mux = tester_sample_mux.sampleMux();
                 blk: while (true) {
-                    const process_result = try self.instance.process(&sample_mux);
+                    const process_result = try self.instance.process(sample_mux);
                     if (process_result.eof) {
                         break;
                     }
@@ -207,8 +207,8 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             }
 
             // Run block
-            var sample_mux = self.test_sample_mux.sampleMux();
-            const process_result = try self.instance.process(&sample_mux);
+            const sample_mux = self.test_sample_mux.sampleMux();
+            const process_result = try self.instance.process(sample_mux);
             if (process_result.eof) {
                 return error.EndOfFile;
             }

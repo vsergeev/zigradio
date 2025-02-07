@@ -37,7 +37,7 @@ pub const SampleMux = struct {
         };
     }
 
-    pub fn get(self: *SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
+    pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
         // Wait for sufficient number of samples
         const min_samples_available = try self.vtable.waitAvailable(self.ptr, comptime util.dataTypeSizes(type_signature.inputs), comptime util.dataTypeSizes(type_signature.outputs));
 
@@ -56,7 +56,7 @@ pub const SampleMux = struct {
         return sample_buffers;
     }
 
-    pub fn update(self: *SampleMux, comptime type_signature: ComptimeTypeSignature, buffers: SampleBuffers(type_signature), process_result: ProcessResult) void {
+    pub fn update(self: SampleMux, comptime type_signature: ComptimeTypeSignature, buffers: SampleBuffers(type_signature), process_result: ProcessResult) void {
         // Handle RefCounted(T) inputs (decrement reference count)
         inline for (type_signature.inputs, 0..) |input_type, i| {
             if (comptime hasTypeTag(input_type, .RefCounted)) {
@@ -86,7 +86,7 @@ pub const SampleMux = struct {
         }
     }
 
-    pub fn setEOF(self: *SampleMux) void {
+    pub fn setEOF(self: SampleMux) void {
         self.vtable.setEOF(self.ptr);
     }
 };
