@@ -14,77 +14,17 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 pub const SampleMux = struct {
     ptr: *anyopaque,
-    waitAvailableFn: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
-    getInputBufferFn: *const fn (ptr: *anyopaque, index: usize) []const u8,
-    getOutputBufferFn: *const fn (ptr: *anyopaque, index: usize) []u8,
-    updateInputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
-    updateOutputBufferFn: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
-    getNumReadersForOutputFn: *const fn (ptr: *anyopaque, index: usize) usize,
-    setEOFFn: *const fn (ptr: *anyopaque) void,
+    vtable: *const VTable,
 
-    pub fn init(
-        pointer: anytype,
-        comptime waitAvailableFn: fn (ptr: @TypeOf(pointer), input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
-        comptime getInputBufferFn: fn (ptr: @TypeOf(pointer), index: usize) []const u8,
-        comptime getOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize) []u8,
-        comptime updateInputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
-        comptime updateOutputBufferFn: fn (ptr: @TypeOf(pointer), index: usize, count: usize) void,
-        comptime getNumReadersForOutputFn: fn (ptr: @TypeOf(pointer), index: usize) usize,
-        comptime setEOFFn: fn (ptr: @TypeOf(pointer)) void,
-    ) SampleMux {
-        const Ptr = @TypeOf(pointer);
-        std.debug.assert(@typeInfo(Ptr) == .Pointer); // Must be a pointer
-        std.debug.assert(@typeInfo(Ptr).Pointer.size == .One); // Must be a single-item pointer
-        std.debug.assert(@typeInfo(@typeInfo(Ptr).Pointer.child) == .Struct); // Must point to a struct
-
-        const gen = struct {
-            fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                return try waitAvailableFn(self, input_element_sizes, output_element_sizes);
-            }
-
-            fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                return getInputBufferFn(self, index);
-            }
-
-            fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                return getOutputBufferFn(self, index);
-            }
-
-            fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                updateInputBufferFn(self, index, count);
-            }
-
-            fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                updateOutputBufferFn(self, index, count);
-            }
-
-            fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                return getNumReadersForOutputFn(self, index);
-            }
-
-            fn setEOF(ptr: *anyopaque) void {
-                const self: Ptr = @ptrCast(@alignCast(ptr));
-                setEOFFn(self);
-            }
-        };
-
-        return .{
-            .ptr = pointer,
-            .waitAvailableFn = gen.waitAvailable,
-            .getInputBufferFn = gen.getInputBuffer,
-            .getOutputBufferFn = gen.getOutputBuffer,
-            .updateInputBufferFn = gen.updateInputBuffer,
-            .updateOutputBufferFn = gen.updateOutputBuffer,
-            .getNumReadersForOutputFn = gen.getNumReadersForOutput,
-            .setEOFFn = gen.setEOF,
-        };
-    }
+    pub const VTable = struct {
+        waitAvailable: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
+        getInputBuffer: *const fn (ptr: *anyopaque, index: usize) []const u8,
+        getOutputBuffer: *const fn (ptr: *anyopaque, index: usize) []u8,
+        updateInputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
+        updateOutputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
+        getNumReadersForOutput: *const fn (ptr: *anyopaque, index: usize) usize,
+        setEOF: *const fn (ptr: *anyopaque) void,
+    };
 
     ////////////////////////////////////////////////////////////////////////////
     // Sample Buffers API
@@ -99,16 +39,16 @@ pub const SampleMux = struct {
 
     pub fn get(self: *SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
         // Wait for sufficient number of samples
-        const min_samples_available = try self.waitAvailableFn(self.ptr, comptime util.dataTypeSizes(type_signature.inputs), comptime util.dataTypeSizes(type_signature.outputs));
+        const min_samples_available = try self.vtable.waitAvailable(self.ptr, comptime util.dataTypeSizes(type_signature.inputs), comptime util.dataTypeSizes(type_signature.outputs));
 
         // Get sample buffers
         var sample_buffers: SampleBuffers(type_signature) = undefined;
         inline for (type_signature.inputs, 0..) |input_type, i| {
-            const buffer = self.getInputBufferFn(self.ptr, i);
+            const buffer = self.vtable.getInputBuffer(self.ptr, i);
             sample_buffers.inputs[i] = @alignCast(std.mem.bytesAsSlice(input_type, buffer[0 .. min_samples_available * @sizeOf(type_signature.inputs[i])]));
         }
         inline for (type_signature.outputs, 0..) |output_type, i| {
-            const buffer = self.getOutputBufferFn(self.ptr, i);
+            const buffer = self.vtable.getOutputBuffer(self.ptr, i);
             sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_type, buffer[0..std.mem.alignBackward(usize, buffer.len, @sizeOf(type_signature.outputs[i]))]));
         }
 
@@ -128,7 +68,7 @@ pub const SampleMux = struct {
         // Handle RefCounted(T) outputs (increment reference count for additional readers)
         inline for (type_signature.outputs, 0..) |output_type, i| {
             if (comptime hasTypeTag(output_type, .RefCounted)) {
-                const num_readers = self.getNumReadersForOutputFn(self.ptr, i);
+                const num_readers = self.vtable.getNumReadersForOutput(self.ptr, i);
                 switch (num_readers) {
                     0 => for (buffers.outputs[i]) |*e| e.unref(), // No readers
                     1 => {}, // Elements already initialized with an rc of 1
@@ -139,15 +79,15 @@ pub const SampleMux = struct {
 
         // Update sample buffers
         inline for (type_signature.inputs, 0..) |_, i| {
-            self.updateInputBufferFn(self.ptr, i, process_result.samples_consumed[i] * @sizeOf(type_signature.inputs[i]));
+            self.vtable.updateInputBuffer(self.ptr, i, process_result.samples_consumed[i] * @sizeOf(type_signature.inputs[i]));
         }
         inline for (type_signature.outputs, 0..) |_, i| {
-            self.updateOutputBufferFn(self.ptr, i, process_result.samples_produced[i] * @sizeOf(type_signature.outputs[i]));
+            self.vtable.updateOutputBuffer(self.ptr, i, process_result.samples_produced[i] * @sizeOf(type_signature.outputs[i]));
         }
     }
 
     pub fn setEOF(self: *SampleMux) void {
-        self.setEOFFn(self.ptr);
+        self.vtable.setEOF(self.ptr);
     }
 };
 
@@ -184,7 +124,9 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn waitAvailable(self: *Self, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+        pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             // Sanity checks
             std.debug.assert(input_element_sizes.len == self.readers.items.len);
             std.debug.assert(output_element_sizes.len == self.writers.items.len);
@@ -225,41 +167,64 @@ pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
             return min_samples_available;
         }
 
-        pub fn getInputBuffer(self: *Self, index: usize) []const u8 {
+        pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             std.debug.assert(index < self.readers.items.len);
             return self.readers.items[index].getBuffer();
         }
 
-        pub fn getOutputBuffer(self: *Self, index: usize) []u8 {
+        pub fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             std.debug.assert(index < self.writers.items.len);
             return self.writers.items[index].getBuffer();
         }
 
-        pub fn updateInputBuffer(self: *Self, index: usize, count: usize) void {
+        pub fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             std.debug.assert(index < self.readers.items.len);
             self.readers.items[index].update(count);
         }
 
-        pub fn updateOutputBuffer(self: *Self, index: usize, count: usize) void {
+        pub fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             std.debug.assert(index < self.writers.items.len);
             if (self.writers.items[index].getNumReaders() > 0) {
                 self.writers.items[index].update(count);
             }
         }
 
-        pub fn getNumReadersForOutput(self: *Self, index: usize) usize {
+        pub fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             std.debug.assert(index < self.writers.items.len);
             return self.writers.items[index].getNumReaders();
         }
 
-        pub fn setEOF(self: *Self) void {
+        pub fn setEOF(ptr: *anyopaque) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             for (self.writers.items) |*writer| {
                 writer.setEOF();
             }
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, getNumReadersForOutput, setEOF);
+            return .{
+                .ptr = self,
+                .vtable = &.{
+                    .waitAvailable = waitAvailable,
+                    .getInputBuffer = getInputBuffer,
+                    .getOutputBuffer = getOutputBuffer,
+                    .updateInputBuffer = updateInputBuffer,
+                    .updateOutputBuffer = updateOutputBuffer,
+                    .getNumReadersForOutput = getNumReadersForOutput,
+                    .setEOF = setEOF,
+                },
+            };
         }
     };
 }
@@ -311,7 +276,9 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn waitAvailable(self: *Self, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+        pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             if (self.eof) {
                 return error.EndOfFile;
             }
@@ -340,7 +307,9 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             return if (input_data_types.len != 0) std.mem.min(usize, input_samples_available[0..]) else std.mem.min(usize, output_samples_available[0..]);
         }
 
-        pub fn getInputBuffer(self: *Self, index: usize) []const u8 {
+        pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             if (input_data_types.len == 0) return &.{};
 
             if (self.options.single_input_samples) {
@@ -351,7 +320,9 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             }
         }
 
-        pub fn getOutputBuffer(self: *Self, index: usize) []u8 {
+        pub fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             if (output_data_types.len == 0) return &.{};
 
             if (self.options.single_output_samples) {
@@ -362,27 +333,44 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             }
         }
 
-        pub fn updateInputBuffer(self: *Self, index: usize, count: usize) void {
+        pub fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             if (input_data_types.len == 0) return;
             self.input_buffer_indices[index] += count;
         }
 
-        pub fn updateOutputBuffer(self: *Self, index: usize, count: usize) void {
+        pub fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             if (output_data_types.len == 0) return;
             self.output_buffer_indices[index] += count;
         }
 
-        pub fn getNumReadersForOutput(_: *Self, _: usize) usize {
+        pub fn getNumReadersForOutput(_: *anyopaque, _: usize) usize {
             if (output_data_types.len == 0) return 0;
             return 1;
         }
 
-        pub fn setEOF(self: *Self) void {
+        pub fn setEOF(ptr: *anyopaque) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
             self.eof = true;
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
-            return SampleMux.init(self, waitAvailable, getInputBuffer, getOutputBuffer, updateInputBuffer, updateOutputBuffer, getNumReadersForOutput, setEOF);
+            return .{
+                .ptr = self,
+                .vtable = &.{
+                    .waitAvailable = waitAvailable,
+                    .getInputBuffer = getInputBuffer,
+                    .getOutputBuffer = getOutputBuffer,
+                    .updateInputBuffer = updateInputBuffer,
+                    .updateOutputBuffer = updateOutputBuffer,
+                    .getNumReadersForOutput = getNumReadersForOutput,
+                    .setEOF = setEOF,
+                },
+            };
         }
     };
 }
