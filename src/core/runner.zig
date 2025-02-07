@@ -2,8 +2,6 @@ const std = @import("std");
 
 const Block = @import("block.zig").Block;
 const SampleMux = @import("sample_mux.zig").SampleMux;
-const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
-const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 // ThreadedBlockRunner
@@ -11,7 +9,7 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 pub const ThreadedBlockRunner = struct {
     block: *Block,
-    threadsafe_sample_mux: ThreadSafeRingBufferSampleMux,
+    sample_mux: SampleMux,
 
     running: bool = false,
     thread: std.Thread = undefined,
@@ -19,10 +17,10 @@ pub const ThreadedBlockRunner = struct {
     call_event: std.Thread.ResetEvent = .{},
     stop_event: std.Thread.ResetEvent = .{},
 
-    pub fn init(allocator: std.mem.Allocator, block: *Block, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !ThreadedBlockRunner {
+    pub fn init(_: std.mem.Allocator, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
         return .{
             .block = block,
-            .threadsafe_sample_mux = try ThreadSafeRingBufferSampleMux.init(allocator, inputs, outputs),
+            .sample_mux = sample_mux,
         };
     }
 
@@ -31,17 +29,14 @@ pub const ThreadedBlockRunner = struct {
             self.stop();
             self.join();
         }
-        self.threadsafe_sample_mux.deinit();
     }
 
     pub fn spawn(self: *ThreadedBlockRunner) !void {
         const Runner = struct {
             fn run(runner: *ThreadedBlockRunner) !void {
-                var sample_mux = runner.threadsafe_sample_mux.sampleMux();
-
                 while (true) {
                     if (runner.stop_event.isSet()) {
-                        sample_mux.setEOF();
+                        runner.sample_mux.setEOF();
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
@@ -51,7 +46,7 @@ pub const ThreadedBlockRunner = struct {
                     runner.mutex.lock();
                     defer runner.mutex.unlock();
 
-                    const process_result = try runner.block.process(sample_mux);
+                    const process_result = try runner.block.process(runner.sample_mux);
                     if (process_result.eof) {
                         break;
                     }
@@ -91,6 +86,9 @@ const builtin = @import("builtin");
 
 const ProcessResult = @import("block.zig").ProcessResult;
 const RuntimeDataType = @import("types.zig").RuntimeDataType;
+
+const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
+const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
 const TestSource = struct {
     block: Block,
@@ -241,17 +239,25 @@ test "ThreadedBlockRunner finite run" {
     var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer ring_buffer2.deinit();
 
+    // Create sample muxes
+    var test_source_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    defer test_source_sample_mux.deinit();
+    var test_block_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    defer test_block_sample_mux.deinit();
+    var test_sink_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer2}, &[0]*ThreadSafeRingBuffer{});
+    defer test_sink_sample_mux.deinit();
+
     // Set rates
     try test_source.block.setRate(8000);
     try test_block.block.setRate(8000);
     try test_sink.block.setRate(8000);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, test_block_sample_mux.sampleMux());
     defer test_block_runner.deinit();
-    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, &[1]*ThreadSafeRingBuffer{&ring_buffer2}, &[0]*ThreadSafeRingBuffer{});
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
     defer test_sink_runner.deinit();
 
     // Spawn block runners
@@ -285,14 +291,20 @@ test "ThreadedBlockRunner infinite run" {
     var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer ring_buffer.deinit();
 
+    // Create sample muxes
+    var test_source_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});
+    defer test_source_sample_mux.deinit();
+    var test_sink_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    defer test_sink_sample_mux.deinit();
+
     // Set rates
     try test_source.block.setRate(8000);
     try test_sink.block.setRate(8000);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, &[1]*ThreadSafeRingBuffer{&ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
     defer test_sink_runner.deinit();
 
     // Spawn block runners
@@ -329,13 +341,19 @@ test "ThreadedBlockRunner call" {
     var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
     defer ring_buffer2.deinit();
 
+    // Create sample muxes
+    var test_source_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    defer test_source_sample_mux.deinit();
+    var test_sink_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    defer test_sink_sample_mux.deinit();
+
     // Set rates
     try test_block.block.setRate(800);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer1});
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, &[1]*ThreadSafeRingBuffer{&ring_buffer1}, &[1]*ThreadSafeRingBuffer{&ring_buffer2});
+    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, test_sink_sample_mux.sampleMux());
     defer test_block_runner.deinit();
 
     // Spawn block runners
