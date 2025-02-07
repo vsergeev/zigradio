@@ -95,139 +95,137 @@ pub const SampleMux = struct {
 // ThreadSafeRingBufferSampleMux
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn ThreadSafeRingBufferSampleMux(comptime RingBuffer: type) type {
-    return struct {
-        const Self = @This();
+pub const ThreadSafeRingBufferSampleMux = struct {
+    const Self = @This();
 
-        readers: std.ArrayList(RingBuffer.Reader),
-        writers: std.ArrayList(RingBuffer.Writer),
+    readers: std.ArrayList(ThreadSafeRingBuffer.Reader),
+    writers: std.ArrayList(ThreadSafeRingBuffer.Writer),
 
-        pub fn init(allocator: std.mem.Allocator, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !Self {
-            var readers = std.ArrayList(RingBuffer.Reader).init(allocator);
-            for (inputs) |ring_buffer| try readers.append(ring_buffer.reader());
+    pub fn init(allocator: std.mem.Allocator, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !Self {
+        var readers = std.ArrayList(ThreadSafeRingBuffer.Reader).init(allocator);
+        for (inputs) |ring_buffer| try readers.append(ring_buffer.reader());
 
-            var writers = std.ArrayList(RingBuffer.Writer).init(allocator);
-            for (outputs) |ring_buffer| try writers.append(ring_buffer.writer());
+        var writers = std.ArrayList(ThreadSafeRingBuffer.Writer).init(allocator);
+        for (outputs) |ring_buffer| try writers.append(ring_buffer.writer());
 
-            return .{
-                .readers = readers,
-                .writers = writers,
-            };
-        }
+        return .{
+            .readers = readers,
+            .writers = writers,
+        };
+    }
 
-        pub fn deinit(self: *Self) void {
-            self.readers.deinit();
-            self.writers.deinit();
-        }
+    pub fn deinit(self: *Self) void {
+        self.readers.deinit();
+        self.writers.deinit();
+    }
 
-        ////////////////////////////////////////////////////////////////////////////
-        // SampleMux API
-        ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+    // SampleMux API
+    ////////////////////////////////////////////////////////////////////////////
 
-        pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
-            const self: *Self = @ptrCast(@alignCast(ptr));
+    pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+        const self: *Self = @ptrCast(@alignCast(ptr));
 
-            // Sanity checks
-            std.debug.assert(input_element_sizes.len == self.readers.items.len);
-            std.debug.assert(output_element_sizes.len == self.writers.items.len);
+        // Sanity checks
+        std.debug.assert(input_element_sizes.len == self.readers.items.len);
+        std.debug.assert(output_element_sizes.len == self.writers.items.len);
 
-            var input_samples_available: [8]usize = undefined;
-            var output_samples_available: [8]usize = undefined;
-            var min_samples_available: usize = 0;
+        var input_samples_available: [8]usize = undefined;
+        var output_samples_available: [8]usize = undefined;
+        var min_samples_available: usize = 0;
 
-            while (min_samples_available == 0) {
-                // Get input and output samples available across all inputs and outputs
-                for (self.readers.items, 0..) |*reader, i| {
-                    input_samples_available[i] = try reader.getAvailable() / input_element_sizes[i];
-                }
-                for (self.writers.items, 0..) |*writer, i| {
-                    output_samples_available[i] = writer.getAvailable() / output_element_sizes[i];
-                }
-
-                // Compute minimum input and output samples available
-                const min_input_samples_index = if (input_element_sizes.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..input_element_sizes.len]) else 0;
-                const min_output_samples_index = if (output_element_sizes.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..output_element_sizes.len]) else 0;
-                const min_input_samples = if (input_element_sizes.len != 0) input_samples_available[min_input_samples_index] else null;
-                const min_output_samples = if (output_element_sizes.len != 0) output_samples_available[min_output_samples_index] else null;
-
-                if (min_input_samples != null and min_input_samples.? == 0) {
-                    // No input samples available for at least one input
-                    try self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
-                } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
-                    // Insufficient output samples available for at least one output
-                    self.writers.items[min_output_samples_index].wait(min_input_samples.? * output_element_sizes[min_output_samples_index]);
-                } else if (min_output_samples != null and min_output_samples.? == 0) {
-                    // No output samples available for at least one output
-                    self.writers.items[min_output_samples_index].wait(output_element_sizes[min_output_samples_index]);
-                } else {
-                    min_samples_available = min_input_samples orelse min_output_samples orelse unreachable;
-                }
+        while (min_samples_available == 0) {
+            // Get input and output samples available across all inputs and outputs
+            for (self.readers.items, 0..) |*reader, i| {
+                input_samples_available[i] = try reader.getAvailable() / input_element_sizes[i];
+            }
+            for (self.writers.items, 0..) |*writer, i| {
+                output_samples_available[i] = writer.getAvailable() / output_element_sizes[i];
             }
 
-            return min_samples_available;
-        }
+            // Compute minimum input and output samples available
+            const min_input_samples_index = if (input_element_sizes.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..input_element_sizes.len]) else 0;
+            const min_output_samples_index = if (output_element_sizes.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..output_element_sizes.len]) else 0;
+            const min_input_samples = if (input_element_sizes.len != 0) input_samples_available[min_input_samples_index] else null;
+            const min_output_samples = if (output_element_sizes.len != 0) output_samples_available[min_output_samples_index] else null;
 
-        pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
-            const self: *Self = @ptrCast(@alignCast(ptr));
-
-            std.debug.assert(index < self.readers.items.len);
-            return self.readers.items[index].getBuffer();
-        }
-
-        pub fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
-            const self: *Self = @ptrCast(@alignCast(ptr));
-
-            std.debug.assert(index < self.writers.items.len);
-            return self.writers.items[index].getBuffer();
-        }
-
-        pub fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
-            const self: *Self = @ptrCast(@alignCast(ptr));
-
-            std.debug.assert(index < self.readers.items.len);
-            self.readers.items[index].update(count);
-        }
-
-        pub fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
-            const self: *Self = @ptrCast(@alignCast(ptr));
-
-            std.debug.assert(index < self.writers.items.len);
-            if (self.writers.items[index].getNumReaders() > 0) {
-                self.writers.items[index].update(count);
+            if (min_input_samples != null and min_input_samples.? == 0) {
+                // No input samples available for at least one input
+                try self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
+            } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
+                // Insufficient output samples available for at least one output
+                self.writers.items[min_output_samples_index].wait(min_input_samples.? * output_element_sizes[min_output_samples_index]);
+            } else if (min_output_samples != null and min_output_samples.? == 0) {
+                // No output samples available for at least one output
+                self.writers.items[min_output_samples_index].wait(output_element_sizes[min_output_samples_index]);
+            } else {
+                min_samples_available = min_input_samples orelse min_output_samples orelse unreachable;
             }
         }
 
-        pub fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
-            const self: *Self = @ptrCast(@alignCast(ptr));
+        return min_samples_available;
+    }
 
-            std.debug.assert(index < self.writers.items.len);
-            return self.writers.items[index].getNumReaders();
+    pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+
+        std.debug.assert(index < self.readers.items.len);
+        return self.readers.items[index].getBuffer();
+    }
+
+    pub fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+
+        std.debug.assert(index < self.writers.items.len);
+        return self.writers.items[index].getBuffer();
+    }
+
+    pub fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+
+        std.debug.assert(index < self.readers.items.len);
+        self.readers.items[index].update(count);
+    }
+
+    pub fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+
+        std.debug.assert(index < self.writers.items.len);
+        if (self.writers.items[index].getNumReaders() > 0) {
+            self.writers.items[index].update(count);
         }
+    }
 
-        pub fn setEOF(ptr: *anyopaque) void {
-            const self: *Self = @ptrCast(@alignCast(ptr));
+    pub fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
+        const self: *Self = @ptrCast(@alignCast(ptr));
 
-            for (self.writers.items) |*writer| {
-                writer.setEOF();
-            }
+        std.debug.assert(index < self.writers.items.len);
+        return self.writers.items[index].getNumReaders();
+    }
+
+    pub fn setEOF(ptr: *anyopaque) void {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+
+        for (self.writers.items) |*writer| {
+            writer.setEOF();
         }
+    }
 
-        pub fn sampleMux(self: *Self) SampleMux {
-            return .{
-                .ptr = self,
-                .vtable = &.{
-                    .waitAvailable = waitAvailable,
-                    .getInputBuffer = getInputBuffer,
-                    .getOutputBuffer = getOutputBuffer,
-                    .updateInputBuffer = updateInputBuffer,
-                    .updateOutputBuffer = updateOutputBuffer,
-                    .getNumReadersForOutput = getNumReadersForOutput,
-                    .setEOF = setEOF,
-                },
-            };
-        }
-    };
-}
+    pub fn sampleMux(self: *Self) SampleMux {
+        return .{
+            .ptr = self,
+            .vtable = &.{
+                .waitAvailable = waitAvailable,
+                .getInputBuffer = getInputBuffer,
+                .getOutputBuffer = getOutputBuffer,
+                .updateInputBuffer = updateInputBuffer,
+                .updateOutputBuffer = updateOutputBuffer,
+                .getNumReadersForOutput = getNumReadersForOutput,
+                .setEOF = setEOF,
+            },
+        };
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // TestSampleMux
@@ -534,7 +532,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[_]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[_]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -643,7 +641,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     var output2_reader = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -714,7 +712,7 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     var input2_writer = input2_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[0]*ThreadSafeRingBuffer{});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[0]*ThreadSafeRingBuffer{});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -777,7 +775,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     var output2_reader = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -830,7 +828,7 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     var output1_reader = output1_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -915,7 +913,7 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -985,7 +983,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     _ = output2_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -1067,7 +1065,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     var output2_writer = output2_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[2]*ThreadSafeRingBuffer{ &input1_ring_buffer, &input2_ring_buffer }, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -1156,7 +1154,7 @@ test "RefCounted output with no readers" {
     defer output_ring_buffer.deinit();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -1194,7 +1192,7 @@ test "RefCounted output with one reader" {
     _ = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -1227,7 +1225,7 @@ test "RefCounted output with two readers" {
     _ = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -1259,7 +1257,7 @@ test "RefCounted input" {
     var writer = input_ring_buffer.writer();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[0]*ThreadSafeRingBuffer{});
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 

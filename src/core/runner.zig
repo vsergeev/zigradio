@@ -11,7 +11,7 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 pub const ThreadedBlockRunner = struct {
     block: *Block,
-    threadsafe_sample_mux: ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer),
+    threadsafe_sample_mux: ThreadSafeRingBufferSampleMux,
 
     running: bool = false,
     thread: std.Thread = undefined,
@@ -22,7 +22,7 @@ pub const ThreadedBlockRunner = struct {
     pub fn init(allocator: std.mem.Allocator, block: *Block, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !ThreadedBlockRunner {
         return .{
             .block = block,
-            .threadsafe_sample_mux = try ThreadSafeRingBufferSampleMux(ThreadSafeRingBuffer).init(allocator, inputs, outputs),
+            .threadsafe_sample_mux = try ThreadSafeRingBufferSampleMux.init(allocator, inputs, outputs),
         };
     }
 
