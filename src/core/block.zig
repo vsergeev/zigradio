@@ -92,6 +92,26 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
     return gen.process;
 }
 
+fn wrapStartFunction(comptime BlockType: type, comptime startFn: fn (self: *BlockType, sample_mux: SampleMux) anyerror!void) fn (self: *Block, sample_mux: SampleMux) anyerror!void {
+    const gen = struct {
+        fn start(block: *Block, sample_mux: SampleMux) anyerror!void {
+            const self: *BlockType = @fieldParentPtr("block", block);
+            return try startFn(self, sample_mux);
+        }
+    };
+    return gen.start;
+}
+
+fn wrapStopFunction(comptime BlockType: type, comptime stopFn: fn (self: *BlockType) void) fn (self: *Block) void {
+    const gen = struct {
+        fn stop(block: *Block) void {
+            const self: *BlockType = @fieldParentPtr("block", block);
+            stopFn(self);
+        }
+    };
+    return gen.stop;
+}
+
 pub fn extractBlockName(comptime BlockType: type) []const u8 {
     // Split ( for generic blocks
     comptime var it = std.mem.split(u8, @typeName(BlockType), "(");
@@ -117,9 +137,18 @@ pub const Block = struct {
     set_rate_fn: ?*const fn (self: *Block, upstream_rate: f64) anyerror!f64,
     initialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
     deinitialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) void,
-    process_fn: *const fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult,
+    process_fn: ?*const fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult,
+
+    // Raw mode
+    raw: bool = false,
+    start_fn: ?*const fn (self: *Block, sample_mux: SampleMux) anyerror!void = null,
+    stop_fn: ?*const fn (self: *Block) void = null,
 
     rate: ?f64 = null,
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Block Constructor
+    ////////////////////////////////////////////////////////////////////////////
 
     pub fn init(comptime BlockType: type) Block {
         // Block needs to have a process method
@@ -170,11 +199,62 @@ pub const Block = struct {
     }
 
     pub fn process(self: *Block, sample_mux: SampleMux) !ProcessResult {
-        return try self.process_fn(self, sample_mux);
+        return try self.process_fn.?(self, sample_mux);
     }
 
     pub fn getRate(self: *const Block, comptime T: type) T {
         return std.math.lossyCast(T, self.rate orelse 0);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Raw Block Constructor
+    ////////////////////////////////////////////////////////////////////////////
+
+    pub fn initRaw(comptime BlockType: type, input_data_types: []const type, output_data_types: []const type) Block {
+        // Raw block needs to have a start method
+        if (!@hasDecl(BlockType, "start")) {
+            @compileError("Block " ++ @typeName(BlockType) ++ " is missing the start() method.");
+        }
+
+        // Construct type signature
+        const type_signature = ComptimeTypeSignature.fromTypes(input_data_types, output_data_types);
+        if (type_signature.inputs.len == 0 and !@hasDecl(BlockType, "setRate")) {
+            @compileError("Source block " ++ @typeName(BlockType) ++ " is missing the setRate() method.");
+        }
+
+        // Generate input and output names
+        comptime var _inputs: [type_signature.inputs.len][]const u8 = undefined;
+        comptime var _outputs: [type_signature.outputs.len][]const u8 = undefined;
+        inline for (type_signature.inputs, 0..) |_, i| _inputs[i] = comptime std.fmt.comptimePrint("in{d}", .{i + 1});
+        inline for (type_signature.outputs, 0..) |_, i| _outputs[i] = comptime std.fmt.comptimePrint("out{d}", .{i + 1});
+        const inputs = _inputs;
+        const outputs = _outputs;
+
+        return .{
+            .name = comptime extractBlockName(BlockType),
+            .inputs = &inputs,
+            .outputs = &outputs,
+            .type_signature = comptime RuntimeTypeSignature.init(type_signature),
+            .set_rate_fn = if (@hasDecl(BlockType, "setRate")) comptime wrapSetRateFunction(BlockType, BlockType.setRate) else null,
+            .initialize_fn = if (@hasDecl(BlockType, "initialize")) comptime wrapInitializeFunction(BlockType, BlockType.initialize) else null,
+            .deinitialize_fn = if (@hasDecl(BlockType, "deinitialize")) comptime wrapDeinitializeFunction(BlockType, BlockType.deinitialize) else null,
+            .process_fn = null,
+            .raw = true,
+            .start_fn = comptime wrapStartFunction(BlockType, BlockType.start),
+            .stop_fn = if (@hasDecl(BlockType, "stop")) comptime wrapStopFunction(BlockType, BlockType.stop) else null,
+        };
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Raw Block API
+    ////////////////////////////////////////////////////////////////////////////
+
+    pub fn start(self: *Block, sample_mux: SampleMux) !void {
+        try self.start_fn.?(self, sample_mux);
+    }
+
+    pub fn stop(self: *Block) void {
+        if (self.stop_fn) |stop_fn| stop_fn(self);
     }
 };
 
@@ -251,6 +331,24 @@ const TestSource = struct {
     }
 };
 
+const TestRawBlock = struct {
+    block: Block,
+    started: bool = false,
+    stopped: bool = false,
+
+    pub fn init() TestRawBlock {
+        return .{ .block = Block.initRaw(@This(), &[1]type{f32}, &[2]type{ u32, u16 }) };
+    }
+
+    pub fn start(self: *TestRawBlock, _: SampleMux) !void {
+        self.started = true;
+    }
+
+    pub fn stop(self: *TestRawBlock) void {
+        self.stopped = true;
+    }
+};
+
 test "Block.init" {
     const test_block = TestBlock.init();
 
@@ -286,6 +384,37 @@ test "Block.setRate and Block.getRate" {
 
     try test_block.block.setRate(8000);
     try std.testing.expectEqual(4000, test_block.block.getRate(u32));
+}
+
+test "Block.initRaw, Block.start and Block.stop" {
+    var raw_block = TestRawBlock.init();
+
+    try std.testing.expectEqualSlices(u8, raw_block.block.name, "TestRawBlock");
+
+    try std.testing.expectEqual(true, raw_block.block.raw);
+
+    try std.testing.expectEqual(@as(usize, 1), raw_block.block.inputs.len);
+    try std.testing.expectEqual(@as(usize, 2), raw_block.block.outputs.len);
+
+    try std.testing.expectEqualSlices(u8, "in1", raw_block.block.inputs[0]);
+    try std.testing.expectEqualSlices(u8, "out1", raw_block.block.outputs[0]);
+    try std.testing.expectEqualSlices(u8, "out2", raw_block.block.outputs[1]);
+
+    try std.testing.expectEqualStrings("Float32", raw_block.block.type_signature.inputs[0]);
+    try std.testing.expectEqualStrings("Unsigned32", raw_block.block.type_signature.outputs[0]);
+    try std.testing.expectEqualStrings("Unsigned16", raw_block.block.type_signature.outputs[1]);
+
+    try std.testing.expectEqual(false, raw_block.started);
+    try std.testing.expectEqual(false, raw_block.stopped);
+
+    var test_sample_mux = try TestSampleMux(&[1]type{f32}, &[2]type{ u32, u16 }).init([1][]const u8{&[0]u8{}}, .{});
+    defer test_sample_mux.deinit();
+
+    try raw_block.block.start(test_sample_mux.sampleMux());
+    try std.testing.expectEqual(true, raw_block.started);
+
+    raw_block.block.stop();
+    try std.testing.expectEqual(true, raw_block.stopped);
 }
 
 test "Block.process" {
