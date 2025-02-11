@@ -4,6 +4,49 @@ const Block = @import("block.zig").Block;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 
 ////////////////////////////////////////////////////////////////////////////////
+// RawBlockRunner
+////////////////////////////////////////////////////////////////////////////////
+
+pub const RawBlockRunner = struct {
+    block: *Block,
+    sample_mux: SampleMux,
+
+    running: bool = false,
+
+    pub fn init(_: std.mem.Allocator, block: *Block, sample_mux: SampleMux) !RawBlockRunner {
+        return .{
+            .block = block,
+            .sample_mux = sample_mux,
+        };
+    }
+
+    pub fn deinit(self: *RawBlockRunner) void {
+        if (self.running) {
+            self.stop();
+            self.join();
+        }
+    }
+
+    pub fn spawn(self: *RawBlockRunner) !void {
+        try self.block.start(self.sample_mux);
+        self.running = true;
+    }
+
+    pub fn call(self: *RawBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).Fn.return_type.? {
+        const block = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", self.block));
+        return @call(.auto, function, .{block} ++ args);
+    }
+
+    pub fn stop(self: *RawBlockRunner) void {
+        self.block.stop();
+    }
+
+    pub fn join(self: *RawBlockRunner) void {
+        self.running = false;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // ThreadedBlockRunner
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +132,25 @@ const RuntimeDataType = @import("types.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
+
+const TestRawBlock = struct {
+    block: Block,
+
+    started: bool = false,
+    stopped: bool = false,
+
+    pub fn init() TestRawBlock {
+        return .{ .block = Block.initRaw(@This(), &[1]type{f32}, &[1]type{f32}) };
+    }
+
+    pub fn start(self: *TestRawBlock, _: SampleMux) !void {
+        self.started = true;
+    }
+
+    pub fn stop(self: *TestRawBlock) void {
+        self.stopped = true;
+    }
+};
 
 const TestSource = struct {
     block: Block,
@@ -221,6 +283,36 @@ const TestCallableBlock = struct {
         return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
     }
 };
+
+test "TestRawBlock start, stop" {
+    // Create block
+    var test_block = TestRawBlock.init();
+
+    // Create dummy sample mux
+    var test_block_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[0]*ThreadSafeRingBuffer{});
+    defer test_block_sample_mux.deinit();
+
+    // Set rates
+    try test_block.block.setRate(8000);
+
+    // Create block runners
+    var test_block_runner = try RawBlockRunner.init(std.testing.allocator, &test_block.block, test_block_sample_mux.sampleMux());
+    defer test_block_runner.deinit();
+
+    try std.testing.expectEqual(false, test_block.started);
+    try std.testing.expectEqual(false, test_block.stopped);
+
+    // Start block runner
+    try test_block_runner.spawn();
+    try std.testing.expectEqual(true, test_block.started);
+
+    // Stop block runner
+    test_block_runner.stop();
+    try std.testing.expectEqual(true, test_block.stopped);
+
+    // Join block runner
+    test_block_runner.join();
+}
 
 test "ThreadedBlockRunner finite run" {
     // This test requires spawning threads
