@@ -9,6 +9,7 @@ const RuntimeDataType = @import("types.zig").RuntimeDataType;
 
 const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
+const RawBlockRunner = @import("runner.zig").RawBlockRunner;
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +108,11 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
 ////////////////////////////////////////////////////////////////////////////////
 
 const FlowgraphRunState = struct {
+    const BlockRunner = union(enum) { raw: RawBlockRunner, threaded: ThreadedBlockRunner };
+
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
     sample_muxes: std.AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux),
-    block_runners: std.AutoArrayHashMap(*Block, ThreadedBlockRunner),
+    block_runners: std.AutoArrayHashMap(*Block, BlockRunner),
 
     const RING_BUFFER_SIZE = 8 * 1048576;
 
@@ -130,9 +133,11 @@ const FlowgraphRunState = struct {
         }
 
         // Allocate block runner map
-        var block_runners = std.AutoArrayHashMap(*Block, ThreadedBlockRunner).init(allocator);
+        var block_runners = std.AutoArrayHashMap(*Block, BlockRunner).init(allocator);
         errdefer {
-            for (block_runners.values()) |*block_runner| block_runner.deinit();
+            for (block_runners.values()) |*block_runner| switch (block_runner.*) {
+                inline else => |*r| r.deinit(),
+            };
             block_runners.deinit();
         }
 
@@ -174,7 +179,11 @@ const FlowgraphRunState = struct {
             try sample_muxes.put(block.*, try ThreadSafeRingBufferSampleMux.init(allocator, input_ring_buffers.items, output_ring_buffers.items));
 
             // Create block runner
-            try block_runners.put(block.*, try ThreadedBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()));
+            if (block.*.raw) {
+                try block_runners.put(block.*, .{ .raw = try RawBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+            } else {
+                try block_runners.put(block.*, .{ .threaded = try ThreadedBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+            }
         }
 
         return .{
@@ -185,7 +194,9 @@ const FlowgraphRunState = struct {
     }
 
     pub fn deinit(self: *FlowgraphRunState) void {
-        for (self.block_runners.values()) |*block_runner| block_runner.deinit();
+        for (self.block_runners.values()) |*block_runner| switch (block_runner.*) {
+            inline else => |*r| r.deinit(),
+        };
         self.block_runners.deinit();
 
         for (self.sample_muxes.values()) |*sample_mux| sample_mux.deinit();
@@ -465,18 +476,18 @@ pub const Flowgraph = struct {
         self.run_state = try FlowgraphRunState.init(self.allocator, &self.flattened_connections, &self.block_set);
 
         // Spawn block runners
-        for (self.run_state.?.block_runners.values()) |*block_runner| {
-            try block_runner.spawn();
-        }
+        for (self.run_state.?.block_runners.values()) |*block_runner| switch (block_runner.*) {
+            inline else => |*r| try r.spawn(),
+        };
     }
 
     pub fn wait(self: *Flowgraph) !void {
         if (self.run_state == null) return FlowgraphError.NotRunning;
 
         // Join all block runners
-        for (self.run_state.?.block_runners.values()) |*block_runner| {
-            block_runner.join();
-        }
+        for (self.run_state.?.block_runners.values()) |*block_runner| switch (block_runner.*) {
+            inline else => |*r| r.join(),
+        };
 
         // Free run state
         self.run_state.?.deinit();
@@ -491,10 +502,14 @@ pub const Flowgraph = struct {
 
         // For each block runner
         for (self.run_state.?.block_runners.values()) |*block_runner| {
-            // If this block is a source
-            if (block_runner.block.inputs.len == 0) {
-                // Stop the block
-                block_runner.stop();
+            switch (block_runner.*) {
+                inline else => |*r| {
+                    // If this block is a source
+                    if (r.block.inputs.len == 0) {
+                        // Stop the block
+                        r.stop();
+                    }
+                },
             }
         }
 
@@ -525,7 +540,9 @@ pub const Flowgraph = struct {
         if (@TypeOf(block) == *Block) {
             // Call block via block runner
             const block_runner = self.run_state.?.block_runners.getPtr(block) orelse return FlowgraphError.BlockNotFound;
-            return block_runner.call(function, args);
+            switch (block_runner.*) {
+                inline else => |*r| return r.call(function, args),
+            }
         } else {
             // Call composite directly, passing in flowgraph for downstream block calls
             const composite = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("composite", block));
@@ -1539,7 +1556,68 @@ test "Flowgraph start, stop" {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Flowgraph Tests
+// Raw Block Tests
+////////////////////////////////////////////////////////////////////////////////
+
+const SampleMux = @import("sample_mux.zig").SampleMux;
+
+const TestRawSource = struct {
+    block: Block,
+    sample_mux: SampleMux = undefined,
+
+    pub fn init() TestRawSource {
+        return .{ .block = Block.initRaw(@This(), &[0]type{}, &[1]type{u8}) };
+    }
+
+    pub fn setRate(_: *TestRawSource, _: f64) !f64 {
+        return 8000;
+    }
+
+    pub fn start(self: *TestRawSource, sample_mux: SampleMux) !void {
+        self.sample_mux = sample_mux;
+    }
+
+    pub fn stop(self: *TestRawSource) void {
+        self.sample_mux.setEOF();
+    }
+
+    pub fn feed(self: *TestRawSource) void {
+        var output_buf = self.sample_mux.vtable.getOutputBuffer(self.sample_mux.ptr, 0);
+        @memset(output_buf[0..4], 0xab);
+        self.sample_mux.vtable.updateOutputBuffer(self.sample_mux.ptr, 0, 4);
+    }
+};
+
+test "Flowgraph with raw and threaded blocks" {
+    // Create flow graph
+    var top = Flowgraph.init(std.testing.allocator, .{});
+    defer top.deinit();
+
+    var source_block = TestRawSource.init();
+    var inverter_block = TestInverterBlock.init();
+    var sink_block = TestBufferSink.init(std.testing.allocator);
+    defer sink_block.deinit();
+
+    try top.connect(&source_block.block, &inverter_block.block);
+    try top.connect(&inverter_block.block, &sink_block.block);
+
+    // Start flow graph
+    try top.start();
+
+    // Feed samples three times
+    source_block.feed();
+    source_block.feed();
+    source_block.feed();
+
+    // Stop flow graph
+    try top.stop();
+
+    // Validate output vector
+    try std.testing.expectEqualSlices(u8, &[12]u8{ 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54 }, sink_block.buf.items);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Call Tests
 ////////////////////////////////////////////////////////////////////////////////
 
 const TestCallableBlock = struct {
