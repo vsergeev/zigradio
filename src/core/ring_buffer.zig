@@ -283,12 +283,16 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 return self.ring_buffer.impl.getWriteAvailable();
             }
 
-            pub fn wait(self: *@This(), min_count: usize) void {
+            pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{Timeout}!void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
                 while (self.ring_buffer.impl.getWriteAvailable() < min_count) {
-                    self.ring_buffer.cond_write_available.wait(&self.ring_buffer.mutex);
+                    if (timeout_ns) |timeout| {
+                        try self.ring_buffer.cond_write_available.timedWait(&self.ring_buffer.mutex, timeout);
+                    } else {
+                        self.ring_buffer.cond_write_available.wait(&self.ring_buffer.mutex);
+                    }
                 }
             }
 
@@ -343,18 +347,21 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 return available;
             }
 
-            pub fn wait(self: *@This(), min_count: usize) !void {
+            pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{ Timeout, EndOfFile }!void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
                 var available = self.ring_buffer.impl.getReadAvailable(self.index);
 
                 while (available < min_count) {
-                    if (available == 0 and self.ring_buffer.impl.getEOF()) {
-                        return error.EndOfFile;
+                    if (available == 0 and self.ring_buffer.impl.getEOF()) return error.EndOfFile;
+
+                    if (timeout_ns) |timeout| {
+                        try self.ring_buffer.cond_read_available.timedWait(&self.ring_buffer.mutex, timeout);
+                    } else {
+                        self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
                     }
 
-                    self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
                     available = self.ring_buffer.impl.getReadAvailable(self.index);
                 }
             }
@@ -746,10 +753,15 @@ test "RingBuffer write wait" {
         try std.testing.expectEqual(@as(usize, 2), try reader2.getAvailable());
         try std.testing.expectEqual(@as(usize, 3), try reader3.getAvailable());
 
+        // Non-blocking timeout
+        try std.testing.expectError(error.Timeout, writer.waitAvailable(5, 0));
+        // Tiemd timeout
+        try std.testing.expectError(error.Timeout, writer.waitAvailable(5, std.time.ns_per_ms));
+
         const WriteWaiter = struct {
             fn run(wr: *RingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
-                // Wait for 7
-                wr.wait(7);
+                // Blocking wait for 7
+                _ = try wr.waitAvailable(7, null);
                 // Signal done
                 done.set();
             }
@@ -801,10 +813,15 @@ test "RingBuffer read wait" {
         try std.testing.expectEqual(@as(usize, 0), try reader1.getAvailable());
         try std.testing.expectEqual(@as(usize, 7), try reader2.getAvailable());
 
+        // Non-blocking timeout
+        try std.testing.expectError(error.Timeout, reader1.waitAvailable(1, 0));
+        // Tiemd timeout
+        try std.testing.expectError(error.Timeout, reader2.waitAvailable(8, std.time.ns_per_ms));
+
         const ReadWaiter = struct {
             fn run(rd: *RingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
                 // Wait for 5
-                try rd.wait(5);
+                _ = try rd.waitAvailable(5, null);
                 // Signal done
                 done.set();
             }

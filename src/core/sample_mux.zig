@@ -151,13 +151,20 @@ pub const ThreadSafeRingBufferSampleMux = struct {
 
             if (min_input_samples != null and min_input_samples.? == 0) {
                 // No input samples available for at least one input
-                try self.readers.items[min_input_samples_index].wait(input_element_sizes[min_input_samples_index]);
+                self.readers.items[min_input_samples_index].waitAvailable(input_element_sizes[min_input_samples_index], null) catch |err| switch (err) {
+                    error.EndOfFile => |e| return e,
+                    error.Timeout => unreachable,
+                };
             } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
                 // Insufficient output samples available for at least one output
-                self.writers.items[min_output_samples_index].wait(min_input_samples.? * output_element_sizes[min_output_samples_index]);
+                self.writers.items[min_output_samples_index].waitAvailable(min_input_samples.? * output_element_sizes[min_output_samples_index], null) catch |err| switch (err) {
+                    error.Timeout => unreachable,
+                };
             } else if (min_output_samples != null and min_output_samples.? == 0) {
                 // No output samples available for at least one output
-                self.writers.items[min_output_samples_index].wait(output_element_sizes[min_output_samples_index]);
+                self.writers.items[min_output_samples_index].waitAvailable(output_element_sizes[min_output_samples_index], null) catch |err| switch (err) {
+                    error.Timeout => unreachable,
+                };
             } else {
                 min_samples_available = min_input_samples orelse min_output_samples orelse unreachable;
             }
