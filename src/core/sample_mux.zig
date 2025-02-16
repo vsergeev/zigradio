@@ -1,12 +1,11 @@
 const std = @import("std");
 
 const util = @import("util.zig");
+
 const ComptimeTypeSignature = @import("types.zig").ComptimeTypeSignature;
 const ProcessResult = @import("block.zig").ProcessResult;
 const RefCounted = @import("types.zig").RefCounted;
 const hasTypeTag = @import("types.zig").hasTypeTag;
-
-const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 // SampleMux
@@ -17,7 +16,10 @@ pub const SampleMux = struct {
     vtable: *const VTable,
 
     pub const VTable = struct {
-        waitAvailable: *const fn (ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize,
+        waitInputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfFile, Timeout }!void,
+        waitOutputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{Timeout}!void,
+        getInputAvailable: *const fn (ptr: *anyopaque, index: usize) error{EndOfFile}!usize,
+        getOutputAvailable: *const fn (ptr: *anyopaque, index: usize) usize,
         getInputBuffer: *const fn (ptr: *anyopaque, index: usize) []const u8,
         getOutputBuffer: *const fn (ptr: *anyopaque, index: usize) []u8,
         updateInputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
@@ -37,9 +39,52 @@ pub const SampleMux = struct {
         };
     }
 
+    pub fn wait(self: SampleMux, comptime type_signature: ComptimeTypeSignature, timeout_ns: ?u64) error{ Timeout, EndOfFile }!usize {
+        const input_element_sizes = comptime util.dataTypeSizes(type_signature.inputs);
+        const output_element_sizes = comptime util.dataTypeSizes(type_signature.outputs);
+
+        var input_samples_available: [type_signature.inputs.len]usize = undefined;
+        var output_samples_available: [type_signature.outputs.len]usize = undefined;
+        var min_samples_available: usize = 0;
+
+        while (min_samples_available == 0) {
+            // Get input and output samples available across all inputs and outputs
+            inline for (type_signature.inputs, 0..) |input_type, i| {
+                input_samples_available[i] = try self.vtable.getInputAvailable(self.ptr, i) / @sizeOf(input_type);
+            }
+            inline for (type_signature.outputs, 0..) |output_type, i| {
+                output_samples_available[i] = self.vtable.getOutputAvailable(self.ptr, i) / @sizeOf(output_type);
+            }
+
+            // Compute minimum input and output samples available
+            const min_input_samples_index = if (type_signature.inputs.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..type_signature.inputs.len]) else void;
+            const min_output_samples_index = if (type_signature.outputs.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..type_signature.outputs.len]) else void;
+            const min_input_samples = if (type_signature.inputs.len != 0) input_samples_available[min_input_samples_index] else void;
+            const min_output_samples = if (type_signature.outputs.len != 0) output_samples_available[min_output_samples_index] else void;
+
+            if (type_signature.inputs.len > 0 and min_input_samples == 0) {
+                // No input samples available for at least one input
+                try self.vtable.waitInputAvailable(self.ptr, min_input_samples_index, input_element_sizes[min_input_samples_index], timeout_ns);
+            } else if (type_signature.inputs.len > 0 and type_signature.outputs.len > 0 and min_output_samples < min_input_samples) {
+                // Insufficient output samples available for at least one output
+                try self.vtable.waitOutputAvailable(self.ptr, min_output_samples_index, min_input_samples * output_element_sizes[min_output_samples_index], timeout_ns);
+            } else if (type_signature.outputs.len > 0 and min_output_samples == 0) {
+                // No output samples available for at least one output
+                try self.vtable.waitOutputAvailable(self.ptr, min_output_samples_index, output_element_sizes[min_output_samples_index], timeout_ns);
+            } else {
+                min_samples_available = if (type_signature.inputs.len > 0) min_input_samples else min_output_samples;
+            }
+        }
+
+        return min_samples_available;
+    }
+
     pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
         // Wait for sufficient number of samples
-        const min_samples_available = try self.vtable.waitAvailable(self.ptr, comptime util.dataTypeSizes(type_signature.inputs), comptime util.dataTypeSizes(type_signature.outputs));
+        const min_samples_available = self.wait(type_signature, null) catch |err| switch (err) {
+            error.EndOfFile => |e| return e,
+            error.Timeout => unreachable,
+        };
 
         // Get sample buffers
         var sample_buffers: SampleBuffers(type_signature) = undefined;
@@ -95,6 +140,8 @@ pub const SampleMux = struct {
 // ThreadSafeRingBufferSampleMux
 ////////////////////////////////////////////////////////////////////////////////
 
+const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
+
 pub const ThreadSafeRingBufferSampleMux = struct {
     const Self = @This();
 
@@ -123,81 +170,43 @@ pub const ThreadSafeRingBufferSampleMux = struct {
     // SampleMux API
     ////////////////////////////////////////////////////////////////////////////
 
-    pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+    pub fn waitInputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfFile, Timeout }!void {
         const self: *Self = @ptrCast(@alignCast(ptr));
+        return self.readers.items[index].waitAvailable(min_count, timeout_ns);
+    }
 
-        // Sanity checks
-        std.debug.assert(input_element_sizes.len == self.readers.items.len);
-        std.debug.assert(output_element_sizes.len == self.writers.items.len);
+    pub fn waitOutputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{Timeout}!void {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+        return self.writers.items[index].waitAvailable(min_count, timeout_ns);
+    }
 
-        var input_samples_available: [8]usize = undefined;
-        var output_samples_available: [8]usize = undefined;
-        var min_samples_available: usize = 0;
+    pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfFile}!usize {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+        return self.readers.items[index].getAvailable();
+    }
 
-        while (min_samples_available == 0) {
-            // Get input and output samples available across all inputs and outputs
-            for (self.readers.items, 0..) |*reader, i| {
-                input_samples_available[i] = try reader.getAvailable() / input_element_sizes[i];
-            }
-            for (self.writers.items, 0..) |*writer, i| {
-                output_samples_available[i] = writer.getAvailable() / output_element_sizes[i];
-            }
-
-            // Compute minimum input and output samples available
-            const min_input_samples_index = if (input_element_sizes.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..input_element_sizes.len]) else 0;
-            const min_output_samples_index = if (output_element_sizes.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..output_element_sizes.len]) else 0;
-            const min_input_samples = if (input_element_sizes.len != 0) input_samples_available[min_input_samples_index] else null;
-            const min_output_samples = if (output_element_sizes.len != 0) output_samples_available[min_output_samples_index] else null;
-
-            if (min_input_samples != null and min_input_samples.? == 0) {
-                // No input samples available for at least one input
-                self.readers.items[min_input_samples_index].waitAvailable(input_element_sizes[min_input_samples_index], null) catch |err| switch (err) {
-                    error.EndOfFile => |e| return e,
-                    error.Timeout => unreachable,
-                };
-            } else if (min_input_samples != null and min_output_samples != null and min_output_samples.? < min_input_samples.?) {
-                // Insufficient output samples available for at least one output
-                self.writers.items[min_output_samples_index].waitAvailable(min_input_samples.? * output_element_sizes[min_output_samples_index], null) catch |err| switch (err) {
-                    error.Timeout => unreachable,
-                };
-            } else if (min_output_samples != null and min_output_samples.? == 0) {
-                // No output samples available for at least one output
-                self.writers.items[min_output_samples_index].waitAvailable(output_element_sizes[min_output_samples_index], null) catch |err| switch (err) {
-                    error.Timeout => unreachable,
-                };
-            } else {
-                min_samples_available = min_input_samples orelse min_output_samples orelse unreachable;
-            }
-        }
-
-        return min_samples_available;
+    pub fn getOutputAvailable(ptr: *anyopaque, index: usize) usize {
+        const self: *Self = @ptrCast(@alignCast(ptr));
+        return self.writers.items[index].getAvailable();
     }
 
     pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
-        std.debug.assert(index < self.readers.items.len);
         return self.readers.items[index].getBuffer();
     }
 
     pub fn getOutputBuffer(ptr: *anyopaque, index: usize) []u8 {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
-        std.debug.assert(index < self.writers.items.len);
         return self.writers.items[index].getBuffer();
     }
 
     pub fn updateInputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
-        std.debug.assert(index < self.readers.items.len);
         self.readers.items[index].update(count);
     }
 
     pub fn updateOutputBuffer(ptr: *anyopaque, index: usize, count: usize) void {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
-        std.debug.assert(index < self.writers.items.len);
         if (self.writers.items[index].getNumReaders() > 0) {
             self.writers.items[index].update(count);
         }
@@ -205,14 +214,11 @@ pub const ThreadSafeRingBufferSampleMux = struct {
 
     pub fn getNumReadersForOutput(ptr: *anyopaque, index: usize) usize {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
-        std.debug.assert(index < self.writers.items.len);
         return self.writers.items[index].getNumReaders();
     }
 
     pub fn setEOF(ptr: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(ptr));
-
         for (self.writers.items) |*writer| {
             writer.setEOF();
         }
@@ -222,7 +228,10 @@ pub const ThreadSafeRingBufferSampleMux = struct {
         return .{
             .ptr = self,
             .vtable = &.{
-                .waitAvailable = waitAvailable,
+                .waitInputAvailable = waitInputAvailable,
+                .waitOutputAvailable = waitOutputAvailable,
+                .getInputAvailable = getInputAvailable,
+                .getOutputAvailable = getOutputAvailable,
                 .getInputBuffer = getInputBuffer,
                 .getOutputBuffer = getOutputBuffer,
                 .updateInputBuffer = updateInputBuffer,
@@ -252,7 +261,6 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         output_buffers: [output_data_types.len][]u8,
         output_buffer_indices: [output_data_types.len]usize = .{0} ** output_data_types.len,
         options: Options,
-        eof: bool = false,
 
         pub fn init(input_buffers: [input_data_types.len][]const u8, options: Options) !Self {
             var output_buffers: [output_data_types.len][]u8 = undefined;
@@ -281,35 +289,36 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn waitAvailable(ptr: *anyopaque, input_element_sizes: []const usize, output_element_sizes: []const usize) error{EndOfFile}!usize {
+        pub fn waitInputAvailable(ptr: *anyopaque, index: usize, _: usize, _: ?u64) error{ EndOfFile, Timeout }!void {
+            _ = try getInputAvailable(ptr, index);
+        }
+
+        pub fn waitOutputAvailable(_: *anyopaque, _: usize, _: usize, _: ?u64) error{Timeout}!void {}
+
+        pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfFile}!usize {
             const self: *Self = @ptrCast(@alignCast(ptr));
 
-            if (self.eof) {
+            if (input_data_types.len == 0) return 0;
+
+            if (self.input_buffer_indices[index] == self.input_buffers[index].len) {
                 return error.EndOfFile;
+            } else if (self.input_buffer_indices[index] < self.input_buffers[index].len and self.options.single_input_samples) {
+                return (comptime util.dataTypeSizes(input_data_types))[index];
+            } else {
+                return self.input_buffers[index].len - self.input_buffer_indices[index];
             }
+        }
 
-            var input_samples_available: [input_data_types.len]usize = undefined;
-            var output_samples_available: [output_data_types.len]usize = undefined;
+        pub fn getOutputAvailable(ptr: *anyopaque, index: usize) usize {
+            const self: *Self = @ptrCast(@alignCast(ptr));
 
-            for (self.input_buffer_indices, 0..) |_, i| {
-                if (self.input_buffer_indices[i] == self.input_buffers[i].len) {
-                    return error.EndOfFile;
-                } else if (self.options.single_input_samples) {
-                    input_samples_available[i] = @min(1, (self.input_buffers[i].len - self.input_buffer_indices[i]) / input_element_sizes[i]);
-                } else {
-                    input_samples_available[i] = (self.input_buffers[i].len - self.input_buffer_indices[i]) / input_element_sizes[i];
-                }
+            if (output_data_types.len == 0) return 0;
+
+            if (self.options.single_output_samples) {
+                return (comptime util.dataTypeSizes)(output_data_types)[index];
+            } else {
+                return self.output_buffers[index].len - self.output_buffer_indices[index];
             }
-
-            for (self.output_buffer_indices, 0..) |_, i| {
-                if (self.options.single_output_samples) {
-                    output_samples_available[i] = @min(1, (self.output_buffers[i].len - self.output_buffer_indices[i]) / output_element_sizes[i]);
-                } else {
-                    output_samples_available[i] = (self.output_buffers[i].len - self.output_buffer_indices[i]) / output_element_sizes[i];
-                }
-            }
-
-            return if (input_data_types.len != 0) std.mem.min(usize, input_samples_available[0..]) else std.mem.min(usize, output_samples_available[0..]);
         }
 
         pub fn getInputBuffer(ptr: *anyopaque, index: usize) []const u8 {
@@ -318,8 +327,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             if (input_data_types.len == 0) return &.{};
 
             if (self.options.single_input_samples) {
-                const input_element_sizes = comptime util.dataTypeSizes(input_data_types);
-                return self.input_buffers[index][self.input_buffer_indices[index] .. self.input_buffer_indices[index] + input_element_sizes[index]];
+                return self.input_buffers[index][self.input_buffer_indices[index] .. self.input_buffer_indices[index] + (comptime util.dataTypeSizes(input_data_types))[index]];
             } else {
                 return self.input_buffers[index][self.input_buffer_indices[index]..];
             }
@@ -331,8 +339,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             if (output_data_types.len == 0) return &.{};
 
             if (self.options.single_output_samples) {
-                const output_element_sizes = comptime util.dataTypeSizes(output_data_types);
-                return self.output_buffers[index][self.output_buffer_indices[index] .. self.output_buffer_indices[index] + output_element_sizes[index]];
+                return self.output_buffers[index][self.output_buffer_indices[index] .. self.output_buffer_indices[index] + (comptime util.dataTypeSizes(output_data_types))[index]];
             } else {
                 return self.output_buffers[index][self.output_buffer_indices[index]..];
             }
@@ -342,6 +349,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             const self: *Self = @ptrCast(@alignCast(ptr));
 
             if (input_data_types.len == 0) return;
+
             self.input_buffer_indices[index] += count;
         }
 
@@ -349,25 +357,26 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             const self: *Self = @ptrCast(@alignCast(ptr));
 
             if (output_data_types.len == 0) return;
+
             self.output_buffer_indices[index] += count;
         }
 
         pub fn getNumReadersForOutput(_: *anyopaque, _: usize) usize {
-            if (output_data_types.len == 0) return 0;
-            return 1;
+            return 0;
         }
 
-        pub fn setEOF(ptr: *anyopaque) void {
-            const self: *Self = @ptrCast(@alignCast(ptr));
-
-            self.eof = true;
+        pub fn setEOF(_: *anyopaque) void {
+            // TestSampleMux has no readers
         }
 
         pub fn sampleMux(self: *Self) SampleMux {
             return .{
                 .ptr = self,
                 .vtable = &.{
-                    .waitAvailable = waitAvailable,
+                    .waitInputAvailable = waitInputAvailable,
+                    .waitOutputAvailable = waitOutputAvailable,
+                    .getInputAvailable = getInputAvailable,
+                    .getOutputAvailable = getOutputAvailable,
                     .getInputBuffer = getInputBuffer,
                     .getOutputBuffer = getOutputBuffer,
                     .updateInputBuffer = updateInputBuffer,
@@ -499,32 +508,6 @@ test "TestSampleMux single output samples" {
     try std.testing.expect(buffers.outputs[0].len == 1);
 }
 
-test "TestSampleMux eof" {
-    const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
-    const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
-
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
-
-    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
-    defer test_sample_mux.deinit();
-
-    var sample_mux = test_sample_mux.sampleMux();
-
-    const buffers = try sample_mux.get(ts);
-
-    try std.testing.expectEqual(@as(usize, 2), buffers.inputs.len);
-    try std.testing.expectEqual(@as(usize, 2), buffers.inputs[0].len);
-    try std.testing.expectEqual(@as(usize, 2), buffers.inputs[1].len);
-    try std.testing.expectEqual(@as(usize, 1), buffers.outputs.len);
-    try std.testing.expect(buffers.outputs[0].len > 4);
-
-    sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
-
-    sample_mux.setEOF();
-
-    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
-}
-
 test "ThreadSafeRingBufferSampleMux single input, single output" {
     const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
@@ -547,6 +530,9 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     input_writer.write(&[_]u8{0xaa} ** 2);
     input_writer.write(&[_]u8{0xbb} ** 2);
     input_writer.write(&[_]u8{0xcc} ** 2);
+
+    // Verify wait returns lowest common number of samples available
+    try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
 
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
@@ -663,6 +649,9 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     input2_writer.write(&[_]u8{0x33} ** 1);
     input2_writer.write(&[_]u8{0x44} ** 1);
 
+    // Verify wait returns lowest common number of samples available
+    try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
+
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
 
@@ -734,6 +723,9 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     input2_writer.write(&[_]u8{0x33} ** 1);
     input2_writer.write(&[_]u8{0x44} ** 1);
 
+    // Verify wait returns lowest common number of samples available
+    try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
+
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
 
@@ -785,6 +777,9 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[2]*ThreadSafeRingBuffer{ &output1_ring_buffer, &output2_ring_buffer });
     defer ring_buffer_sample_mux.deinit();
     var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Verify wait returns lowest common number of samples available
+    try std.testing.expectEqual(@as(usize, (std.mem.page_size / @sizeOf(u32)) - 1), try sample_mux.wait(ts, null));
 
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
@@ -899,8 +894,11 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     buffers.outputs[0][0] = 0xbbbbbbbb;
     buffers.outputs[0][1] = 0xcccccccc;
 
-    // Update sample mux to consume remaining sample
+    // Update sample mux to consume remaining samples
     sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 2, 2 }, &[1]usize{2}));
+
+    // Wait sample buffers should return EOF
+    try std.testing.expectError(error.EndOfFile, sample_mux.wait(ts, 0));
 
     // Get sample buffers should return EOF
     try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
@@ -1001,6 +999,10 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 
     // Leave input 2 ring buffer empty
 
+    // Verify sample mux wait times out
+    try std.testing.expectError(error.Timeout, sample_mux.wait(ts, 0));
+    try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
+
     const BufferWaiter = struct {
         fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
@@ -1089,6 +1091,10 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     // Prewrite output 2 ring buffer to saturate it, leaving 2 samples available
     output2_writer.write(&[_]u8{0x11} ** (std.mem.page_size - 3));
     try std.testing.expectEqual(@as(usize, 2), output2_writer.getAvailable());
+
+    // Verify sample mux wait times out
+    try std.testing.expectError(error.Timeout, sample_mux.wait(ts, 0));
+    try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
         fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
