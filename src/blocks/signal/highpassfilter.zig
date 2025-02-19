@@ -83,28 +83,28 @@ test "HighpassFilterBlock" {
     {
         var block = HighpassFilterBlock(std.math.Complex(f32), 129).init(0.2, .{});
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_2_complexfloat32});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_2_complexfloat32}, .{});
     }
 
     // 129 taps, 0.7 cutoff, 3.0 nyquist, Bartlett window, ComplexFloat32
     {
         var block = HighpassFilterBlock(std.math.Complex(f32), 129).init(0.7, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_7_nyquist_3_0_window_bartlett_complexfloat32});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_taps_129_cutoff_0_7_nyquist_3_0_window_bartlett_complexfloat32}, .{});
     }
 
     // 129 taps, 0.2 cutoff, Float32
     {
         var block = HighpassFilterBlock(f32, 129).init(0.2, .{});
         var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_129_cutoff_0_2_float32});
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_129_cutoff_0_2_float32}, .{});
     }
 
     // 129 taps, 0.7 cutoff, 3.0 nyquist, Bartlett window, Float32
     {
         var block = HighpassFilterBlock(f32, 129).init(0.7, .{ .nyquist = 3.0, .window = WindowFunction.Bartlett });
         var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_129_cutoff_0_7_nyquist_3_0_window_bartlett_float32});
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_taps_129_cutoff_0_7_nyquist_3_0_window_bartlett_float32}, .{});
     }
 }
 
