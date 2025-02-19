@@ -39,13 +39,13 @@ test "ZeroSource" {
     {
         var block = ZeroSource(std.math.Complex(f32)).init(2);
         var tester = try BlockTester(&[0]type{}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
-        try tester.checkSource(.{&[_]std.math.Complex(f32){.{ .re = 0, .im = 0 }} ** 64});
+        try tester.checkSource(.{&[_]std.math.Complex(f32){.{ .re = 0, .im = 0 }} ** 64}, .{});
     }
 
     // Float32
     {
         var block = ZeroSource(f32).init(2);
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.checkSource(.{&[_]f32{0} ** 64});
+        try tester.checkSource(.{&[_]f32{0} ** 64}, .{});
     }
 }

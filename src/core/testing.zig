@@ -61,6 +61,12 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
     return struct {
         const Self = @This();
 
+        pub const TestHooks = struct {
+            context: *anyopaque = undefined,
+            setup: ?*const fn (*anyopaque) anyerror!void = null,
+            teardown: ?*const fn (*anyopaque) anyerror!void = null,
+        };
+
         instance: *Block,
         epsilon: f32,
         silent: bool,
@@ -90,7 +96,7 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
             return .{ .instance = instance, .epsilon = epsilon, .silent = false };
         }
 
-        pub fn check(self: *Self, rate: f64, input_vectors: util.makeTupleConstSliceTypes(input_data_types), output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
+        pub fn check(self: *Self, rate: f64, input_vectors: util.makeTupleConstSliceTypes(input_data_types), output_vectors: util.makeTupleConstSliceTypes(output_data_types), hooks: TestHooks) !void {
             // Set rate on block
             try self.instance.setRate(rate);
 
@@ -103,6 +109,9 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
 
             // Test input vectors entire vector at a time, followed by one sample at a time
             for (&[2]bool{ false, true }) |single_samples| {
+                // Setup hook
+                if (hooks.setup) |setup| try setup(hooks.context);
+
                 // Initialize block
                 try self.instance.initialize(std.testing.allocator);
                 defer self.instance.deinitialize(std.testing.allocator);
@@ -128,10 +137,13 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                     const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
                     try _expectEqualVectors(data_type, output_vectors[i], actual_vector, i, self.epsilon, self.silent);
                 }
+
+                // Teardown hook
+                if (hooks.teardown) |teardown| try teardown(hooks.context);
             }
         }
 
-        pub fn checkSource(self: *Self, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) !void {
+        pub fn checkSource(self: *Self, output_vectors: util.makeTupleConstSliceTypes(output_data_types), hooks: TestHooks) !void {
             // Set rate on block
             try self.instance.setRate(0);
 
@@ -140,6 +152,9 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
 
             // Test entire output vector at a time, followed by one sample at a time
             for (&[2]bool{ false, true }) |single_samples| {
+                // Setup hook
+                if (hooks.setup) |setup| try setup(hooks.context);
+
                 // Initialize block
                 try self.instance.initialize(std.testing.allocator);
                 defer self.instance.deinitialize(std.testing.allocator);
@@ -168,6 +183,9 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                     const actual_vector = tester_sample_mux.getOutputVector(data_type, i);
                     try _expectEqualVectors(data_type, output_vectors[i], actual_vector[0..output_vectors[i].len], i, self.epsilon, self.silent);
                 }
+
+                // Teardown hook
+                if (hooks.teardown) |teardown| try teardown(hooks.context);
             }
         }
     };
@@ -326,15 +344,15 @@ test "BlockTester for Block" {
     var tester3 = try BlockTester(&[2]type{ std.math.Complex(f32), std.math.Complex(f32) }, &[1]type{std.math.Complex(f32)}).init(&block3.block, 0.1);
 
     // Test success
-    try tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5, 7 }});
+    try tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5, 7 }}, .{});
     try std.testing.expectEqual(@as(usize, 11), block1.initialized);
 
     // Test success with floats
-    try tester2.check(8000, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, .{&[_]f32{ 2.2, 4.4, 6.6 }});
+    try tester2.check(8000, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, .{&[_]f32{ 2.2, 4.4, 6.6 }}, .{});
     try std.testing.expectEqual(@as(usize, 22), block2.initialized);
 
     // Test success with complex floats
-    try tester3.check(8000, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.75, 3.75), std.math.Complex(f32).init(4.25, 5.25) }});
+    try tester3.check(8000, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.75, 3.75), std.math.Complex(f32).init(4.25, 5.25) }}, .{});
     try std.testing.expectEqual(@as(usize, 33), block3.initialized);
 
     // Silence output on block tester for error tests
@@ -343,12 +361,12 @@ test "BlockTester for Block" {
     tester3.silent = true;
 
     // Test vector mismatch
-    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5 }}));
-    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5, 8 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5 }}, .{}));
+    try std.testing.expectError(error.TestExpectedEqual, tester1.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5, 8 }}, .{}));
 
     // Test vector mismatch with epsilon
-    try std.testing.expectError(error.TestExpectedEqual, tester2.check(8000, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, .{&[_]f32{ 2.2, 4.0, 6.6 }}));
-    try std.testing.expectError(error.TestExpectedEqual, tester3.check(8000, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester2.check(8000, .{ &[_]f32{ 1.2, 2.4, 3.6 }, &[_]f32{ 1, 2, 3 } }, .{&[_]f32{ 2.2, 4.0, 6.6 }}, .{}));
+    try std.testing.expectError(error.TestExpectedEqual, tester3.check(8000, .{ &[_]std.math.Complex(f32){ std.math.Complex(f32).init(1, 2), std.math.Complex(f32).init(3, 4), std.math.Complex(f32).init(5, 6) }, &[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 0.5), std.math.Complex(f32).init(0.25, 0.25), std.math.Complex(f32).init(0.75, 0.75) } }, .{&[_]std.math.Complex(f32){ std.math.Complex(f32).init(0.5, 1.5), std.math.Complex(f32).init(2.65, 3.85), std.math.Complex(f32).init(4.25, 5.25) }}, .{}));
 }
 
 const TestSource = struct {
@@ -399,21 +417,59 @@ test "BlockTester for Source" {
 
     // Test initialization error
     block.error_on_initialize = true;
-    try std.testing.expectError(error.NotImplemented, tester.checkSource(.{&[_]f32{2}}));
+    try std.testing.expectError(error.NotImplemented, tester.checkSource(.{&[_]f32{2}}, .{}));
     block.error_on_initialize = false;
 
     // Test success
-    try tester.checkSource(.{&[_]f32{ 1, 2, 3 }});
+    try tester.checkSource(.{&[_]f32{ 1, 2, 3 }}, .{});
     try std.testing.expectEqual(@as(usize, 123), block.counter);
 
     // Silence output on block tester for error tests
     tester.silent = true;
 
     // Test vector mismatch
-    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(.{&[_]f32{ 2, 3, 4 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(.{&[_]f32{ 2, 3, 4 }}, .{}));
 
     // Test vector mismatch with epsilon
-    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(.{&[_]f32{ 1, 2.5, 3 }}));
+    try std.testing.expectError(error.TestExpectedEqual, tester.checkSource(.{&[_]f32{ 1, 2.5, 3 }}, .{}));
+}
+
+test "BlockTester hooks" {
+    const Counters = struct { setup_called: usize, teardown_called: usize };
+
+    const hooks = struct {
+        fn setup(context: *anyopaque) !void {
+            var counters: *Counters = @ptrCast(@alignCast(context));
+            counters.setup_called += 1;
+        }
+
+        fn teardown(context: *anyopaque) !void {
+            var counters: *Counters = @ptrCast(@alignCast(context));
+            counters.teardown_called += 1;
+        }
+    };
+
+    // Test hooks with block
+    {
+        var block = TestBlock1.init();
+        var tester = try BlockTester(&[2]type{ u32, u16 }, &[1]type{u32}).init(&block.block, 0.1);
+
+        var counters: Counters = .{ .setup_called = 0, .teardown_called = 0 };
+        try tester.check(8000, .{ &[_]u32{ 1, 2, 3 }, &[_]u16{ 2, 3, 4 } }, .{&[_]u32{ 3, 5, 7 }}, .{ .context = &counters, .setup = hooks.setup, .teardown = hooks.teardown });
+        try std.testing.expectEqual(2, counters.setup_called);
+        try std.testing.expectEqual(2, counters.teardown_called);
+    }
+
+    // Test hooks with source
+    {
+        var block = TestSource.init();
+        var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 0.1);
+
+        var counters: Counters = .{ .setup_called = 0, .teardown_called = 0 };
+        try tester.checkSource(.{&[_]f32{ 1, 2, 3 }}, .{ .context = &counters, .setup = hooks.setup, .teardown = hooks.teardown });
+        try std.testing.expectEqual(2, counters.setup_called);
+        try std.testing.expectEqual(2, counters.teardown_called);
+    }
 }
 
 test "BlockFixture for Block" {

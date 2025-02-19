@@ -28,13 +28,13 @@ test "FMDeemphasisFilterBlock" {
     {
         var block = FMDeemphasisFilterBlock.init(5e-6);
         var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_tau_5em6});
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_tau_5em6}, .{});
     }
 
     // 1e-6 tau, Float32
     {
         var block = FMDeemphasisFilterBlock.init(1e-6);
         var tester = try BlockTester(&[1]type{f32}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_tau_1em6});
+        try tester.check(2, .{&vectors.input_float32}, .{&vectors.output_tau_1em6}, .{});
     }
 }

@@ -199,13 +199,13 @@ test "FrequencyDiscriminatorBlock" {
     {
         var block = FrequencyDiscriminatorBlock.init(0.2);
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_2});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_2}, .{});
     }
 
     // Deviation 0.4
     {
         var block = FrequencyDiscriminatorBlock.init(0.4);
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_4});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_4}, .{});
     }
 }
