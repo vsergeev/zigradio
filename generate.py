@@ -40,6 +40,8 @@ def serialize(vector):
             return f"[{len(vector)}]std.math.Complex(f32){{" + ("", " ")[len(vector) > 1] + ", ".join([f".{{ .re = {e.real:.{PRECISION}f}, .im = {e.imag:.{PRECISION}f} }}" for e in vector]) + ("", " ")[len(vector) > 1] + "}"
         else:
             raise NotImplementedError(f"Unsupported ndarray data type: {vector.dtype}")
+    elif isinstance(vector, bytes):
+        return f"[{len(vector)}]u8{{" + ("", " ")[len(vector) > 1] + ", ".join([f'0x{e:02x}' for e in vector]) + ("", " ")[len(vector) > 1] + "}"
     else:
         raise NotImplementedError(f"Unsupported vector type: {type(vector)}")
 
