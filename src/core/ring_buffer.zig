@@ -721,16 +721,16 @@ test "RingBuffer eof" {
 // ThreadSafeRingBuffer Tests
 ////////////////////////////////////////////////////////////////////////////////
 
-test "RingBuffer write wait" {
+test "ThreadSafeRingBuffer write wait" {
     // This test requires spawning threads
     if (builtin.single_threaded) {
         return error.SkipZigTest;
     }
 
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
-        const RingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try RingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -759,7 +759,7 @@ test "RingBuffer write wait" {
         try std.testing.expectError(error.Timeout, writer.waitAvailable(5, std.time.ns_per_ms));
 
         const WriteWaiter = struct {
-            fn run(wr: *RingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
+            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
                 // Blocking wait for 7
                 _ = try wr.waitAvailable(7, null);
                 // Signal done
@@ -787,23 +787,23 @@ test "RingBuffer write wait" {
     }
 }
 
-test "RingBuffer read wait" {
+test "ThreadSafeRingBuffer read wait" {
     // This test requires spawning threads
     if (builtin.single_threaded) {
         return error.SkipZigTest;
     }
 
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
-        const RingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try RingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
         var reader1 = ring_buffer.reader();
         var reader2 = ring_buffer.reader();
 
-        // Write 5
+        // Write 7
         writer.update(7);
         // Reader 1 read 7
         reader1.update(7);
@@ -819,7 +819,7 @@ test "RingBuffer read wait" {
         try std.testing.expectError(error.Timeout, reader2.waitAvailable(8, std.time.ns_per_ms));
 
         const ReadWaiter = struct {
-            fn run(rd: *RingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
                 // Wait for 5
                 _ = try rd.waitAvailable(5, null);
                 // Signal done
@@ -855,7 +855,48 @@ test "RingBuffer read wait" {
         // Writer write 1
         writer.update(1);
 
-        // Check write waiter completed
+        // Check reader waiter completed
+        try done_event.timedWait(std.time.ns_per_ms);
+        try std.testing.expectEqual(true, done_event.isSet());
+        thread.join();
+    }
+}
+
+test "ThreadSafeRingBuffer read wait eof" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        defer ring_buffer.deinit();
+
+        var writer = ring_buffer.writer();
+        var reader = ring_buffer.reader();
+
+        const ReadWaiter = struct {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+                // Wait for 5
+                _ = rd.waitAvailable(5, null) catch 0;
+                // Signal done
+                done.set();
+            }
+        };
+
+        // Spawn a thread that waits until reader has available
+        var done_event = std.Thread.ResetEvent{};
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
+
+        // Done event should not be set
+        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+
+        // Set EOF on writer
+        writer.setEOF();
+
+        // Check reader waiter completed
         try done_event.timedWait(std.time.ns_per_ms);
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
