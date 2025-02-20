@@ -79,7 +79,7 @@ pub const ThreadedBlockRunner = struct {
             fn run(runner: *ThreadedBlockRunner) !void {
                 while (true) {
                     if (runner.stop_event.isSet()) {
-                        runner.sample_mux.setEOF();
+                        runner.sample_mux.setEOS();
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
@@ -90,7 +90,7 @@ pub const ThreadedBlockRunner = struct {
                     defer runner.mutex.unlock();
 
                     const process_result = try runner.block.process(runner.sample_mux);
-                    if (process_result.eof) {
+                    if (process_result.eos) {
                         break;
                     }
                 }
@@ -166,7 +166,7 @@ const TestSource = struct {
 
     pub fn process(self: *TestSource, z: []u16) !ProcessResult {
         if (self.count == 100) {
-            return ProcessResult.eof();
+            return ProcessResult.eos();
         }
 
         z[0] = @as(u16, @intCast(self.count));

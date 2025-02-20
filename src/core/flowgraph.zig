@@ -1430,7 +1430,7 @@ const TestBufferSource = struct {
     }
 
     pub fn process(self: *TestBufferSource, z: []u8) !ProcessResult {
-        if (self.index == self.buf.len) return ProcessResult.eof();
+        if (self.index == self.buf.len) return ProcessResult.eos();
 
         z[0] = self.buf[self.index];
         self.index += 1;
@@ -1582,7 +1582,7 @@ const TestRawSource = struct {
     }
 
     pub fn stop(self: *TestRawSource) void {
-        self.sample_mux.setEOF();
+        self.sample_mux.setEOS();
     }
 
     pub fn feed(self: *TestRawSource) void {

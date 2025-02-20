@@ -16,16 +16,16 @@ pub const SampleMux = struct {
     vtable: *const VTable,
 
     pub const VTable = struct {
-        waitInputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfFile, Timeout }!void,
+        waitInputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfStream, Timeout }!void,
         waitOutputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{Timeout}!void,
-        getInputAvailable: *const fn (ptr: *anyopaque, index: usize) error{EndOfFile}!usize,
+        getInputAvailable: *const fn (ptr: *anyopaque, index: usize) error{EndOfStream}!usize,
         getOutputAvailable: *const fn (ptr: *anyopaque, index: usize) usize,
         getInputBuffer: *const fn (ptr: *anyopaque, index: usize) []const u8,
         getOutputBuffer: *const fn (ptr: *anyopaque, index: usize) []u8,
         updateInputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
         updateOutputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
         getNumReadersForOutput: *const fn (ptr: *anyopaque, index: usize) usize,
-        setEOF: *const fn (ptr: *anyopaque) void,
+        setEOS: *const fn (ptr: *anyopaque) void,
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ pub const SampleMux = struct {
         };
     }
 
-    pub fn wait(self: SampleMux, comptime type_signature: ComptimeTypeSignature, timeout_ns: ?u64) error{ Timeout, EndOfFile }!usize {
+    pub fn wait(self: SampleMux, comptime type_signature: ComptimeTypeSignature, timeout_ns: ?u64) error{ Timeout, EndOfStream }!usize {
         const input_element_sizes = comptime util.dataTypeSizes(type_signature.inputs);
         const output_element_sizes = comptime util.dataTypeSizes(type_signature.outputs);
 
@@ -79,10 +79,10 @@ pub const SampleMux = struct {
         return min_samples_available;
     }
 
-    pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfFile}!SampleBuffers(type_signature) {
+    pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfStream}!SampleBuffers(type_signature) {
         // Wait for sufficient number of samples
         const min_samples_available = self.wait(type_signature, null) catch |err| switch (err) {
-            error.EndOfFile => |e| return e,
+            error.EndOfStream => |e| return e,
             error.Timeout => unreachable,
         };
 
@@ -131,8 +131,8 @@ pub const SampleMux = struct {
         }
     }
 
-    pub fn setEOF(self: SampleMux) void {
-        self.vtable.setEOF(self.ptr);
+    pub fn setEOS(self: SampleMux) void {
+        self.vtable.setEOS(self.ptr);
     }
 };
 
@@ -170,7 +170,7 @@ pub const ThreadSafeRingBufferSampleMux = struct {
     // SampleMux API
     ////////////////////////////////////////////////////////////////////////////
 
-    pub fn waitInputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfFile, Timeout }!void {
+    pub fn waitInputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfStream, Timeout }!void {
         const self: *Self = @ptrCast(@alignCast(ptr));
         return self.readers.items[index].waitAvailable(min_count, timeout_ns);
     }
@@ -180,7 +180,7 @@ pub const ThreadSafeRingBufferSampleMux = struct {
         return self.writers.items[index].waitAvailable(min_count, timeout_ns);
     }
 
-    pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfFile}!usize {
+    pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfStream}!usize {
         const self: *Self = @ptrCast(@alignCast(ptr));
         return self.readers.items[index].getAvailable();
     }
@@ -217,10 +217,10 @@ pub const ThreadSafeRingBufferSampleMux = struct {
         return self.writers.items[index].getNumReaders();
     }
 
-    pub fn setEOF(ptr: *anyopaque) void {
+    pub fn setEOS(ptr: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(ptr));
         for (self.writers.items) |*writer| {
-            writer.setEOF();
+            writer.setEOS();
         }
     }
 
@@ -237,7 +237,7 @@ pub const ThreadSafeRingBufferSampleMux = struct {
                 .updateInputBuffer = updateInputBuffer,
                 .updateOutputBuffer = updateOutputBuffer,
                 .getNumReadersForOutput = getNumReadersForOutput,
-                .setEOF = setEOF,
+                .setEOS = setEOS,
             },
         };
     }
@@ -289,19 +289,19 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         // SampleMux API
         ////////////////////////////////////////////////////////////////////////////
 
-        pub fn waitInputAvailable(ptr: *anyopaque, index: usize, _: usize, _: ?u64) error{ EndOfFile, Timeout }!void {
+        pub fn waitInputAvailable(ptr: *anyopaque, index: usize, _: usize, _: ?u64) error{ EndOfStream, Timeout }!void {
             _ = try getInputAvailable(ptr, index);
         }
 
         pub fn waitOutputAvailable(_: *anyopaque, _: usize, _: usize, _: ?u64) error{Timeout}!void {}
 
-        pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfFile}!usize {
+        pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfStream}!usize {
             const self: *Self = @ptrCast(@alignCast(ptr));
 
             if (input_data_types.len == 0) return 0;
 
             if (self.input_buffer_indices[index] == self.input_buffers[index].len) {
-                return error.EndOfFile;
+                return error.EndOfStream;
             } else if (self.input_buffer_indices[index] < self.input_buffers[index].len and self.options.single_input_samples) {
                 return (comptime util.dataTypeSizes(input_data_types))[index];
             } else {
@@ -365,7 +365,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             return 0;
         }
 
-        pub fn setEOF(_: *anyopaque) void {
+        pub fn setEOS(_: *anyopaque) void {
             // TestSampleMux has no readers
         }
 
@@ -382,7 +382,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
                     .updateInputBuffer = updateInputBuffer,
                     .updateOutputBuffer = updateOutputBuffer,
                     .getNumReadersForOutput = getNumReadersForOutput,
-                    .setEOF = setEOF,
+                    .setEOS = setEOS,
                 },
             };
         }
@@ -442,7 +442,7 @@ test "TestSampleMux multiple input, single output" {
 
     try std.testing.expectEqualSlices(u16, &[_]u16{ 0x99aa, 0xbbcc, 0xddee, 0xff00 }, test_sample_mux.getOutputVector(u16, 0)[4..]);
 
-    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
+    try std.testing.expectError(error.EndOfStream, sample_mux.get(ts));
 }
 
 test "TestSampleMux single input samples" {
@@ -482,7 +482,7 @@ test "TestSampleMux single input samples" {
 
     sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 1, 1 }, &[1]usize{0}));
 
-    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
+    try std.testing.expectError(error.EndOfStream, sample_mux.get(ts));
 }
 
 test "TestSampleMux single output samples" {
@@ -813,7 +813,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     try std.testing.expectEqualSlices(u8, &[_]u8{0xee}, output2_reader.read(b[0..1]));
 }
 
-test "ThreadSafeRingBufferSampleMux read eof" {
+test "ThreadSafeRingBufferSampleMux read eos" {
     const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[1]type{u32});
 
     // Create ring buffers
@@ -874,8 +874,8 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     var b: [4]u8 = .{0x00} ** 4;
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output1_reader.read(b[0..]));
 
-    // Set EOF on input 2
-    input2_writer.setEOF();
+    // Set EOS on input 2
+    input2_writer.setEOS();
 
     // Get sample buffers
     buffers = try sample_mux.get(ts);
@@ -897,14 +897,14 @@ test "ThreadSafeRingBufferSampleMux read eof" {
     // Update sample mux to consume remaining samples
     sample_mux.update(ts, buffers, ProcessResult.init(&[2]usize{ 2, 2 }, &[1]usize{2}));
 
-    // Wait sample buffers should return EOF
-    try std.testing.expectError(error.EndOfFile, sample_mux.wait(ts, 0));
+    // Wait sample buffers should return EOS
+    try std.testing.expectError(error.EndOfStream, sample_mux.wait(ts, 0));
 
-    // Get sample buffers should return EOF
-    try std.testing.expectError(error.EndOfFile, sample_mux.get(ts));
+    // Get sample buffers should return EOS
+    try std.testing.expectError(error.EndOfStream, sample_mux.get(ts));
 }
 
-test "ThreadSafeRingBufferSampleMux write eof" {
+test "ThreadSafeRingBufferSampleMux write eos" {
     const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
@@ -946,8 +946,8 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     // Update sample mux
     sample_mux.update(ts, buffers, ProcessResult.init(&[1]usize{3}, &[1]usize{3}));
 
-    // Set write EOF
-    sample_mux.setEOF();
+    // Set write EOS
+    sample_mux.setEOS();
 
     // Verify ring buffer state
     try std.testing.expectEqual(@as(usize, 0), input_ring_buffer.impl.getReadAvailable(0));
@@ -959,8 +959,8 @@ test "ThreadSafeRingBufferSampleMux write eof" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb }, output_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xcc, 0xcc, 0xcc, 0xcc }, output_reader.read(b[0..]));
 
-    // Verify output reader now gets EOF
-    try std.testing.expectError(error.EndOfFile, output_reader.getAvailable());
+    // Verify output reader now gets EOS
+    try std.testing.expectError(error.EndOfStream, output_reader.getAvailable());
 }
 
 test "ThreadSafeRingBufferSampleMux blocking read" {

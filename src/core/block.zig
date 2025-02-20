@@ -11,7 +11,7 @@ const SampleMux = @import("sample_mux.zig").SampleMux;
 pub const ProcessResult = struct {
     samples_consumed: [8]usize = [_]usize{0} ** 8,
     samples_produced: [8]usize = [_]usize{0} ** 8,
-    eof: bool = false,
+    eos: bool = false,
 
     pub fn init(consumed: []const usize, produced: []const usize) ProcessResult {
         var self = ProcessResult{};
@@ -20,9 +20,9 @@ pub const ProcessResult = struct {
         return self;
     }
 
-    pub fn eof() ProcessResult {
+    pub fn eos() ProcessResult {
         return ProcessResult{
-            .eof = true,
+            .eos = true,
         };
     }
 };
@@ -66,11 +66,11 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
         fn process(block: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
             const self: *BlockType = @fieldParentPtr("block", block);
 
-            // Get sample buffers, catching read EOF
+            // Get sample buffers, catching read EOS
             const buffers = sample_mux.get(type_signature) catch |err| switch (err) {
-                error.EndOfFile => {
-                    sample_mux.setEOF();
-                    return ProcessResult.eof();
+                error.EndOfStream => {
+                    sample_mux.setEOS();
+                    return ProcessResult.eos();
                 },
             };
 
@@ -80,9 +80,9 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
             // Update sample buffers
             sample_mux.update(type_signature, buffers, process_result);
 
-            // If block completed, set write EOF
-            if (process_result.eof) {
-                sample_mux.setEOF();
+            // If block completed, set write EOS
+            if (process_result.eos) {
+                sample_mux.setEOS();
             }
 
             // Return process result
@@ -309,7 +309,7 @@ const TestAddBlock = struct {
 
 const TestSource = struct {
     block: Block,
-    eof: bool = false,
+    eos: bool = false,
 
     pub fn init() TestSource {
         return .{ .block = Block.init(@This()) };
@@ -320,13 +320,13 @@ const TestSource = struct {
     }
 
     pub fn process(self: *TestSource, z: []u16) !ProcessResult {
-        if (self.eof) {
-            return ProcessResult.eof();
+        if (self.eos) {
+            return ProcessResult.eos();
         }
 
         z[0] = 0x2222;
         z[1] = 0x3333;
-        self.eof = true;
+        self.eos = true;
         return ProcessResult.init(&[0]usize{}, &[1]usize{2});
     }
 };
@@ -436,10 +436,10 @@ test "Block.process" {
     try std.testing.expectEqualSlices(u32, &[_]u32{ 0x48362412, 0xc8a78665 }, test_sample_mux.getOutputVector(u32, 0));
 
     process_result = try test_block.block.process(sample_mux);
-    try std.testing.expect(process_result.eof);
+    try std.testing.expect(process_result.eos);
 }
 
-test "Block.process read eof" {
+test "Block.process read eos" {
     var b: [4]u8 = .{0x00} ** 4;
 
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -475,32 +475,32 @@ test "Block.process read eof" {
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_produced[0]);
-    try std.testing.expectEqual(false, process_result.eof);
+    try std.testing.expectEqual(false, process_result.eos);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x12, 0x24, 0x36, 0x48 }, output1_reader.read(b[0..]));
 
-    // Load 1 sample and set EOF
+    // Load 1 sample and set EOS
     input1_writer.update(4);
     input2_writer.update(4);
-    input1_writer.setEOF();
-    input2_writer.setEOF();
+    input1_writer.setEOS();
+    input2_writer.setEOS();
 
     // Process 1 sample
     process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 1), process_result.samples_produced[0]);
-    try std.testing.expectEqual(false, process_result.eof);
+    try std.testing.expectEqual(false, process_result.eos);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x65, 0x86, 0xa7, 0xc8 }, output1_reader.read(b[0..]));
 
-    // Process now return EOF
+    // Process now return EOS
     process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
-    try std.testing.expectEqual(true, process_result.eof);
+    try std.testing.expectEqual(true, process_result.eos);
 }
 
-test "Block.process write eof" {
+test "Block.process write eos" {
     var b: [2]u8 = .{0x00} ** 2;
 
     var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -521,14 +521,14 @@ test "Block.process write eof" {
     var process_result = try test_source.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
-    try std.testing.expectEqual(false, process_result.eof);
+    try std.testing.expectEqual(false, process_result.eos);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x22, 0x22 }, output1_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x33, 0x33 }, output1_reader.read(b[0..]));
 
-    // Process should return EOF
+    // Process should return EOS
     process_result = try test_source.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
-    try std.testing.expectEqual(true, process_result.eof);
-    try std.testing.expectError(error.EndOfFile, output1_reader.getAvailable());
+    try std.testing.expectEqual(true, process_result.eos);
+    try std.testing.expectError(error.EndOfStream, output1_reader.getAvailable());
 }

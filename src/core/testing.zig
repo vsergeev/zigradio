@@ -115,7 +115,7 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 const sample_mux = tester_sample_mux.sampleMux();
                 while (true) {
                     const process_result = try self.instance.process(sample_mux);
-                    if (process_result.eof) {
+                    if (process_result.eos) {
                         break;
                     }
                 }
@@ -149,7 +149,7 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 const sample_mux = tester_sample_mux.sampleMux();
                 blk: while (true) {
                     const process_result = try self.instance.process(sample_mux);
-                    if (process_result.eof) {
+                    if (process_result.eos) {
                         break;
                     }
                     inline for (output_data_types, 0..) |_, i| {
@@ -209,8 +209,8 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             // Run block
             const sample_mux = self.test_sample_mux.sampleMux();
             const process_result = try self.instance.process(sample_mux);
-            if (process_result.eof) {
-                return error.EndOfFile;
+            if (process_result.eos) {
+                return error.EndOfStream;
             }
 
             // Convert output vectors in test sample mux to typed vcetors
