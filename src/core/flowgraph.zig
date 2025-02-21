@@ -500,6 +500,13 @@ pub const Flowgraph = struct {
                     r.join();
                     success = success and r.getError() == null;
                     try self.block_errors.put(r.block, r.getError());
+
+                    // Log block errors in debug mode
+                    if (self.options.debug) {
+                        if (r.getError()) |err| {
+                            std.debug.print("[Flowgraph] Block Error: {s}: {any}\n", .{ r.block.name, err });
+                        }
+                    }
                 },
             }
         }
