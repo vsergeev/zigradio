@@ -44,6 +44,10 @@ pub const RawBlockRunner = struct {
     pub fn join(self: *RawBlockRunner) void {
         self.running = false;
     }
+
+    pub fn getError(_: *const RawBlockRunner) ?anyerror {
+        return null;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +59,8 @@ pub const ThreadedBlockRunner = struct {
     sample_mux: SampleMux,
 
     running: bool = false,
+    process_error: ?anyerror = null,
+
     thread: std.Thread = undefined,
     mutex: std.Thread.Mutex = .{},
     call_event: std.Thread.ResetEvent = .{},
@@ -90,9 +96,11 @@ pub const ThreadedBlockRunner = struct {
 
                     const process_result = runner.block.process(runner.sample_mux) catch |err| switch (err) {
                         error.EndOfStream => break,
-                        else => return err,
+                        else => {
+                            runner.process_error = err;
+                            break;
+                        },
                     };
-
                     if (process_result.eos) {
                         break;
                     }
@@ -123,6 +131,10 @@ pub const ThreadedBlockRunner = struct {
     pub fn join(self: *ThreadedBlockRunner) void {
         self.thread.join();
         self.running = false;
+    }
+
+    pub fn getError(self: *const ThreadedBlockRunner) ?anyerror {
+        return self.process_error;
     }
 };
 
@@ -209,6 +221,25 @@ const TestSink = struct {
     pub fn process(self: *TestSink, x: []const u16) !ProcessResult {
         @memcpy(self.buf[self.count .. self.count + x.len], x);
         self.count += x.len;
+
+        return ProcessResult.init(&[1]usize{x.len}, &[0]usize{});
+    }
+};
+
+const TestErrorSink = struct {
+    block: Block,
+    count: usize = 0,
+
+    pub fn init() TestErrorSink {
+        return .{ .block = Block.init(@This()) };
+    }
+
+    pub fn process(self: *TestErrorSink, x: []const u16) !ProcessResult {
+        if (self.count == 25) {
+            return error.Unexpected;
+        }
+
+        self.count += 1;
 
         return ProcessResult.init(&[1]usize{x.len}, &[0]usize{});
     }
@@ -367,6 +398,11 @@ test "ThreadedBlockRunner finite run" {
     test_block_runner.join();
     test_sink_runner.join();
 
+    // Check errors
+    try std.testing.expect(test_source_runner.getError() == null);
+    try std.testing.expect(test_block_runner.getError() == null);
+    try std.testing.expect(test_sink_runner.getError() == null);
+
     // Check results in test sink
     try std.testing.expectEqual(@as(usize, 100), test_sink.count);
     for (test_sink.buf[0..100], 0..) |e, i| {
@@ -418,8 +454,60 @@ test "ThreadedBlockRunner infinite run" {
     test_source_runner.join();
     test_sink_runner.join();
 
+    // Check errors
+    try std.testing.expect(test_source_runner.getError() == null);
+    try std.testing.expect(test_sink_runner.getError() == null);
+
     // Check results in test sink
     try std.testing.expect(test_sink.count > 0);
+}
+
+test "ThreadedBlockRunner block errors" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    // Create blocks
+    var test_source = TestSource2.init();
+    var test_sink = TestErrorSink.init();
+
+    // Create ring buffer
+    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer ring_buffer.deinit();
+
+    // Create sample muxes
+    var test_source_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&ring_buffer});
+    defer test_source_sample_mux.deinit();
+    var test_sink_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&ring_buffer}, &[0]*ThreadSafeRingBuffer{});
+    defer test_sink_sample_mux.deinit();
+
+    // Set rates
+    try test_source.block.setRate(8000);
+    try test_sink.block.setRate(8000);
+
+    // Create block runners
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
+    defer test_source_runner.deinit();
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
+    defer test_sink_runner.deinit();
+
+    // Spawn block runners
+    try test_source_runner.spawn();
+    try test_sink_runner.spawn();
+
+    // Run for 1ms
+    std.time.sleep(std.time.ns_per_ms);
+
+    // Join block runners
+    test_source_runner.join();
+    test_sink_runner.join();
+
+    // Check errors
+    try std.testing.expect(test_source_runner.getError() != null);
+    try std.testing.expect(test_sink_runner.getError() != null);
+    try std.testing.expectEqual(error.BrokenStream, test_source_runner.getError().?);
+    try std.testing.expectEqual(error.Unexpected, test_sink_runner.getError().?);
 }
 
 test "ThreadedBlockRunner call" {
