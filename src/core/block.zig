@@ -68,7 +68,7 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
 
             // Get sample buffers, catching read EOS
             const buffers = sample_mux.get(type_signature) catch |err| switch (err) {
-                error.EndOfStream => {
+                error.EndOfStream, error.BrokenStream => {
                     sample_mux.setEOS();
                     return ProcessResult.eos();
                 },

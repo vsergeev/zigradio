@@ -139,7 +139,8 @@ fn RingBuffer(comptime MemoryImpl: type) type {
         // Accounting State
         read_index: [MAX_NUM_READERS]usize = [_]usize{0} ** MAX_NUM_READERS,
         write_index: usize = 0,
-        eos: bool = false,
+        read_eos: bool = false,
+        write_eos: bool = false,
 
         ////////////////////////////////////////////////////////////////////////
         // Constructor and Destructor
@@ -206,8 +207,12 @@ fn RingBuffer(comptime MemoryImpl: type) type {
             self.write_index = (self.write_index + count) % self.capacity;
         }
 
-        pub fn setEOS(self: *Self) void {
-            self.eos = true;
+        pub fn setReadEOS(self: *Self) void {
+            self.read_eos = true;
+        }
+
+        pub fn getWriteEOS(self: *Self) bool {
+            return self.write_eos;
         }
 
         ////////////////////////////////////////////////////////////////////////
@@ -218,16 +223,20 @@ fn RingBuffer(comptime MemoryImpl: type) type {
             return if (self.read_index[index] <= self.write_index) self.write_index - self.read_index[index] else self.capacity - self.read_index[index] + self.write_index;
         }
 
-        pub fn getEOS(self: *Self) bool {
-            return self.eos;
-        }
-
         pub fn getReadBuffer(self: *Self, index: usize, count: usize) []const u8 {
             return self.memory.buf[self.read_index[index] .. self.read_index[index] + count];
         }
 
         pub fn updateReadIndex(self: *Self, index: usize, count: usize) void {
             self.read_index[index] = (self.read_index[index] + count) % self.capacity;
+        }
+
+        pub fn getReadEOS(self: *Self) bool {
+            return self.read_eos;
+        }
+
+        pub fn setWriteEOS(self: *Self) void {
+            self.write_eos = true;
         }
 
         pub fn addReader(self: *Self) usize {
@@ -276,18 +285,22 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
         pub const Writer = struct {
             ring_buffer: *Self,
 
-            pub fn getAvailable(self: *const @This()) usize {
+            pub fn getAvailable(self: *const @This()) error{BrokenStream}!usize {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
+
+                if (self.ring_buffer.impl.getWriteEOS()) return error.BrokenStream;
 
                 return self.ring_buffer.impl.getWriteAvailable();
             }
 
-            pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{Timeout}!void {
+            pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
                 while (self.ring_buffer.impl.getWriteAvailable() < min_count) {
+                    if (self.ring_buffer.impl.getWriteEOS()) return error.BrokenStream;
+
                     if (timeout_ns) |timeout| {
                         try self.ring_buffer.cond_write_available.timedWait(&self.ring_buffer.mutex, timeout);
                     } else {
@@ -319,13 +332,13 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
-                self.ring_buffer.impl.setEOS();
+                self.ring_buffer.impl.setReadEOS();
                 self.ring_buffer.cond_read_available.signal();
             }
 
             // Write interface for testing
             pub fn write(self: *@This(), data: []const u8) void {
-                std.debug.assert(self.getAvailable() >= data.len);
+                std.debug.assert(self.getAvailable() catch unreachable >= data.len);
                 @memcpy(self.getBuffer()[0..data.len], data);
                 self.update(data.len);
             }
@@ -340,7 +353,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 defer self.ring_buffer.mutex.unlock();
 
                 const available = self.ring_buffer.impl.getReadAvailable(self.index);
-                if (available == 0 and self.ring_buffer.impl.getEOS()) {
+                if (available == 0 and self.ring_buffer.impl.getReadEOS()) {
                     return error.EndOfStream;
                 }
 
@@ -354,7 +367,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 var available = self.ring_buffer.impl.getReadAvailable(self.index);
 
                 while (available < min_count) {
-                    if (available == 0 and self.ring_buffer.impl.getEOS()) return error.EndOfStream;
+                    if (available == 0 and self.ring_buffer.impl.getReadEOS()) return error.EndOfStream;
 
                     if (timeout_ns) |timeout| {
                         try self.ring_buffer.cond_read_available.timedWait(&self.ring_buffer.mutex, timeout);
@@ -378,6 +391,14 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 defer self.ring_buffer.mutex.unlock();
 
                 self.ring_buffer.impl.updateReadIndex(self.index, count);
+                self.ring_buffer.cond_write_available.signal();
+            }
+
+            pub fn setEOS(self: *@This()) void {
+                self.ring_buffer.mutex.lock();
+                defer self.ring_buffer.mutex.unlock();
+
+                self.ring_buffer.impl.setWriteEOS();
                 self.ring_buffer.cond_write_available.signal();
             }
 
@@ -643,80 +664,6 @@ test "RingBuffer single writer, multiple readers" {
     }
 }
 
-test "RingBuffer eos" {
-    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
-        var ring_buffer = try RingBuffer(MemoryImpl).init(std.testing.allocator, 8);
-        defer ring_buffer.deinit();
-
-        _ = ring_buffer.addReader();
-        _ = ring_buffer.addReader();
-
-        @memcpy(ring_buffer.memory.buf, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 });
-
-        // Initial state
-        try std.testing.expectEqual(@as(usize, 7), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 0), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 0), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{}, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
-        try std.testing.expectEqualSlices(u8, &[_]u8{}, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Write 5
-        ring_buffer.updateWriteIndex(5);
-        try std.testing.expectEqual(@as(usize, 2), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 5), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 5), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Reader 1 read 3
-        ring_buffer.updateReadIndex(0, 3);
-        try std.testing.expectEqual(@as(usize, 2), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 2), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 5), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x04, 0x05 }, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Reader 2 read 2
-        ring_buffer.updateReadIndex(1, 2);
-        try std.testing.expectEqual(@as(usize, 4), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 2), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 3), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x04, 0x05 }, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Writer set EOS
-        ring_buffer.setEOS();
-
-        // Reader 1 read 1
-        ring_buffer.updateReadIndex(0, 1);
-        try std.testing.expectEqual(@as(usize, 4), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 1), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 3), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{0x05}, ring_buffer.getReadBuffer(0, ring_buffer.getReadAvailable(0)));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Reader 1 read 1
-        ring_buffer.updateReadIndex(0, 1);
-        try std.testing.expectEqual(@as(usize, 4), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 0), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 3), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x03, 0x04, 0x05 }, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Reader 2 read 2
-        ring_buffer.updateReadIndex(1, 2);
-        try std.testing.expectEqual(@as(usize, 6), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 1), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqualSlices(u8, &[_]u8{0x05}, ring_buffer.getReadBuffer(1, ring_buffer.getReadAvailable(1)));
-
-        // Reader 2 read 1, should get EOS next
-        ring_buffer.updateReadIndex(1, 1);
-        try std.testing.expectEqual(@as(usize, 7), ring_buffer.getWriteAvailable());
-        try std.testing.expectEqual(@as(usize, 0), ring_buffer.getReadAvailable(0));
-        try std.testing.expectEqual(@as(usize, 0), ring_buffer.getReadAvailable(1));
-        try std.testing.expectEqual(true, ring_buffer.getEOS());
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // ThreadSafeRingBuffer Tests
 ////////////////////////////////////////////////////////////////////////////////
@@ -862,6 +809,73 @@ test "ThreadSafeRingBuffer read wait" {
     }
 }
 
+test "ThreadSafeRingBuffer read eos" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        defer ring_buffer.deinit();
+
+        var writer = ring_buffer.writer();
+        var reader = ring_buffer.reader();
+
+        // Write 7
+        writer.update(7);
+        // Reader read 3
+        reader.update(3);
+
+        // Validate available counts
+        try std.testing.expectEqual(3, writer.getAvailable());
+        try std.testing.expectEqual(4, reader.getAvailable());
+
+        // Set writer EOS
+        writer.setEOS();
+
+        // Reader read 4
+        reader.update(4);
+
+        // Reader should get EOS
+        try std.testing.expectError(error.EndOfStream, reader.getAvailable());
+    }
+}
+
+test "ThreadSafeRingBuffer write eos" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        defer ring_buffer.deinit();
+
+        var writer = ring_buffer.writer();
+        var reader = ring_buffer.reader();
+
+        // Write 7
+        writer.update(7);
+        // Reader read 3
+        reader.update(3);
+
+        // Validate available counts
+        try std.testing.expectEqual(3, writer.getAvailable());
+        try std.testing.expectEqual(4, reader.getAvailable());
+
+        // Set reader EOS
+        reader.setEOS();
+
+        // Writer should get EOS
+        try std.testing.expectError(error.BrokenStream, writer.getAvailable());
+    }
+}
+
 test "ThreadSafeRingBuffer read wait eos" {
     // This test requires spawning threads
     if (builtin.single_threaded) {
@@ -900,6 +914,56 @@ test "ThreadSafeRingBuffer read wait eos" {
         try done_event.timedWait(std.time.ns_per_ms);
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
+
+        // Reader should get EOS
+        try std.testing.expectError(error.EndOfStream, reader.getAvailable());
+    }
+}
+
+test "ThreadSafeRingBuffer write wait eos" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        defer ring_buffer.deinit();
+
+        var writer = ring_buffer.writer();
+        var reader = ring_buffer.reader();
+
+        // Write 7
+        writer.update(7);
+
+        const ReadWaiter = struct {
+            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
+                // Wait for 1
+                _ = wr.waitAvailable(1, null) catch 0;
+                // Signal done
+                done.set();
+            }
+        };
+
+        // Spawn a thread that waits until reader has available
+        var done_event = std.Thread.ResetEvent{};
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &writer, &done_event });
+
+        // Done event should not be set
+        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+
+        // Set EOS on reader
+        reader.setEOS();
+
+        // Check reader waiter completed
+        try done_event.timedWait(std.time.ns_per_ms);
+        try std.testing.expectEqual(true, done_event.isSet());
+        thread.join();
+
+        // Writer should get EOS
+        try std.testing.expectError(error.BrokenStream, writer.getAvailable());
     }
 }
 

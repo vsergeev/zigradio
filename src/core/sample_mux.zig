@@ -17,9 +17,9 @@ pub const SampleMux = struct {
 
     pub const VTable = struct {
         waitInputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ EndOfStream, Timeout }!void,
-        waitOutputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{Timeout}!void,
+        waitOutputAvailable: *const fn (ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void,
         getInputAvailable: *const fn (ptr: *anyopaque, index: usize) error{EndOfStream}!usize,
-        getOutputAvailable: *const fn (ptr: *anyopaque, index: usize) usize,
+        getOutputAvailable: *const fn (ptr: *anyopaque, index: usize) error{BrokenStream}!usize,
         getInputBuffer: *const fn (ptr: *anyopaque, index: usize) []const u8,
         getOutputBuffer: *const fn (ptr: *anyopaque, index: usize) []u8,
         updateInputBuffer: *const fn (ptr: *anyopaque, index: usize, count: usize) void,
@@ -39,7 +39,7 @@ pub const SampleMux = struct {
         };
     }
 
-    pub fn wait(self: SampleMux, comptime type_signature: ComptimeTypeSignature, timeout_ns: ?u64) error{ Timeout, EndOfStream }!usize {
+    pub fn wait(self: SampleMux, comptime type_signature: ComptimeTypeSignature, timeout_ns: ?u64) error{ Timeout, EndOfStream, BrokenStream }!usize {
         const input_element_sizes = comptime util.dataTypeSizes(type_signature.inputs);
         const output_element_sizes = comptime util.dataTypeSizes(type_signature.outputs);
 
@@ -53,7 +53,7 @@ pub const SampleMux = struct {
                 input_samples_available[i] = try self.vtable.getInputAvailable(self.ptr, i) / @sizeOf(input_type);
             }
             inline for (type_signature.outputs, 0..) |output_type, i| {
-                output_samples_available[i] = self.vtable.getOutputAvailable(self.ptr, i) / @sizeOf(output_type);
+                output_samples_available[i] = try self.vtable.getOutputAvailable(self.ptr, i) / @sizeOf(output_type);
             }
 
             // Compute minimum input and output samples available
@@ -79,10 +79,10 @@ pub const SampleMux = struct {
         return min_samples_available;
     }
 
-    pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{EndOfStream}!SampleBuffers(type_signature) {
+    pub fn get(self: SampleMux, comptime type_signature: ComptimeTypeSignature) error{ EndOfStream, BrokenStream }!SampleBuffers(type_signature) {
         // Wait for sufficient number of samples
         const min_samples_available = self.wait(type_signature, null) catch |err| switch (err) {
-            error.EndOfStream => |e| return e,
+            error.EndOfStream, error.BrokenStream => |e| return e,
             error.Timeout => unreachable,
         };
 
@@ -175,7 +175,7 @@ pub const ThreadSafeRingBufferSampleMux = struct {
         return self.readers.items[index].waitAvailable(min_count, timeout_ns);
     }
 
-    pub fn waitOutputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{Timeout}!void {
+    pub fn waitOutputAvailable(ptr: *anyopaque, index: usize, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void {
         const self: *Self = @ptrCast(@alignCast(ptr));
         return self.writers.items[index].waitAvailable(min_count, timeout_ns);
     }
@@ -185,7 +185,7 @@ pub const ThreadSafeRingBufferSampleMux = struct {
         return self.readers.items[index].getAvailable();
     }
 
-    pub fn getOutputAvailable(ptr: *anyopaque, index: usize) usize {
+    pub fn getOutputAvailable(ptr: *anyopaque, index: usize) error{BrokenStream}!usize {
         const self: *Self = @ptrCast(@alignCast(ptr));
         return self.writers.items[index].getAvailable();
     }
@@ -219,9 +219,8 @@ pub const ThreadSafeRingBufferSampleMux = struct {
 
     pub fn setEOS(ptr: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(ptr));
-        for (self.writers.items) |*writer| {
-            writer.setEOS();
-        }
+        for (self.writers.items) |*writer| writer.setEOS();
+        for (self.readers.items) |*reader| reader.setEOS();
     }
 
     pub fn sampleMux(self: *Self) SampleMux {
@@ -293,7 +292,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             _ = try getInputAvailable(ptr, index);
         }
 
-        pub fn waitOutputAvailable(_: *anyopaque, _: usize, _: usize, _: ?u64) error{Timeout}!void {}
+        pub fn waitOutputAvailable(_: *anyopaque, _: usize, _: usize, _: ?u64) error{ BrokenStream, Timeout }!void {}
 
         pub fn getInputAvailable(ptr: *anyopaque, index: usize) error{EndOfStream}!usize {
             const self: *Self = @ptrCast(@alignCast(ptr));
@@ -309,7 +308,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             }
         }
 
-        pub fn getOutputAvailable(ptr: *anyopaque, index: usize) usize {
+        pub fn getOutputAvailable(ptr: *anyopaque, index: usize) error{BrokenStream}!usize {
             const self: *Self = @ptrCast(@alignCast(ptr));
 
             if (output_data_types.len == 0) return 0;
@@ -961,6 +960,33 @@ test "ThreadSafeRingBufferSampleMux write eos" {
 
     // Verify output reader now gets EOS
     try std.testing.expectError(error.EndOfStream, output_reader.getAvailable());
+}
+
+test "ThreadSafeRingBufferSampleMux broken stream" {
+    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+
+    // Create ring buffers
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer input_ring_buffer.deinit();
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer output_ring_buffer.deinit();
+
+    // Get ring buffer reader/write interfaces
+    var output_reader = output_ring_buffer.reader();
+
+    // Create ring buffer sample mux
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[1]*ThreadSafeRingBuffer{&input_ring_buffer}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
+    defer ring_buffer_sample_mux.deinit();
+    var sample_mux = ring_buffer_sample_mux.sampleMux();
+
+    // Set read EOS
+    output_reader.setEOS();
+
+    // Wait sample buffers should return BrokenStream
+    try std.testing.expectError(error.BrokenStream, sample_mux.wait(ts, 0));
+
+    // Get sample buffers should return EOS
+    try std.testing.expectError(error.BrokenStream, sample_mux.get(ts));
 }
 
 test "ThreadSafeRingBufferSampleMux blocking read" {
