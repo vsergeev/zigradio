@@ -230,6 +230,8 @@ pub const Flowgraph = struct {
     flattened_connections: std.AutoHashMap(BlockInputPort, BlockOutputPort),
     block_set: std.AutoHashMap(*Block, void),
     composite_set: std.AutoHashMap(*CompositeBlock, void),
+    block_errors: std.AutoHashMap(*Block, ?anyerror),
+
     run_state: ?FlowgraphRunState = null,
 
     pub fn init(allocator: std.mem.Allocator, options: Options) Flowgraph {
@@ -242,12 +244,14 @@ pub const Flowgraph = struct {
             .flattened_connections = std.AutoHashMap(BlockInputPort, BlockOutputPort).init(allocator),
             .block_set = std.AutoHashMap(*Block, void).init(allocator),
             .composite_set = std.AutoHashMap(*CompositeBlock, void).init(allocator),
+            .block_errors = std.AutoHashMap(*Block, ?anyerror).init(allocator),
         };
     }
 
     pub fn deinit(self: *Flowgraph) void {
         if (self.run_state) |*run_state| run_state.deinit();
 
+        self.block_errors.deinit();
         self.composite_set.deinit();
         self.block_set.deinit();
         self.flattened_connections.deinit();
@@ -485,13 +489,20 @@ pub const Flowgraph = struct {
         };
     }
 
-    pub fn wait(self: *Flowgraph) !void {
+    pub fn wait(self: *Flowgraph) !bool {
         if (self.run_state == null) return FlowgraphError.NotRunning;
 
-        // Join all block runners
-        for (self.run_state.?.block_runners.values()) |*block_runner| switch (block_runner.*) {
-            inline else => |*r| r.join(),
-        };
+        // Join all block runners and collect any block errors
+        var success = true;
+        for (self.run_state.?.block_runners.values()) |*block_runner| {
+            switch (block_runner.*) {
+                inline else => |*r| {
+                    r.join();
+                    success = success and r.getError() == null;
+                    try self.block_errors.put(r.block, r.getError());
+                },
+            }
+        }
 
         // Free run state
         self.run_state.?.deinit();
@@ -499,9 +510,12 @@ pub const Flowgraph = struct {
 
         // Deinitialize
         self._deinitialize();
+
+        // Return success status
+        return success;
     }
 
-    pub fn stop(self: *Flowgraph) !void {
+    pub fn stop(self: *Flowgraph) !bool {
         if (self.run_state == null) return FlowgraphError.NotRunning;
 
         // For each block runner
@@ -518,14 +532,14 @@ pub const Flowgraph = struct {
         }
 
         // Wait for termination
-        try self.wait();
+        return try self.wait();
     }
 
-    pub fn run(self: *Flowgraph) !void {
+    pub fn run(self: *Flowgraph) !bool {
         if (self.run_state != null) return FlowgraphError.AlreadyRunning;
 
         try self.start();
-        try self.wait();
+        return try self.wait();
     }
 
     fn CallReturnType(comptime function: anytype) type {
@@ -1493,6 +1507,25 @@ const TestBufferSink = struct {
     }
 };
 
+const TestErrorSink = struct {
+    block: Block,
+    count: usize = 0,
+
+    pub fn init() TestErrorSink {
+        return .{ .block = Block.init(@This()) };
+    }
+
+    pub fn process(self: *TestErrorSink, x: []const u8) !ProcessResult {
+        if (self.count == 1) {
+            return error.Unexpected;
+        }
+
+        self.count += 1;
+
+        return ProcessResult.init(&[1]usize{x.len}, &[0]usize{});
+    }
+};
+
 test "Flowgraph run to completion" {
     // Input test vector
     var test_vector: [8192]u8 = .{0x00} ** 8192;
@@ -1517,8 +1550,8 @@ test "Flowgraph run to completion" {
     try top.connect(&source_block.block, &inverter_block.block);
     try top.connect(&inverter_block.block, &sink_block.block);
 
-    // Run flow graph
-    try top.run();
+    // Run flow graph and check for success
+    try std.testing.expectEqual(true, try top.run());
 
     // Validate output vector
     try std.testing.expectEqualSlices(u8, &expected_output_vector, sink_block.buf.items);
@@ -1543,8 +1576,8 @@ test "Flowgraph start, stop" {
     // Run for 1 ms
     std.time.sleep(std.time.ns_per_ms);
 
-    // Stop flow graph
-    try top.stop();
+    // Stop flow graph and check for success
+    try std.testing.expectEqual(true, try top.stop());
 
     // Generate expected output buffer
     var prng = std.rand.DefaultPrng.init(123);
@@ -1557,6 +1590,27 @@ test "Flowgraph start, stop" {
 
     // Validate output vector
     try std.testing.expectEqualSlices(u8, expected_output_vector, sink_block.buf.items);
+}
+
+test "Flowgraph collapses on error" {
+    // Create flow graph
+    var top = Flowgraph.init(std.testing.allocator, .{});
+    defer top.deinit();
+
+    var source_block = TestBufferSource.init(&(.{0x00} ** 8192));
+    var inverter_block = TestInverterBlock.init();
+    var sink_block = TestErrorSink.init();
+
+    try top.connect(&source_block.block, &inverter_block.block);
+    try top.connect(&inverter_block.block, &sink_block.block);
+
+    // Run flow graph
+    try std.testing.expectEqual(false, try top.run());
+
+    // Check errors
+    try std.testing.expectEqual(error.BrokenStream, top.block_errors.get(&source_block.block).?.?);
+    try std.testing.expectEqual(error.BrokenStream, top.block_errors.get(&inverter_block.block).?.?);
+    try std.testing.expectEqual(error.Unexpected, top.block_errors.get(&sink_block.block).?.?);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1613,8 +1667,8 @@ test "Flowgraph with raw and threaded blocks" {
     source_block.feed();
     source_block.feed();
 
-    // Stop flow graph
-    try top.stop();
+    // Stop flow graph and check for success
+    try std.testing.expectEqual(true, try top.stop());
 
     // Validate output vector
     try std.testing.expectEqualSlices(u8, &[12]u8{ 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54 }, sink_block.buf.items);
@@ -1699,7 +1753,7 @@ test "Flowgraph call block" {
 
     try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.block, TestCallableBlock.setFoo, .{456}));
 
-    try top.stop();
+    _ = try top.stop();
 }
 
 test "Flowgraph call composite" {
@@ -1724,5 +1778,5 @@ test "Flowgraph call composite" {
 
     try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 200 }}));
 
-    try top.stop();
+    _ = try top.stop();
 }

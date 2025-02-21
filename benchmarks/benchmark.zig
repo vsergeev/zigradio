@@ -15,7 +15,7 @@ const BENCHMARK_TRIAL_DURATION_MS = 5000;
 fn benchmark_run(flowgraph: *radio.Flowgraph) !void {
     try flowgraph.start();
     std.time.sleep(BENCHMARK_TRIAL_DURATION_MS * 1e6);
-    try flowgraph.stop();
+    _ = try flowgraph.stop();
 }
 
 fn generate_taps(comptime T: type, comptime N: comptime_int) [N]T {

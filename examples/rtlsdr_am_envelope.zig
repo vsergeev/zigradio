@@ -36,5 +36,5 @@ pub fn main() !void {
 
     try top.start();
     radio.platform.waitForInterrupt();
-    try top.stop();
+    _ = try top.stop();
 }
