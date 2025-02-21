@@ -79,7 +79,6 @@ pub const ThreadedBlockRunner = struct {
             fn run(runner: *ThreadedBlockRunner) !void {
                 while (true) {
                     if (runner.stop_event.isSet()) {
-                        runner.sample_mux.setEOS();
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
@@ -89,11 +88,17 @@ pub const ThreadedBlockRunner = struct {
                     runner.mutex.lock();
                     defer runner.mutex.unlock();
 
-                    const process_result = try runner.block.process(runner.sample_mux);
+                    const process_result = runner.block.process(runner.sample_mux) catch |err| switch (err) {
+                        error.EndOfStream => break,
+                        else => return err,
+                    };
+
                     if (process_result.eos) {
                         break;
                     }
                 }
+
+                runner.sample_mux.setEOS();
             }
         };
 

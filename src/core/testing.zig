@@ -114,7 +114,10 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 // Run block
                 const sample_mux = tester_sample_mux.sampleMux();
                 while (true) {
-                    const process_result = try self.instance.process(sample_mux);
+                    const process_result = self.instance.process(sample_mux) catch |err| switch (err) {
+                        error.EndOfStream => break,
+                        else => return err,
+                    };
                     if (process_result.eos) {
                         break;
                     }
@@ -152,6 +155,7 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                     if (process_result.eos) {
                         break;
                     }
+
                     inline for (output_data_types, 0..) |_, i| {
                         if (tester_sample_mux.getOutputVector(output_data_types[i], i).len >= output_vectors[i].len) {
                             break :blk;

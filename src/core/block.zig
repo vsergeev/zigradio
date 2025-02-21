@@ -66,24 +66,14 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
         fn process(block: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
             const self: *BlockType = @fieldParentPtr("block", block);
 
-            // Get sample buffers, catching read EOS
-            const buffers = sample_mux.get(type_signature) catch |err| switch (err) {
-                error.EndOfStream, error.BrokenStream => {
-                    sample_mux.setEOS();
-                    return ProcessResult.eos();
-                },
-            };
+            // Get sample buffers
+            const buffers = try sample_mux.get(type_signature);
 
             // Process sample buffers
             const process_result = try @call(.auto, processFn, .{self} ++ buffers.inputs ++ buffers.outputs);
 
             // Update sample buffers
             sample_mux.update(type_signature, buffers, process_result);
-
-            // If block completed, set write EOS
-            if (process_result.eos) {
-                sample_mux.setEOS();
-            }
 
             // Return process result
             return process_result;
@@ -429,17 +419,34 @@ test "Block.process" {
     defer test_sample_mux.deinit();
     const sample_mux = test_sample_mux.sampleMux();
 
-    var process_result = try test_block.block.process(sample_mux);
+    const process_result = try test_block.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_consumed[1]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
     try std.testing.expectEqualSlices(u32, &[_]u32{ 0x48362412, 0xc8a78665 }, test_sample_mux.getOutputVector(u32, 0));
 
-    process_result = try test_block.block.process(sample_mux);
-    try std.testing.expect(process_result.eos);
+    try std.testing.expectError(error.EndOfStream, test_block.block.process(sample_mux));
 }
 
-test "Block.process read eos" {
+test "Block.process eos" {
+    var test_source = TestSource.init();
+
+    const ts = ComptimeTypeSignature.init(TestSource.process);
+
+    var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([0][]const u8{}, .{});
+    defer test_sample_mux.deinit();
+    const sample_mux = test_sample_mux.sampleMux();
+
+    var process_result = try test_source.block.process(sample_mux);
+    try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
+    try std.testing.expectEqualSlices(u16, &[_]u16{ 0x2222, 0x3333 }, test_sample_mux.getOutputVector(u16, 0));
+
+    // Process should return EOS
+    process_result = try test_source.block.process(sample_mux);
+    try std.testing.expectEqual(true, process_result.eos);
+}
+
+test "Block.process SampleMux read eos" {
     var b: [4]u8 = .{0x00} ** 4;
 
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
@@ -492,25 +499,21 @@ test "Block.process read eos" {
     try std.testing.expectEqual(false, process_result.eos);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x65, 0x86, 0xa7, 0xc8 }, output1_reader.read(b[0..]));
 
-    // Process now return EOS
-    process_result = try test_block.block.process(sample_mux);
-    try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
-    try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[1]);
-    try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
-    try std.testing.expectEqual(true, process_result.eos);
+    // Process should now return EOS
+    try std.testing.expectError(error.EndOfStream, test_block.block.process(sample_mux));
 }
 
-test "Block.process write eos" {
+test "Block.process SampleMux write eos" {
     var b: [2]u8 = .{0x00} ** 2;
 
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
-    defer output1_ring_buffer.deinit();
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
-    var output1_reader = output1_ring_buffer.reader();
+    var output_reader = output_ring_buffer.reader();
 
     // Create ring buffer sample mux
-    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output1_ring_buffer});
+    var ring_buffer_sample_mux = try ThreadSafeRingBufferSampleMux.init(std.testing.allocator, &[0]*ThreadSafeRingBuffer{}, &[1]*ThreadSafeRingBuffer{&output_ring_buffer});
     defer ring_buffer_sample_mux.deinit();
     const sample_mux = ring_buffer_sample_mux.sampleMux();
 
@@ -518,17 +521,16 @@ test "Block.process write eos" {
     var test_source = TestSource.init();
 
     // Process
-    var process_result = try test_source.block.process(sample_mux);
+    const process_result = try test_source.block.process(sample_mux);
     try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
     try std.testing.expectEqual(@as(usize, 2), process_result.samples_produced[0]);
     try std.testing.expectEqual(false, process_result.eos);
-    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x22, 0x22 }, output1_reader.read(b[0..]));
-    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x33, 0x33 }, output1_reader.read(b[0..]));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x22, 0x22 }, output_reader.read(b[0..]));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x33, 0x33 }, output_reader.read(b[0..]));
 
-    // Process should return EOS
-    process_result = try test_source.block.process(sample_mux);
-    try std.testing.expectEqual(@as(usize, 0), process_result.samples_consumed[0]);
-    try std.testing.expectEqual(@as(usize, 0), process_result.samples_produced[0]);
-    try std.testing.expectEqual(true, process_result.eos);
-    try std.testing.expectError(error.EndOfStream, output1_reader.getAvailable());
+    // Set EOS on reader
+    output_reader.setEOS();
+
+    // Process should return BrokenStream
+    try std.testing.expectError(error.BrokenStream, test_source.block.process(sample_mux));
 }
