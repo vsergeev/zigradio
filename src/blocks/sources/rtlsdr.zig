@@ -102,7 +102,7 @@ pub const RtlSdrSource = struct {
         }
 
         // Open device
-        var ret = rtlsdr_open(&self.dev, @as(u32, @intCast(self.options.device_index)));
+        var ret = rtlsdr_open(&self.dev, @intCast(self.options.device_index));
         if (ret != 0) {
             std.debug.print("rtlsdr_open(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
@@ -111,12 +111,12 @@ pub const RtlSdrSource = struct {
         // Dump debug info
         if (self.options.debug) {
             // Look up device name
-            const device_name = rtlsdr_get_device_name(@as(u32, @intCast(self.options.device_index)));
+            const device_name = rtlsdr_get_device_name(@intCast(self.options.device_index));
 
             // Look up USB device strings
-            var usb_manufacturer: [256]u8 = undefined;
-            var usb_product: [256]u8 = undefined;
-            var usb_serial: [256]u8 = undefined;
+            var usb_manufacturer: [256:0]u8 = undefined;
+            var usb_product: [256:0]u8 = undefined;
+            var usb_serial: [256:0]u8 = undefined;
             ret = rtlsdr_get_usb_strings(self.dev, &usb_manufacturer, &usb_product, &usb_serial);
             if (ret != 0) {
                 std.debug.print("rtlsdr_get_usb_strings(): {d}\n", .{ret});
@@ -124,9 +124,9 @@ pub const RtlSdrSource = struct {
             }
 
             std.debug.print("[RtlSdrSource] Device name:       {s}\n", .{device_name});
-            std.debug.print("[RtlSdrSource] USB Manufacturer:  {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_manufacturer)))});
-            std.debug.print("[RtlSdrSource] USB Product:       {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_product)))});
-            std.debug.print("[RtlSdrSource] USB Serial:        {s}\n", .{std.mem.span(@as([*:0]u8, @ptrCast(&usb_serial)))});
+            std.debug.print("[RtlSdrSource] USB Manufacturer:  {s}\n", .{usb_manufacturer});
+            std.debug.print("[RtlSdrSource] USB Product:       {s}\n", .{usb_product});
+            std.debug.print("[RtlSdrSource] USB Serial:        {s}\n", .{usb_serial});
         }
 
         // Turn on bias tee if required, ignore if not required
@@ -178,7 +178,7 @@ pub const RtlSdrSource = struct {
             }
 
             // Set RF gain
-            ret = rtlsdr_set_tuner_gain(self.dev, @as(c_int, @intFromFloat(self.options.rf_gain.? * 10.0)));
+            ret = rtlsdr_set_tuner_gain(self.dev, @intFromFloat(self.options.rf_gain.? * 10.0));
             if (ret != 0) {
                 std.debug.print("rtlsdr_set_tuner_gain(): {d}\n", .{ret});
                 return RtlSdrError.InitializationError;
@@ -190,30 +190,30 @@ pub const RtlSdrSource = struct {
         }
 
         // Set frequency correction
-        ret = rtlsdr_set_freq_correction(self.dev, @as(c_int, @intCast(self.options.freq_correction)));
+        ret = rtlsdr_set_freq_correction(self.dev, @intCast(self.options.freq_correction));
         if (ret != 0 and ret != -2) {
             std.debug.print("rtlsdr_set_freq_correction(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
-        // Set frequency
-        ret = rtlsdr_set_center_freq(self.dev, @as(u32, @intFromFloat(self.frequency)));
-        if (ret != 0) {
-            std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
-            return RtlSdrError.InitializationError;
-        }
-
         // Set sample rate
-        ret = rtlsdr_set_sample_rate(self.dev, @as(u32, @intFromFloat(self.rate)));
+        ret = rtlsdr_set_sample_rate(self.dev, @intFromFloat(self.rate));
         if (ret != 0) {
             std.debug.print("rtlsdr_set_sample_rate(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
         // Set bandwidth
-        ret = rtlsdr_set_tuner_bandwidth(self.dev, if (self.options.bandwidth) |bandwidth| @as(u32, @intFromFloat(bandwidth)) else 0);
+        ret = rtlsdr_set_tuner_bandwidth(self.dev, if (self.options.bandwidth) |bandwidth| @intFromFloat(bandwidth) else 0);
         if (ret != 0) {
             std.debug.print("rtlsdr_set_tuner_bandwidth(): {d}\n", .{ret});
+            return RtlSdrError.InitializationError;
+        }
+
+        // Set frequency
+        ret = rtlsdr_set_center_freq(self.dev, @intFromFloat(self.frequency));
+        if (ret != 0) {
+            std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
         }
 
@@ -265,7 +265,7 @@ pub const RtlSdrSource = struct {
 
         // Read samples
         var num_read: c_int = 0;
-        const ret = rtlsdr_read_sync(self.dev, self.buf.ptr, @as(c_int, @intCast(len)), &num_read);
+        const ret = rtlsdr_read_sync(self.dev, self.buf.ptr, @intCast(len), &num_read);
         if (ret != 0) {
             std.debug.print("rtlsdr_read_sync(): {d}\n", .{ret});
             return RtlSdrError.ReadError;
@@ -282,7 +282,7 @@ pub const RtlSdrSource = struct {
 
     pub fn setFrequency(self: *RtlSdrSource, frequency: f64) !void {
         // Set frequency
-        const ret = rtlsdr_set_center_freq(self.dev, @as(u32, @intFromFloat(frequency)));
+        const ret = rtlsdr_set_center_freq(self.dev, @intFromFloat(frequency));
         if (ret != 0) {
             std.debug.print("rtlsdr_set_center_freq(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
