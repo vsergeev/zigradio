@@ -16,8 +16,8 @@ pub fn main() !void {
     const frequency = try std.fmt.parseFloat(f64, args[1]);
     const tune_offset = -250e3;
 
-    var source = radio.blocks.RtlSdrSource.init(frequency + tune_offset, 1102500, .{ .debug = true });
-    var tuner = radio.blocks.TunerBlock.init(tune_offset, 100e3, 5);
+    var source = radio.blocks.RtlSdrSource.init(frequency + tune_offset, 960000, .{ .debug = true });
+    var tuner = radio.blocks.TunerBlock.init(tune_offset, 200e3, 4);
     var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(75e3);
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(15e3, .{});
     var af_deemphasis = radio.blocks.FMDeemphasisFilterBlock.init(75e-6);
