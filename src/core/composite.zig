@@ -11,7 +11,7 @@ const extractBlockName = @import("block.zig").extractBlockName;
 fn wrapConnectFunction(comptime CompositeType: anytype, comptime connectFn: fn (self: *CompositeType, flowgraph: *Flowgraph) anyerror!void) fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
     const gen = struct {
         fn connect(block: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
-            const self: *CompositeType = @fieldParentPtr("composite", block);
+            const self: *CompositeType = @fieldParentPtr("block", block);
             try connectFn(self, flowgraph);
         }
     };
@@ -52,12 +52,12 @@ pub const CompositeBlock = struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TestCompositeBlock = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     connect_called: bool,
 
     pub fn init() TestCompositeBlock {
         return .{
-            .composite = CompositeBlock.init(@This(), &[_][]const u8{ "in1", "in2" }, &[_][]const u8{ "out1", "out2" }),
+            .block = CompositeBlock.init(@This(), &[_][]const u8{ "in1", "in2" }, &[_][]const u8{ "out1", "out2" }),
             .connect_called = false,
         };
     }
@@ -70,19 +70,19 @@ const TestCompositeBlock = struct {
 test "CompositeBlock.init" {
     var test_block = TestCompositeBlock.init();
 
-    try std.testing.expectEqualSlices(u8, test_block.composite.name, "TestCompositeBlock");
-    try std.testing.expectEqual(test_block.composite.inputs.len, 2);
-    try std.testing.expectEqual(test_block.composite.outputs.len, 2);
+    try std.testing.expectEqualSlices(u8, test_block.block.name, "TestCompositeBlock");
+    try std.testing.expectEqual(test_block.block.inputs.len, 2);
+    try std.testing.expectEqual(test_block.block.outputs.len, 2);
 
-    try std.testing.expectEqualSlices(u8, test_block.composite.inputs[0], "in1");
-    try std.testing.expectEqualSlices(u8, test_block.composite.inputs[1], "in2");
-    try std.testing.expectEqualSlices(u8, test_block.composite.outputs[0], "out1");
-    try std.testing.expectEqualSlices(u8, test_block.composite.outputs[1], "out2");
+    try std.testing.expectEqualSlices(u8, test_block.block.inputs[0], "in1");
+    try std.testing.expectEqualSlices(u8, test_block.block.inputs[1], "in2");
+    try std.testing.expectEqualSlices(u8, test_block.block.outputs[0], "out1");
+    try std.testing.expectEqualSlices(u8, test_block.block.outputs[1], "out2");
 
     var top = Flowgraph.init(std.testing.allocator, .{});
     defer top.deinit();
 
     try std.testing.expectEqual(false, test_block.connect_called);
-    try test_block.composite.connect(&top);
+    try test_block.block.connect(&top);
     try std.testing.expectEqual(true, test_block.connect_called);
 }

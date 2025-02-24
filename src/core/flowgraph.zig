@@ -570,7 +570,7 @@ pub const Flowgraph = struct {
             }
         } else {
             // Call composite directly, passing in flowgraph for downstream block calls
-            const composite = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("composite", block));
+            const composite = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", block));
             return @call(.auto, function, .{ composite, self } ++ args);
         }
     }
@@ -699,14 +699,14 @@ const TestErrorBlock = struct {
 };
 
 const TestCompositeBlock1 = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestBlock(f32, f32),
     b2: TestBlock(f32, f32),
     b3: TestBlock(f32, f32),
 
     pub fn init() TestCompositeBlock1 {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
             .b1 = TestBlock(f32, f32).init(),
             .b2 = TestBlock(f32, f32).init(),
             .b3 = TestBlock(f32, f32).init(),
@@ -725,20 +725,20 @@ const TestCompositeBlock1 = struct {
         try flowgraph.connect(&self.b1.block, &self.b3.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
-        try flowgraph.alias(&self.composite, "out2", &self.b3.block, "out1");
+        try flowgraph.alias(&self.block, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "out2", &self.b3.block, "out1");
     }
 };
 
 const TestCompositeBlock2 = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestBlock(f32, f32),
     b2: TestBlock(f32, f32),
 
     pub fn init() TestCompositeBlock2 {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
             .b1 = TestBlock(f32, f32).init(),
             .b2 = TestBlock(f32, f32).init(),
         };
@@ -755,20 +755,20 @@ const TestCompositeBlock2 = struct {
         try flowgraph.connect(&self.b1.block, &self.b2.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
     }
 };
 
 const TestNestedCompositeBlock = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestBlock(f32, f32),
     b2: TestBlock(f32, f32),
     b3: TestCompositeBlock2,
 
     pub fn init() TestNestedCompositeBlock {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
             .b1 = TestBlock(f32, f32).init(),
             .b2 = TestBlock(f32, f32).init(),
             .b3 = TestCompositeBlock2.init(),
@@ -787,22 +787,22 @@ const TestNestedCompositeBlock = struct {
         try flowgraph.connect(&self.b1.block, &self.b2.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
-        try flowgraph.alias(&self.composite, "in1", &self.b3.composite, "in1");
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
-        try flowgraph.alias(&self.composite, "out2", &self.b3.composite, "out1");
+        try flowgraph.alias(&self.block, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.block, "in1", &self.b3.block, "in1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "out2", &self.b3.block, "out1");
     }
 };
 
 const TestMissingInputAliasCompositeBlock = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestBlock(f32, f32),
     b2: TestBlock(f32, f32),
     b3: TestBlock(f32, f32),
 
     pub fn init() TestMissingInputAliasCompositeBlock {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
             .b1 = TestBlock(f32, f32).init(),
             .b2 = TestBlock(f32, f32).init(),
             .b3 = TestBlock(f32, f32).init(),
@@ -821,20 +821,20 @@ const TestMissingInputAliasCompositeBlock = struct {
         try flowgraph.connect(&self.b1.block, &self.b3.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
-        try flowgraph.alias(&self.composite, "out2", &self.b3.block, "out1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "out2", &self.b3.block, "out1");
     }
 };
 
 const TestMissingOutputAliasCompositeBlock = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestBlock(f32, f32),
     b2: TestBlock(f32, f32),
     b3: TestBlock(f32, f32),
 
     pub fn init() TestMissingOutputAliasCompositeBlock {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{ "out1", "out2" }),
             .b1 = TestBlock(f32, f32).init(),
             .b2 = TestBlock(f32, f32).init(),
             .b3 = TestBlock(f32, f32).init(),
@@ -853,8 +853,8 @@ const TestMissingOutputAliasCompositeBlock = struct {
         try flowgraph.connect(&self.b1.block, &self.b3.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
     }
 };
 
@@ -1256,26 +1256,26 @@ test "Flowgraph connect composite" {
     var b4 = TestSink(f32).init();
     var b5 = TestSink(f32).init();
 
-    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
-    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
-    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b1.block, "out1", &b2.block, "in1");
+    try top1.connectPort(&b2.block, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.block, "out2", &b5.block, "in1");
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
 
     try std.testing.expectEqual(@as(usize, 6), top1.connections.count());
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }).?);
 
     try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.count());
-    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items.len);
-    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[0]);
+    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?.items[0]);
 
     try std.testing.expectEqual(@as(usize, 2), top1.output_aliases.count());
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 1 }).?);
 
     try std.testing.expectEqual(@as(usize, 6), top1.flattened_connections.count());
     try std.testing.expectEqual(BlockOutputPort{ .block = &b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b1.block, .index = 0 }).?);
@@ -1295,7 +1295,7 @@ test "Flowgraph connect composite" {
     try std.testing.expect(top1.block_set.contains(&b5.block));
 
     try std.testing.expectEqual(@as(usize, 1), top1.composite_set.count());
-    try std.testing.expect(top1.composite_set.contains(&b2.composite));
+    try std.testing.expect(top1.composite_set.contains(&b2.block));
 }
 
 test "Flowgraph connect nested composite" {
@@ -1316,30 +1316,30 @@ test "Flowgraph connect nested composite" {
     var b4 = TestSink(f32).init();
     var b5 = TestSink(f32).init();
 
-    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
-    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
-    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b1.block, "out1", &b2.block, "in1");
+    try top1.connectPort(&b2.block, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.block, "out2", &b5.block, "in1");
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
 
     try std.testing.expectEqual(@as(usize, 6), top1.connections.count());
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 1 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b5.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b3.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b4.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }).?);
     try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.b1.block), .index = 0 }, top1.connections.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.b2.block), .index = 0 }).?);
 
     try std.testing.expectEqual(@as(usize, 2), top1.input_aliases.count());
-    try std.testing.expectEqual(@as(usize, 2), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items.len);
-    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[0]);
-    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?.items[1]);
-    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?.items.len);
-    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?.items[0]);
+    try std.testing.expectEqual(@as(usize, 2), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?.items[0]);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?.items[1]);
+    try std.testing.expectEqual(@as(usize, 1), top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }).?.items.len);
+    try std.testing.expectEqual(InputPort{ .block = BlockVariant.wrap(&b2.b3.b1.block), .index = 0 }, top1.input_aliases.get(InputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }).?.items[0]);
 
     try std.testing.expectEqual(@as(usize, 3), top1.output_aliases.count());
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 0 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.composite), .index = 1 }).?);
-    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.b3.composite), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 0 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.block), .index = 1 }).?);
+    try std.testing.expectEqual(OutputPort{ .block = BlockVariant.wrap(&b2.b3.b2.block), .index = 0 }, top1.output_aliases.get(OutputPort{ .block = BlockVariant.wrap(&b2.b3.block), .index = 0 }).?);
 
     try std.testing.expectEqual(@as(usize, 7), top1.flattened_connections.count());
     try std.testing.expectEqual(BlockOutputPort{ .block = &b1.block, .index = 0 }, top1.flattened_connections.get(BlockInputPort{ .block = &b2.b1.block, .index = 0 }).?);
@@ -1361,8 +1361,8 @@ test "Flowgraph connect nested composite" {
     try std.testing.expect(top1.block_set.contains(&b5.block));
 
     try std.testing.expectEqual(@as(usize, 2), top1.composite_set.count());
-    try std.testing.expect(top1.composite_set.contains(&b2.composite));
-    try std.testing.expect(top1.composite_set.contains(&b2.b3.composite));
+    try std.testing.expect(top1.composite_set.contains(&b2.block));
+    try std.testing.expect(top1.composite_set.contains(&b2.b3.block));
 }
 
 test "Flowgraph connect composite with unaliased composite input" {
@@ -1380,7 +1380,7 @@ test "Flowgraph connect composite with unaliased composite input" {
     var b1 = TestSource(f32).init(8000);
     var b2 = TestMissingInputAliasCompositeBlock.init();
 
-    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b1.block, "out1", &b2.composite, "in1"));
+    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b1.block, "out1", &b2.block, "in1"));
 }
 
 test "Flowgraph connect composite with unaliased composite output" {
@@ -1401,11 +1401,11 @@ test "Flowgraph connect composite with unaliased composite output" {
     var b4 = TestSink(f32).init();
     var b5 = TestSink(f32).init();
 
-    try top1.connectPort(&b1.block, "out1", &b2.composite, "in1");
-    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
+    try top1.connectPort(&b1.block, "out1", &b2.block, "in1");
+    try top1.connectPort(&b2.block, "out1", &b3.block, "in1");
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
 
-    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b2.composite, "out2", &b5.block, "in1"));
+    try std.testing.expectError(FlowgraphError.UnderlyingPortNotFound, top1.connectPort(&b2.block, "out2", &b5.block, "in1"));
 }
 
 test "Flowgraph validate composite with unconnected input" {
@@ -1425,8 +1425,8 @@ test "Flowgraph validate composite with unconnected input" {
     var b4 = TestSink(f32).init();
     var b5 = TestSink(f32).init();
 
-    try top1.connectPort(&b2.composite, "out1", &b3.block, "in1");
-    try top1.connectPort(&b2.composite, "out2", &b5.block, "in1");
+    try top1.connectPort(&b2.block, "out1", &b3.block, "in1");
+    try top1.connectPort(&b2.block, "out2", &b5.block, "in1");
     try top1.connectPort(&b3.block, "out1", &b4.block, "in1");
 
     try std.testing.expectError(FlowgraphError.InputPortUnconnected, top1._validate());
@@ -1708,13 +1708,13 @@ const TestCallableBlock = struct {
 };
 
 const TestCallableCompositeBlock = struct {
-    composite: CompositeBlock,
+    block: CompositeBlock,
     b1: TestCallableBlock,
     b2: TestCallableBlock,
 
     pub fn init() TestCallableCompositeBlock {
         return .{
-            .composite = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
+            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
             .b1 = TestCallableBlock.init(),
             .b2 = TestCallableBlock.init(),
         };
@@ -1725,8 +1725,8 @@ const TestCallableCompositeBlock = struct {
         try flowgraph.connect(&self.b1.block, &self.b2.block);
 
         // Alias inputs and outputs
-        try flowgraph.alias(&self.composite, "in1", &self.b1.block, "in1");
-        try flowgraph.alias(&self.composite, "out1", &self.b2.block, "out1");
+        try flowgraph.alias(&self.block, "in1", &self.b1.block, "in1");
+        try flowgraph.alias(&self.block, "out1", &self.b2.block, "out1");
     }
 
     pub fn setFoos(self: *TestCallableCompositeBlock, flowgraph: *Flowgraph, foos: struct { usize, usize }) !void {
@@ -1771,19 +1771,19 @@ test "Flowgraph call composite" {
     var b2 = TestCallableCompositeBlock.init();
     var b3 = TestCallableCompositeBlock.init(); // unconnected
 
-    try top.connect(&b1.block, &b2.composite);
+    try top.connect(&b1.block, &b2.block);
     try top.start();
 
-    try std.testing.expectEqual(246, try top.call(&b2.composite, TestCallableCompositeBlock.getCombinedFoo, .{}));
-    try top.call(&b2.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 250 }});
-    try std.testing.expectEqual(350, try top.call(&b2.composite, TestCallableCompositeBlock.getCombinedFoo, .{}));
+    try std.testing.expectEqual(246, try top.call(&b2.block, TestCallableCompositeBlock.getCombinedFoo, .{}));
+    try top.call(&b2.block, TestCallableCompositeBlock.setFoos, .{.{ 100, 250 }});
+    try std.testing.expectEqual(350, try top.call(&b2.block, TestCallableCompositeBlock.getCombinedFoo, .{}));
 
     try std.testing.expectEqual(100, try top.call(&b2.b1.block, TestCallableBlock.getFoo, .{}));
     try std.testing.expectEqual(250, try top.call(&b2.b2.block, TestCallableBlock.getFoo, .{}));
 
-    try std.testing.expectError(error.Unsupported, top.call(&b2.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 234 }}));
+    try std.testing.expectError(error.Unsupported, top.call(&b2.block, TestCallableCompositeBlock.setFoos, .{.{ 100, 234 }}));
 
-    try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.composite, TestCallableCompositeBlock.setFoos, .{.{ 100, 200 }}));
+    try std.testing.expectError(FlowgraphError.BlockNotFound, top.call(&b3.block, TestCallableCompositeBlock.setFoos, .{.{ 100, 200 }}));
 
     _ = try top.stop();
 }

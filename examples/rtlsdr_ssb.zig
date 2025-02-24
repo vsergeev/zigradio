@@ -28,8 +28,8 @@ pub fn main() !void {
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();
-    try top.connect(&source.block, &tuner.composite);
-    try top.connect(&tuner.composite, &sb_filter.block);
+    try top.connect(&source.block, &tuner.block);
+    try top.connect(&tuner.block, &sb_filter.block);
     try top.connect(&sb_filter.block, &am_demod.block);
     try top.connect(&am_demod.block, &af_filter.block);
     try top.connect(&af_filter.block, &af_gain.block);
