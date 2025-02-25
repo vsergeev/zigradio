@@ -213,7 +213,7 @@ fn benchmark_frequency_translator(allocator: std.mem.Allocator) !void {
 
 fn benchmark_frequency_discriminator(allocator: std.mem.Allocator) !void {
     var source = radio.blocks.ZeroSource(std.math.Complex(f32)).init(1);
-    var dut = radio.blocks.FrequencyDiscriminatorBlock.init(1.25);
+    var dut = radio.blocks.FrequencyDiscriminatorBlock.init(0.2);
     var sink = radio.blocks.BenchmarkSink(f32).init(.{});
 
     var top = radio.Flowgraph.init(allocator, .{});

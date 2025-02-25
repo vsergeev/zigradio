@@ -20,7 +20,7 @@ pub fn main() !void {
 
     var source = radio.blocks.RtlSdrSource.init(frequency + tune_offset, 1102500, .{ .debug = true });
     var tuner = radio.blocks.TunerBlock.init(tune_offset, 2 * (deviation + bandwidth), 50);
-    var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(deviation / bandwidth);
+    var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(deviation);
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(bandwidth, .{});
     var sink = radio.blocks.PulseAudioSink(1).init();
 

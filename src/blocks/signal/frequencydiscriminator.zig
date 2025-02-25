@@ -11,15 +11,15 @@ const platform = @import("../../radio.zig").platform;
 
 pub const FrequencyDiscriminatorBlock = struct {
     block: Block,
-    gain: f32,
+    deviation: f32,
     impl: union(enum) {
         none,
         volk: _FrequencyDiscriminatorBlockVolkImpl,
         zig: _FrequencyDiscriminatorBlockZigImpl,
     } = .none,
 
-    pub fn init(modulation_index: f32) FrequencyDiscriminatorBlock {
-        return .{ .block = Block.init(@This()), .gain = 2 * std.math.pi * modulation_index };
+    pub fn init(deviation: f32) FrequencyDiscriminatorBlock {
+        return .{ .block = Block.init(@This()), .deviation = deviation };
     }
 
     pub fn initialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator) !void {
@@ -66,6 +66,7 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
     parent: *const FrequencyDiscriminatorBlock,
     tmp: std.ArrayList(std.math.Complex(f32)) = undefined,
     prev_sample: std.math.Complex(f32) = .{ .re = 0, .im = 0 },
+    normalization: f32 = 0,
 
     pub fn initialize(self: *_FrequencyDiscriminatorBlockVolkImpl, allocator: std.mem.Allocator) !void {
         if (!volk_loaded) {
@@ -77,6 +78,7 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
         self.tmp = std.ArrayList(std.math.Complex(f32)).init(allocator);
         try self.tmp.append(.{ .re = 0, .im = 0 });
         self.prev_sample = .{ .re = 0, .im = 0 };
+        self.normalization = (2 * std.math.pi * self.parent.deviation) / self.parent.block.getRate(f32);
 
         if (platform.debug.enabled) std.debug.print("[FrequencyDiscriminatorBlock] Using VOLK implementation\n", .{});
     }
@@ -95,7 +97,7 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
         volk_32fc_x2_multiply_conjugate_32fc.*(@ptrCast(self.tmp.items[1..].ptr), @ptrCast(x[1..].ptr), @ptrCast(x.ptr), @intCast(x.len - 1));
 
         // Compute element-wise atan2 of multiplied samples
-        volk_32fc_s32f_atan2_32f.*(z.ptr, @ptrCast(self.tmp.items.ptr), self.parent.gain, @intCast(x.len));
+        volk_32fc_s32f_atan2_32f.*(z.ptr, @ptrCast(self.tmp.items.ptr), self.normalization, @intCast(x.len));
 
         // Save last sample of x to be the next previous sample
         self.prev_sample = x[x.len - 1];
@@ -111,9 +113,12 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
 pub const _FrequencyDiscriminatorBlockZigImpl = struct {
     parent: *const FrequencyDiscriminatorBlock,
     prev_sample: std.math.Complex(f32) = .{ .re = 0, .im = 0 },
+    gain: f32 = 0,
 
     pub fn initialize(self: *_FrequencyDiscriminatorBlockZigImpl, _: std.mem.Allocator) !void {
         self.prev_sample = .{ .re = 0, .im = 0 };
+
+        self.gain = self.parent.block.getRate(f32) / (2 * std.math.pi * self.parent.deviation);
 
         if (platform.debug.enabled) std.debug.print("[FrequencyDiscriminatorBlock] Using Zig implementation\n", .{});
     }
@@ -123,7 +128,7 @@ pub const _FrequencyDiscriminatorBlockZigImpl = struct {
     pub fn process(self: *_FrequencyDiscriminatorBlockZigImpl, x: []const std.math.Complex(f32), z: []f32) !ProcessResult {
         for (x, 0..) |_, i| {
             const tmp = x[i].mul((if (i == 0) self.prev_sample else x[i - 1]).conjugate());
-            z[i] = std.math.atan2(tmp.im, tmp.re) * (1.0 / self.parent.gain);
+            z[i] = std.math.complex.arg(tmp) * self.gain;
         }
 
         self.prev_sample = x[x.len - 1];
@@ -141,17 +146,17 @@ const BlockTester = @import("../../radio.zig").testing.BlockTester;
 const vectors = @import("../../vectors/blocks/signal/frequencydiscriminator.zig");
 
 test "FrequencyDiscriminatorBlock" {
-    // Modulation index 1.0
+    // Deviation 0.2
     {
-        var block = FrequencyDiscriminatorBlock.init(1.0);
+        var block = FrequencyDiscriminatorBlock.init(0.2);
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_1});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_2});
     }
 
-    // Modulation index 5.0
+    // Deviation 0.4
     {
-        var block = FrequencyDiscriminatorBlock.init(5.0);
+        var block = FrequencyDiscriminatorBlock.init(0.4);
         var tester = try BlockTester(&[1]type{std.math.Complex(f32)}, &[1]type{f32}).init(&block.block, 1e-5);
-        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_5});
+        try tester.check(2, .{&vectors.input_complexfloat32}, .{&vectors.output_modulation_index_0_4});
     }
 }
