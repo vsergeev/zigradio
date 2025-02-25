@@ -15,6 +15,7 @@ pub const FrequencyDiscriminatorBlock = struct {
     impl: union(enum) {
         none,
         volk: _FrequencyDiscriminatorBlockVolkImpl,
+        liquid: _FrequencyDiscriminatorBlockLiquidImpl,
         zig: _FrequencyDiscriminatorBlockZigImpl,
     } = .none,
 
@@ -25,6 +26,9 @@ pub const FrequencyDiscriminatorBlock = struct {
     pub fn initialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator) !void {
         if (platform.libs.volk != null) {
             self.impl = .{ .volk = .{ .parent = self } };
+        } else if (platform.libs.liquid != null) {
+            // Prefer pure Zig implementation for now (benchmarks better)
+            self.impl = .{ .zig = .{ .parent = self } };
         } else {
             self.impl = .{ .zig = .{ .parent = self } };
         }
@@ -101,6 +105,51 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
 
         // Save last sample of x to be the next previous sample
         self.prev_sample = x[x.len - 1];
+
+        return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Frequency Discriminator Implementation (Liquid)
+////////////////////////////////////////////////////////////////////////////////
+
+const liquid_float_complex = extern struct {
+    real: f32,
+    imag: f32,
+};
+
+const struct_freqdem_s = opaque {};
+const freqdem = ?*struct_freqdem_s;
+var freqdem_create: *const fn (_kf: f32) freqdem = undefined;
+var freqdem_destroy: *const fn (_q: freqdem) c_int = undefined;
+var freqdem_demodulate_block: *const fn (_q: freqdem, _r: [*c]liquid_float_complex, _n: c_uint, _m: [*c]f32) c_int = undefined;
+var liquid_loaded: bool = false;
+
+pub const _FrequencyDiscriminatorBlockLiquidImpl = struct {
+    parent: *const FrequencyDiscriminatorBlock,
+    freqdem: freqdem = undefined,
+
+    pub fn initialize(self: *_FrequencyDiscriminatorBlockLiquidImpl, _: std.mem.Allocator) !void {
+        if (!liquid_loaded) {
+            freqdem_create = platform.libs.liquid.?.lookup(@TypeOf(freqdem_create), "freqdem_create") orelse return error.LookupFail;
+            freqdem_destroy = platform.libs.liquid.?.lookup(@TypeOf(freqdem_destroy), "freqdem_destroy") orelse return error.LookupFail;
+            freqdem_demodulate_block = platform.libs.liquid.?.lookup(@TypeOf(freqdem_demodulate_block), "freqdem_demodulate_block") orelse return error.LookupFail;
+            liquid_loaded = true;
+        }
+
+        self.freqdem = freqdem_create(self.parent.deviation / self.parent.block.getRate(f32));
+        if (self.freqdem == null) return error.OutOfMemory;
+
+        if (platform.debug.enabled) std.debug.print("[FrequencyDiscriminatorBlock] Using liquid-dsp implementation\n", .{});
+    }
+
+    pub fn deinitialize(self: *_FrequencyDiscriminatorBlockLiquidImpl, _: std.mem.Allocator) void {
+        _ = freqdem_destroy(self.freqdem);
+    }
+
+    pub fn process(self: *_FrequencyDiscriminatorBlockLiquidImpl, x: []const std.math.Complex(f32), z: []f32) !ProcessResult {
+        _ = freqdem_demodulate_block(self.freqdem, @ptrCast(@constCast(x.ptr)), @intCast(x.len), @ptrCast(z.ptr));
 
         return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
     }
