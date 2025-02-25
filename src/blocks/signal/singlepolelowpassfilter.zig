@@ -22,7 +22,7 @@ pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            // Compute wraped tau
+            // Compute warped tau
             const rate = self.block.getRate(f32);
             const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.cutoff) / rate));
 
