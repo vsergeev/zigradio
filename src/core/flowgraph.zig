@@ -156,7 +156,7 @@ const FlowgraphRunState = struct {
         var output_ring_buffers = std.ArrayList(*ThreadSafeRingBuffer).init(allocator);
         defer output_ring_buffers.deinit();
 
-        // For each block, collect ring buffers and create a block runner
+        // For each block, collect ring buffers and create a sample mux
         block_it = block_set.keyIterator();
         while (block_it.next()) |block| {
             // Clear temporary ring buffer arrays
@@ -177,7 +177,11 @@ const FlowgraphRunState = struct {
 
             // Create sample mux
             try sample_muxes.put(block.*, try ThreadSafeRingBufferSampleMux.init(allocator, input_ring_buffers.items, output_ring_buffers.items));
+        }
 
+        // For each block, create a block runner
+        block_it = block_set.keyIterator();
+        while (block_it.next()) |block| {
             // Create block runner
             if (block.*.raw) {
                 try block_runners.put(block.*, .{ .raw = try RawBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
