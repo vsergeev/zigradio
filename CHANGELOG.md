@@ -1,3 +1,25 @@
+* v0.6.0 - 02/26/2025
+    * Refactor SampleMux API.
+    * Add raw block mode that uses SampleMux directly.
+    * Add block termination on broken write stream.
+    * Add block error propagation to flowgraph.
+    * Simplify configuration of FrequencyDiscriminatorBlock.
+    * Add new blocks:
+        * ApplicationSource
+        * ApplicationSink
+        * PowerMeterBlock
+        * IQStreamSource
+        * IQStreamSink
+        * RealStreamSource
+        * RealStreamSink
+        * AirspyHFSource
+    * Add new composites:
+        * AMEnvelopeDemodulatorBlock
+    * Add new examples:
+        * iqfile_converter
+    * Fix bandwidth in rtlsdr_wbfm_mono example.
+    * Improve tune offsets and sample rates in rtlsdr_* examples.
+
 * v0.5.0 - 02/05/2025
     * Fix flowgraph initialization for blocks with unconnected outputs.
     * Fix flowgraph stalls caused by blocks with unconnected outputs.
