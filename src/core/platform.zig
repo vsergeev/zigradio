@@ -45,6 +45,7 @@ pub fn initialize(allocator: std.mem.Allocator) !void {
     }
     if (libs.volk == null and !try lookupEnvFlag(allocator, "ZIGRADIO_DISABLE_VOLK")) {
         libs.volk = std.DynLib.open("libvolk.so") catch null;
+        std.debug.print("volk is {any}\n", .{libs.volk});
     }
     if (libs.fftw3f == null and !try lookupEnvFlag(allocator, "ZIGRADIO_DISABLE_FFTW3F")) {
         libs.fftw3f = std.DynLib.open("libfftw3f.so") catch null;

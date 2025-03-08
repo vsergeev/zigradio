@@ -129,7 +129,7 @@ pub fn complexFirwin(comptime N: comptime_int, h: [N]f32, center_freq: f32, wind
     var scale = std.math.Complex(f32).init(0, 0);
     for (hw, 0..) |_, i| {
         const arg = @as(f32, @floatFromInt(i)) - (@as(f32, @floatFromInt(N - 1)) / 2);
-        const exponential = .{ .re = std.math.cos(std.math.pi * arg * scale_freq), .im = std.math.sin(-1 * std.math.pi * arg * scale_freq) };
+        const exponential: std.math.Complex(f32) = .{ .re = std.math.cos(std.math.pi * arg * scale_freq), .im = std.math.sin(-1 * std.math.pi * arg * scale_freq) };
         scale = scale.add(hw[i].mul(exponential));
     }
     for (&hw) |*e| {

@@ -31,7 +31,7 @@ const CopiedMemoryImpl = struct {
 
 const MappedMemoryImpl = struct {
     fd: std.posix.fd_t,
-    buf: []align(std.mem.page_size) u8,
+    buf: []align(std.heap.page_size_min) u8,
 
     const MappingError = error{
         MappingNotAdjacent,
@@ -977,7 +977,7 @@ test "MappedMemoryImpl" {
         return error.SkipZigTest;
     }
 
-    const capacity = std.mem.page_size * 8;
+    const capacity = std.heap.pageSize() * 8;
 
     // Create three mappings
     var memory1 = try MappedMemoryImpl.init(std.testing.allocator, capacity);
@@ -996,7 +996,7 @@ test "MappedMemoryImpl" {
     var buf1: [capacity]u8 = undefined;
     var buf2: [capacity]u8 = undefined;
     var buf3: [capacity]u8 = undefined;
-    var prng = std.rand.DefaultPrng.init(123);
+    var prng = std.Random.DefaultPrng.init(123);
     prng.fill(&buf1);
     prng.fill(&buf2);
     prng.fill(&buf3);

@@ -300,7 +300,7 @@ pub const Flowgraph = struct {
         try underlying_dst_ports.append(dst_port);
 
         while (underlying_dst_ports.items.len > 0) {
-            const next_dst_port = underlying_dst_ports.pop();
+            const next_dst_port = underlying_dst_ports.pop() orelse break;
 
             if (next_dst_port.block == BlockVariant.block) {
                 // Add flattened connection from underlying source port to underlying destination port
@@ -550,9 +550,9 @@ pub const Flowgraph = struct {
     }
 
     fn CallReturnType(comptime function: anytype) type {
-        const return_type = @typeInfo(@TypeOf(function)).Fn.return_type.?;
+        const return_type = @typeInfo(@TypeOf(function)).@"fn".return_type.?;
         return switch (@typeInfo(return_type)) {
-            .ErrorUnion => |t| (FlowgraphError || t.error_set)!t.payload,
+            .error_union => |t| (FlowgraphError || t.error_set)!t.payload,
             else => FlowgraphError!return_type,
         };
     }
@@ -570,7 +570,7 @@ pub const Flowgraph = struct {
             }
         } else {
             // Call composite directly, passing in flowgraph for downstream block calls
-            const composite = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", block));
+            const composite = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @fieldParentPtr("block", block));
             return @call(.auto, function, .{ composite, self } ++ args);
         }
     }
@@ -1451,7 +1451,7 @@ const TestBufferSource = struct {
     }
 
     pub fn process(self: *TestBufferSource, z: []u8) !ProcessResult {
-        if (self.index == self.buf.len) return ProcessResult.eos();
+        if (self.index == self.buf.len) return ProcessResult.EOS;
 
         z[0] = self.buf[self.index];
         self.index += 1;
@@ -1462,10 +1462,10 @@ const TestBufferSource = struct {
 
 const TestRandomSource = struct {
     block: Block,
-    prng: std.rand.DefaultPrng,
+    prng: std.Random.DefaultPrng,
 
     pub fn init(seed: u64) TestRandomSource {
-        return .{ .block = Block.init(@This()), .prng = std.rand.DefaultPrng.init(seed) };
+        return .{ .block = Block.init(@This()), .prng = std.Random.DefaultPrng.init(seed) };
     }
 
     pub fn setRate(_: *TestRandomSource, _: f64) !f64 {
@@ -1536,7 +1536,7 @@ const TestErrorSink = struct {
 test "Flowgraph run to completion" {
     // Input test vector
     var test_vector: [8192]u8 = .{0x00} ** 8192;
-    var prng = std.rand.DefaultPrng.init(123);
+    var prng = std.Random.DefaultPrng.init(123);
     prng.fill(&test_vector);
 
     // Expected output vector
@@ -1587,7 +1587,7 @@ test "Flowgraph start, stop" {
     try std.testing.expectEqual(true, try top.stop());
 
     // Generate expected output buffer
-    var prng = std.rand.DefaultPrng.init(123);
+    var prng = std.Random.DefaultPrng.init(123);
     const expected_output_vector = try std.testing.allocator.alloc(u8, sink_block.buf.items.len);
     defer std.testing.allocator.free(expected_output_vector);
     prng.fill(expected_output_vector);

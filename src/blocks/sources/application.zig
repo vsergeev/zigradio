@@ -87,9 +87,9 @@ test "ApplicationSource rate" {
 
 test "ApplicationSource available, get, update, write, setEOS" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get output reader
@@ -107,11 +107,11 @@ test "ApplicationSource available, get, update, write, setEOS" {
     try std.testing.expectEqual(void{}, application_source.wait(1, std.time.ns_per_ms));
 
     // Available should be ring buffer size - 1
-    try std.testing.expectEqual((std.mem.page_size / @sizeOf(u32)) - 1, application_source.available());
+    try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 1, application_source.available());
 
     // Get buffer
     var buf = application_source.get();
-    try std.testing.expectEqual((std.mem.page_size / @sizeOf(u32)) - 1, buf.len);
+    try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 1, buf.len);
 
     // Write two samples
     buf[0] = 1;
@@ -119,7 +119,7 @@ test "ApplicationSource available, get, update, write, setEOS" {
     application_source.update(2);
 
     // Available should be ring buffer size - 3
-    try std.testing.expectEqual((std.mem.page_size / @sizeOf(u32)) - 3, application_source.available());
+    try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 3, application_source.available());
 
     // Reader should have two samples
     try std.testing.expectEqual(2 * @sizeOf(u32), try output_reader.getAvailable());
@@ -128,7 +128,7 @@ test "ApplicationSource available, get, update, write, setEOS" {
     output_reader.update(2 * @sizeOf(u32));
 
     // Available should be ring buffer size - 1
-    try std.testing.expectEqual((std.mem.page_size / @sizeOf(u32)) - 1, application_source.available());
+    try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 1, application_source.available());
 
     // Write three samples
     try std.testing.expectEqual(3, application_source.write(&[3]u32{ 5, 6, 7 }));
@@ -154,9 +154,9 @@ test "ApplicationSource available, get, update, write, setEOS" {
 
 test "ApplicationSource blocking wait" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get output reader
@@ -171,8 +171,8 @@ test "ApplicationSource blocking wait" {
     try application_source.start(ring_buffer_sample_mux.sampleMux());
 
     // Saturate application source
-    try std.testing.expectEqual((std.mem.page_size / @sizeOf(u32)) - 1, application_source.available());
-    application_source.update((std.mem.page_size / @sizeOf(u32)) - 1);
+    try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 1, application_source.available());
+    application_source.update((std.heap.pageSize() / @sizeOf(u32)) - 1);
     try std.testing.expectEqual(0, application_source.available());
 
     // Write should write nothing
@@ -182,7 +182,7 @@ test "ApplicationSource blocking wait" {
     output_reader.update(@sizeOf(u32));
 
     // Check reader available
-    try std.testing.expectEqual(std.mem.page_size - 2 * @sizeOf(u32), try output_reader.getAvailable());
+    try std.testing.expectEqual(std.heap.pageSize() - 2 * @sizeOf(u32), try output_reader.getAvailable());
 
     // Application source wait should timeout for more than 1 sample
     try std.testing.expectEqual(void{}, application_source.wait(1, std.time.ns_per_ms));

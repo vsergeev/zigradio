@@ -1,5 +1,6 @@
 .{
-    .name = "radio",
+    .name = .radio,
+    .fingerprint = 0xe0461b0f84327ae8,
     .version = "0.6.0",
     .paths = .{
         "build.zig",

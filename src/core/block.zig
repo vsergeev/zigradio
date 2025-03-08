@@ -20,11 +20,7 @@ pub const ProcessResult = struct {
         return self;
     }
 
-    pub fn eos() ProcessResult {
-        return ProcessResult{
-            .eos = true,
-        };
-    }
+    pub const EOS: ProcessResult = .{ .eos = true };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,11 +100,11 @@ fn wrapStopFunction(comptime BlockType: type, comptime stopFn: fn (self: *BlockT
 
 pub fn extractBlockName(comptime BlockType: type) []const u8 {
     // Split ( for generic blocks
-    comptime var it = std.mem.split(u8, @typeName(BlockType), "(");
+    comptime var it = std.mem.splitScalar(u8, @typeName(BlockType), '(');
     const first = comptime it.first();
     const suffix = comptime it.rest();
     // Split . backwards for block name
-    comptime var it_back = std.mem.splitBackwards(u8, first, ".");
+    comptime var it_back = std.mem.splitBackwardsScalar(u8, first, '.');
     const prefix = comptime it_back.first();
 
     // Concatenate prefix and suffix
@@ -311,7 +307,7 @@ const TestSource = struct {
 
     pub fn process(self: *TestSource, z: []u16) !ProcessResult {
         if (self.eos) {
-            return ProcessResult.eos();
+            return ProcessResult.EOS;
         }
 
         z[0] = 0x2222;
@@ -449,11 +445,11 @@ test "Block.process eos" {
 test "Block.process SampleMux read eos" {
     var b: [4]u8 = .{0x00} ** 4;
 
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output1_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -506,7 +502,7 @@ test "Block.process SampleMux read eos" {
 test "Block.process SampleMux write eos" {
     var b: [2]u8 = .{0x00} ** 2;
 
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
