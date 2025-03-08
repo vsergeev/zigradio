@@ -66,8 +66,8 @@ pub const SampleFormat = enum {
 // Code Generation
 ////////////////////////////////////////////////////////////////////////////
 
-pub fn _generate() [@typeInfo(SampleFormat).Enum.fields.len]SampleFormat.Converter {
-    var converters: [@typeInfo(SampleFormat).Enum.fields.len]SampleFormat.Converter = undefined;
+pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Converter {
+    var converters: [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Converter = undefined;
 
     for (0..converters.len) |e| {
         const info = SampleFormat.info(@enumFromInt(e));

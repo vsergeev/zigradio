@@ -64,9 +64,9 @@ const ThreadSafeRingBufferSampleMux = @import("../../core/sample_mux.zig").Threa
 
 test "ApplicationSink wait, available, get, update, read, eos" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get input writer
@@ -141,9 +141,9 @@ test "ApplicationSink wait, available, get, update, read, eos" {
 
 test "ApplicationSink blocking read" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get input writer

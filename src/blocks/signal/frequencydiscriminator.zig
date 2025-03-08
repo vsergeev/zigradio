@@ -121,9 +121,9 @@ const liquid_float_complex = extern struct {
 
 const struct_freqdem_s = opaque {};
 const freqdem = ?*struct_freqdem_s;
-var freqdem_create: *const fn (_kf: f32) freqdem = undefined;
-var freqdem_destroy: *const fn (_q: freqdem) c_int = undefined;
-var freqdem_demodulate_block: *const fn (_q: freqdem, _r: [*c]liquid_float_complex, _n: c_uint, _m: [*c]f32) c_int = undefined;
+var freqdem_create: *const fn (_kf: f32) callconv(.C) freqdem = undefined;
+var freqdem_destroy: *const fn (_q: freqdem) callconv(.C) c_int = undefined;
+var freqdem_demodulate_block: *const fn (_q: freqdem, _r: [*c]liquid_float_complex, _n: c_uint, _m: [*c]f32) callconv(.C) c_int = undefined;
 var liquid_loaded: bool = false;
 
 pub const _FrequencyDiscriminatorBlockLiquidImpl = struct {

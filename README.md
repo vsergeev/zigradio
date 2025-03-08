@@ -73,7 +73,7 @@ required for loading dynamic libraries used for acceleration and I/O.
 
 ## Building
 
-ZigRadio requires Zig version 0.13.0 or later.
+ZigRadio requires Zig version 0.14.0.
 
 ```
 $ git clone https://github.com/vsergeev/zigradio.git

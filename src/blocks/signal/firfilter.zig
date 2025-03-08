@@ -196,27 +196,27 @@ const liquid_float_complex = extern struct {
 
 const struct_firfilt_cccf_s = opaque {};
 const firfilt_cccf = ?*struct_firfilt_cccf_s;
-var firfilt_cccf_create: *const fn (_h: [*c]liquid_float_complex, _n: c_uint) firfilt_cccf = undefined;
-var firfilt_cccf_recreate: *const fn (_q: firfilt_cccf, _h: [*c]liquid_float_complex, _n: c_uint) firfilt_cccf = undefined;
-var firfilt_cccf_destroy: *const fn (_q: firfilt_cccf) c_int = undefined;
-var firfilt_cccf_execute_block: *const fn (_q: firfilt_cccf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) c_int = undefined;
-var firfilt_cccf_reset: *const fn (_q: firfilt_cccf) c_int = undefined;
+var firfilt_cccf_create: *const fn (_h: [*c]liquid_float_complex, _n: c_uint) callconv(.C) firfilt_cccf = undefined;
+var firfilt_cccf_recreate: *const fn (_q: firfilt_cccf, _h: [*c]liquid_float_complex, _n: c_uint) callconv(.C) firfilt_cccf = undefined;
+var firfilt_cccf_destroy: *const fn (_q: firfilt_cccf) callconv(.C) c_int = undefined;
+var firfilt_cccf_execute_block: *const fn (_q: firfilt_cccf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
+var firfilt_cccf_reset: *const fn (_q: firfilt_cccf) callconv(.C) c_int = undefined;
 
 const struct_firfilt_crcf_s = opaque {};
 const firfilt_crcf = ?*struct_firfilt_crcf_s;
-var firfilt_crcf_create: *const fn (_h: [*c]f32, _n: c_uint) firfilt_crcf = undefined;
-var firfilt_crcf_recreate: *const fn (_q: firfilt_crcf, _h: [*c]f32, _n: c_uint) firfilt_crcf = undefined;
-var firfilt_crcf_destroy: *const fn (_q: firfilt_crcf) c_int = undefined;
-var firfilt_crcf_execute_block: *const fn (_q: firfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) c_int = undefined;
-var firfilt_crcf_reset: *const fn (_q: firfilt_crcf) c_int = undefined;
+var firfilt_crcf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.C) firfilt_crcf = undefined;
+var firfilt_crcf_recreate: *const fn (_q: firfilt_crcf, _h: [*c]f32, _n: c_uint) callconv(.C) firfilt_crcf = undefined;
+var firfilt_crcf_destroy: *const fn (_q: firfilt_crcf) callconv(.C) c_int = undefined;
+var firfilt_crcf_execute_block: *const fn (_q: firfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
+var firfilt_crcf_reset: *const fn (_q: firfilt_crcf) callconv(.C) c_int = undefined;
 
 const struct_firfilt_rrrf_s = opaque {};
 const firfilt_rrrf = ?*struct_firfilt_rrrf_s;
-var firfilt_rrrf_create: *const fn (_h: [*c]f32, _n: c_uint) firfilt_rrrf = undefined;
-var firfilt_rrrf_recreate: *const fn (_q: firfilt_rrrf, _h: [*c]f32, _n: c_uint) firfilt_rrrf = undefined;
-var firfilt_rrrf_destroy: *const fn (_q: firfilt_rrrf) c_int = undefined;
-var firfilt_rrrf_execute_block: *const fn (_q: firfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) c_int = undefined;
-var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) c_int = undefined;
+var firfilt_rrrf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.C) firfilt_rrrf = undefined;
+var firfilt_rrrf_recreate: *const fn (_q: firfilt_rrrf, _h: [*c]f32, _n: c_uint) callconv(.C) firfilt_rrrf = undefined;
+var firfilt_rrrf_destroy: *const fn (_q: firfilt_rrrf) callconv(.C) c_int = undefined;
+var firfilt_rrrf_execute_block: *const fn (_q: firfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.C) c_int = undefined;
+var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) callconv(.C) c_int = undefined;
 
 var liquid_loaded: bool = false;
 

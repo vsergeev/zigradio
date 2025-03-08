@@ -197,15 +197,15 @@ const liquid_float_complex = extern struct {
 
 const struct_iirfilt_crcf_s = opaque {};
 const iirfilt_crcf = ?*struct_iirfilt_crcf_s;
-var iirfilt_crcf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) iirfilt_crcf = undefined;
-var iirfilt_crcf_destroy: *const fn (_q: iirfilt_crcf) c_int = undefined;
-var iirfilt_crcf_execute_block: *const fn (_q: iirfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) c_int = undefined;
+var iirfilt_crcf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.C) iirfilt_crcf = undefined;
+var iirfilt_crcf_destroy: *const fn (_q: iirfilt_crcf) callconv(.C) c_int = undefined;
+var iirfilt_crcf_execute_block: *const fn (_q: iirfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
 
 const struct_iirfilt_rrrf_s = opaque {};
 const iirfilt_rrrf = ?*struct_iirfilt_rrrf_s;
-var iirfilt_rrrf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) iirfilt_rrrf = undefined;
-var iirfilt_rrrf_destroy: *const fn (_q: iirfilt_rrrf) c_int = undefined;
-var iirfilt_rrrf_execute_block: *const fn (_q: iirfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) c_int = undefined;
+var iirfilt_rrrf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.C) iirfilt_rrrf = undefined;
+var iirfilt_rrrf_destroy: *const fn (_q: iirfilt_rrrf) callconv(.C) c_int = undefined;
+var iirfilt_rrrf_execute_block: *const fn (_q: iirfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.C) c_int = undefined;
 
 var liquid_loaded: bool = false;
 

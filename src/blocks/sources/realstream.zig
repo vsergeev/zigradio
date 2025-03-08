@@ -39,7 +39,7 @@ pub const RealStreamSource = struct {
         // Read into buffer
         const bytes_read = try self.reader.read(self.buffer[self.offset..]);
         if (bytes_read == 0 and self.offset < self.converter.ELEMENT_SIZE) {
-            return ProcessResult.eos();
+            return ProcessResult.EOS;
         }
         self.offset += bytes_read;
 

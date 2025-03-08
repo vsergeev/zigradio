@@ -20,7 +20,7 @@ fn benchmark_run(flowgraph: *radio.Flowgraph) !void {
 
 fn generate_taps(comptime T: type, comptime N: comptime_int) [N]T {
     var taps: [N]T = undefined;
-    var prng = std.rand.DefaultPrng.init(123);
+    var prng = std.Random.DefaultPrng.init(123);
     for (&taps) |*tap| tap.* = if (T == f32) prng.random().float(f32) else .{ .re = prng.random().float(f32), .im = prng.random().float(f32) };
     return taps;
 }

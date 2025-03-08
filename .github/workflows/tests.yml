@@ -8,17 +8,17 @@ jobs:
   tests:
     strategy:
       matrix:
-        zig-version: [ 0.13.0 ]
+        zig-version: [ 0.14.0 ]
 
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Zig
       uses: mlugg/setup-zig@v1
       with:
-        zig-version: ${{ matrix.zig-version }}
+        version: ${{ matrix.zig-version }}
 
     - name: Install acceleration libraries
       run: sudo apt-get install -y libvolk-dev libliquid-dev libfftw3-dev

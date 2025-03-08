@@ -32,8 +32,8 @@ pub const RawBlockRunner = struct {
         self.running = true;
     }
 
-    pub fn call(self: *RawBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).Fn.return_type.? {
-        const block = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", self.block));
+    pub fn call(self: *RawBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).@"fn".return_type.? {
+        const block = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @fieldParentPtr("block", self.block));
         return @call(.auto, function, .{block} ++ args);
     }
 
@@ -114,13 +114,13 @@ pub const ThreadedBlockRunner = struct {
         self.running = true;
     }
 
-    pub fn call(self: *ThreadedBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).Fn.return_type.? {
+    pub fn call(self: *ThreadedBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).@"fn".return_type.? {
         self.call_event.set();
         self.mutex.lock();
         defer self.mutex.unlock();
         defer self.call_event.reset();
 
-        const block = @as(@typeInfo(@TypeOf(function)).Fn.params[0].type.?, @fieldParentPtr("block", self.block));
+        const block = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @fieldParentPtr("block", self.block));
         return @call(.auto, function, .{block} ++ args);
     }
 
@@ -183,7 +183,7 @@ const TestSource = struct {
 
     pub fn process(self: *TestSource, z: []u16) !ProcessResult {
         if (self.count == 100) {
-            return ProcessResult.eos();
+            return ProcessResult.EOS;
         }
 
         z[0] = @as(u16, @intCast(self.count));
@@ -362,9 +362,9 @@ test "ThreadedBlockRunner finite run" {
     var test_sink = TestSink.init();
 
     // Create ring buffers
-    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer1.deinit();
-    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer2.deinit();
 
     // Create sample muxes
@@ -421,7 +421,7 @@ test "ThreadedBlockRunner infinite run" {
     var test_sink = TestSink2.init();
 
     // Create ring buffer
-    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer.deinit();
 
     // Create sample muxes
@@ -473,7 +473,7 @@ test "ThreadedBlockRunner block errors" {
     var test_sink = TestErrorSink.init();
 
     // Create ring buffer
-    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer.deinit();
 
     // Create sample muxes
@@ -521,9 +521,9 @@ test "ThreadedBlockRunner call" {
     var test_block = TestCallableBlock.init();
 
     // Create ring buffer
-    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer1.deinit();
-    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.mem.page_size);
+    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer ring_buffer2.deinit();
 
     // Create sample muxes

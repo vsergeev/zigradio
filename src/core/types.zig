@@ -9,7 +9,7 @@ pub const ComptimeTypeSignature = struct {
     outputs: []const type,
 
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
-        const process_args = @typeInfo(@TypeOf(process_fn)).Fn.params[1..];
+        const process_args = @typeInfo(@TypeOf(process_fn)).@"fn".params[1..];
 
         var _comptime_inputs: [process_args.len]type = undefined;
         var _comptime_outputs: [process_args.len]type = undefined;
@@ -17,12 +17,12 @@ pub const ComptimeTypeSignature = struct {
         var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
-            const arg_is_input = @typeInfo(arg.type orelse unreachable).Pointer.is_const;
+            const arg_is_input = @typeInfo(arg.type orelse unreachable).pointer.is_const;
             if (arg_is_input) {
-                _comptime_inputs[num_inputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
+                _comptime_inputs[num_inputs] = @typeInfo(arg.type orelse unreachable).pointer.child;
                 num_inputs += 1;
             } else {
-                _comptime_outputs[num_outputs] = @typeInfo(arg.type orelse unreachable).Pointer.child;
+                _comptime_outputs[num_outputs] = @typeInfo(arg.type orelse unreachable).pointer.child;
                 num_outputs += 1;
             }
         }
@@ -96,7 +96,7 @@ const TypeTag = enum {
 };
 
 pub fn hasTypeTag(T: type, tag: TypeTag) bool {
-    return @typeInfo(T) == .Struct and @hasDecl(T, "typeTag") and T.typeTag() == tag;
+    return @typeInfo(T) == .@"struct" and @hasDecl(T, "typeTag") and T.typeTag() == tag;
 }
 
 pub fn RefCounted(T: type) type {
@@ -117,8 +117,7 @@ pub fn RefCounted(T: type) type {
         }
 
         pub fn unref(self: *Self) void {
-            if (self.rc.fetchSub(1, .release) == 1) {
-                self.rc.fence(.acquire);
+            if (self.rc.fetchSub(1, .acq_rel) == 1) {
                 self.value.deinit();
             }
         }

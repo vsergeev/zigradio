@@ -105,11 +105,11 @@ const LIQUID_VCO: c_int = 1;
 const liquid_ncotype = c_uint;
 const struct_nco_crcf_s = opaque {};
 const nco_crcf = ?*struct_nco_crcf_s;
-var nco_crcf_create: *const fn (_type: liquid_ncotype) nco_crcf = undefined;
-var nco_crcf_destroy: *const fn (_q: nco_crcf) c_int = undefined;
-var nco_crcf_set_frequency: *const fn (_q: nco_crcf, _dtheta: f32) c_int = undefined;
-var nco_crcf_set_phase: *const fn (_q: nco_crcf, _phi: f32) c_int = undefined;
-var nco_crcf_mix_block_up: *const fn (_q: nco_crcf, _x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint) c_int = undefined;
+var nco_crcf_create: *const fn (_type: liquid_ncotype) callconv(.C) nco_crcf = undefined;
+var nco_crcf_destroy: *const fn (_q: nco_crcf) callconv(.C) c_int = undefined;
+var nco_crcf_set_frequency: *const fn (_q: nco_crcf, _dtheta: f32) callconv(.C) c_int = undefined;
+var nco_crcf_set_phase: *const fn (_q: nco_crcf, _phi: f32) callconv(.C) c_int = undefined;
+var nco_crcf_mix_block_up: *const fn (_q: nco_crcf, _x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint) callconv(.C) c_int = undefined;
 var liquid_loaded: bool = false;
 
 pub const _FrequencyTranslatorBlockLiquidImpl = struct {
