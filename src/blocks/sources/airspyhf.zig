@@ -293,7 +293,7 @@ pub const AirspyHFSource = struct {
 
     pub fn setFrequency(self: *AirspyHFSource, frequency: f64) !void {
         // Set frequency
-        const ret = airspyhf_set_freq(self.dev, self.frequency);
+        const ret = airspyhf_set_freq(self.dev, @intFromFloat(frequency));
         if (ret != 0) {
             std.debug.print("airspyhf_set_freq(): {d}\n", .{ret});
             return AirspyHFError.InitializationError;
