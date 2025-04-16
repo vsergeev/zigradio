@@ -62,6 +62,14 @@ pub fn ApplicationSource(comptime T: type) type {
             return count;
         }
 
+        pub fn push(self: *Self, value: T) error{Unavailable}!void {
+            const buf: []T = self.get();
+            if (buf.len == 0) return error.Unavailable;
+
+            buf[0] = value;
+            self.update(1);
+        }
+
         pub fn setEOS(self: *Self) void {
             return self.sample_mux.vtable.setEOS(self.sample_mux.ptr);
         }
@@ -85,7 +93,7 @@ test "ApplicationSource rate" {
     try std.testing.expectEqual(8000, application_source.block.getRate(usize));
 }
 
-test "ApplicationSource available, get, update, write, setEOS" {
+test "ApplicationSource available, get, update, write, push, setEOS" {
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
@@ -140,8 +148,18 @@ test "ApplicationSource available, get, update, write, setEOS" {
     try std.testing.expectEqual(7, std.mem.readInt(u32, output_reader.getBuffer()[8..12], builtin.target.cpu.arch.endian()));
     output_reader.update(3 * @sizeOf(u32));
 
+    // Push two samples
+    try application_source.push(8);
+    try application_source.push(9);
+
+    // Reader should have two samples
+    try std.testing.expectEqual(2 * @sizeOf(u32), try output_reader.getAvailable());
+    try std.testing.expectEqual(8, std.mem.readInt(u32, output_reader.getBuffer()[0..4], builtin.target.cpu.arch.endian()));
+    try std.testing.expectEqual(9, std.mem.readInt(u32, output_reader.getBuffer()[4..8], builtin.target.cpu.arch.endian()));
+    output_reader.update(2 * @sizeOf(u32));
+
     // Write two samples and set EOS
-    try std.testing.expectEqual(2, application_source.write(&[2]u32{ 8, 9 }));
+    try std.testing.expectEqual(2, application_source.write(&[2]u32{ 10, 11 }));
     application_source.setEOS();
 
     // Reader should have two samples
@@ -177,6 +195,9 @@ test "ApplicationSource blocking wait" {
 
     // Write should write nothing
     try std.testing.expectEqual(0, application_source.write(&[1]u32{123}));
+
+    // Push should return unavailable
+    try std.testing.expectError(error.Unavailable, application_source.push(123));
 
     // Consume one sample
     output_reader.update(@sizeOf(u32));
