@@ -31,14 +31,7 @@ pub fn build(b: *std.Build) !void {
     const radio_module = b.addModule("radio", .{ .root_source_file = b.path("src/radio.zig") });
 
     // Discover examples
-    var examples = try discoverExamples(b.allocator, b.path("examples").getPath(b));
-    defer {
-        for (examples.items) |example| {
-            examples.allocator.free(example.name);
-            examples.allocator.free(example.path);
-        }
-        examples.deinit();
-    }
+    const examples = try discoverExamples(b.allocator, b.path("examples").getPath(b));
 
     // Build examples
     const examples_step = b.step("examples", "Build examples");
