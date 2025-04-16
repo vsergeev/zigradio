@@ -56,6 +56,15 @@ pub fn ApplicationSink(comptime T: type) type {
 
             return count;
         }
+
+        pub fn pop(self: *Self) ?T {
+            const buf: []const T = self.get();
+            if (buf.len == 0) return null;
+
+            const value = buf[0];
+            self.update(1);
+            return value;
+        }
     };
 }
 
@@ -66,7 +75,7 @@ pub fn ApplicationSink(comptime T: type) type {
 const ThreadSafeRingBuffer = @import("../../core/ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("../../core/sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
-test "ApplicationSink wait, available, get, update, read, discard, eos" {
+test "ApplicationSink wait, available, get, update, read, pop, discard, eos" {
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
@@ -126,17 +135,24 @@ test "ApplicationSink wait, available, get, update, read, discard, eos" {
     // Available should be zero
     try std.testing.expectEqual(0, try application_sink.available());
 
-    // Write two samples
-    input_writer.write(std.mem.sliceAsBytes(&[2]u32{ 8, 9 }));
+    // Write four samples
+    input_writer.write(std.mem.sliceAsBytes(&[4]u32{ 8, 9, 10, 11 }));
 
     // Available should be two
-    try std.testing.expectEqual(2, application_sink.available());
+    try std.testing.expectEqual(4, application_sink.available());
 
-    // Discard samples
+    // Pop two samples
+    try std.testing.expectEqual(8, application_sink.pop());
+    try std.testing.expectEqual(9, application_sink.pop());
+
+    // Discard remaining samples
     try application_sink.discard();
 
     // Available should be zero
     try std.testing.expectEqual(0, application_sink.available());
+
+    // Pop should return null
+    try std.testing.expectEqual(null, application_sink.pop());
 
     // Write two samples and set EOS
     input_writer.write(std.mem.sliceAsBytes(&[2]u32{ 10, 11 }));
