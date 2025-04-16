@@ -43,6 +43,10 @@ pub fn ApplicationSink(comptime T: type) type {
             return self.sample_mux.vtable.updateInputBuffer(self.sample_mux.ptr, 0, count * @sizeOf(T));
         }
 
+        pub fn discard(self: *Self) !void {
+            self.update(try self.available());
+        }
+
         pub fn read(self: *Self, samples: []T) usize {
             const buf: []const T = self.get();
             const count = @min(buf.len, samples.len);
@@ -62,7 +66,7 @@ pub fn ApplicationSink(comptime T: type) type {
 const ThreadSafeRingBuffer = @import("../../core/ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("../../core/sample_mux.zig").ThreadSafeRingBufferSampleMux;
 
-test "ApplicationSink wait, available, get, update, read, eos" {
+test "ApplicationSink wait, available, get, update, read, discard, eos" {
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
     defer input_ring_buffer.deinit();
@@ -119,11 +123,23 @@ test "ApplicationSink wait, available, get, update, read, eos" {
     try std.testing.expectEqual(6, buf2[1]);
     try std.testing.expectEqual(7, buf2[2]);
 
-    // AVailable should be zero
+    // Available should be zero
     try std.testing.expectEqual(0, try application_sink.available());
 
-    // Write two samples and set EOS
+    // Write two samples
     input_writer.write(std.mem.sliceAsBytes(&[2]u32{ 8, 9 }));
+
+    // Available should be two
+    try std.testing.expectEqual(2, application_sink.available());
+
+    // Discard samples
+    try application_sink.discard();
+
+    // Available should be zero
+    try std.testing.expectEqual(0, application_sink.available());
+
+    // Write two samples and set EOS
+    input_writer.write(std.mem.sliceAsBytes(&[2]u32{ 10, 11 }));
     input_writer.setEOS();
 
     // Available should be two
