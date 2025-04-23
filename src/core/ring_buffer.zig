@@ -321,7 +321,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 defer self.ring_buffer.mutex.unlock();
 
                 self.ring_buffer.impl.updateWriteIndex(count);
-                self.ring_buffer.cond_read_available.signal();
+                self.ring_buffer.cond_read_available.broadcast();
             }
 
             pub fn getNumReaders(self: *@This()) usize {
@@ -333,7 +333,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 defer self.ring_buffer.mutex.unlock();
 
                 self.ring_buffer.impl.setReadEOS();
-                self.ring_buffer.cond_read_available.signal();
+                self.ring_buffer.cond_read_available.broadcast();
             }
 
             // Write interface for testing
