@@ -364,18 +364,14 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
                 self.ring_buffer.mutex.lock();
                 defer self.ring_buffer.mutex.unlock();
 
-                var available = self.ring_buffer.impl.getReadAvailable(self.index);
-
-                while (available < min_count) {
-                    if (available == 0 and self.ring_buffer.impl.getReadEOS()) return error.EndOfStream;
+                while (self.ring_buffer.impl.getReadAvailable(self.index) < min_count) {
+                    if (self.ring_buffer.impl.getReadEOS()) return error.EndOfStream;
 
                     if (timeout_ns) |timeout| {
                         try self.ring_buffer.cond_read_available.timedWait(&self.ring_buffer.mutex, timeout);
                     } else {
                         self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
                     }
-
-                    available = self.ring_buffer.impl.getReadAvailable(self.index);
                 }
             }
 
@@ -914,6 +910,59 @@ test "ThreadSafeRingBuffer read wait eos" {
         try done_event.timedWait(std.time.ns_per_ms);
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
+
+        // Reader should get EOS
+        try std.testing.expectError(error.EndOfStream, reader.getAvailable());
+    }
+}
+
+test "ThreadSafeRingBuffer read wait eos with partial read" {
+    // This test requires spawning threads
+    if (builtin.single_threaded) {
+        return error.SkipZigTest;
+    }
+
+    inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
+        const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
+
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        defer ring_buffer.deinit();
+
+        var writer = ring_buffer.writer();
+        var reader = ring_buffer.reader();
+
+        const ReadWaiter = struct {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+                // Wait for 5
+                _ = rd.waitAvailable(5, null) catch 0;
+                // Signal done
+                done.set();
+            }
+        };
+
+        // Spawn a thread that waits until reader has available
+        var done_event = std.Thread.ResetEvent{};
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
+
+        // Done event should not be set
+        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+
+        // Write 3
+        writer.update(3);
+
+        // Set EOS on writer
+        writer.setEOS();
+
+        // Check reader waiter completed
+        try done_event.timedWait(std.time.ns_per_ms);
+        try std.testing.expectEqual(true, done_event.isSet());
+        thread.join();
+
+        // Reader should get 3
+        try std.testing.expectEqual(3, reader.getAvailable());
+
+        // Reader read 3
+        reader.update(3);
 
         // Reader should get EOS
         try std.testing.expectError(error.EndOfStream, reader.getAvailable());
