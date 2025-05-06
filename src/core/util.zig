@@ -51,8 +51,8 @@ pub fn indexOfString(haystack: []const []const u8, needle: []const u8) ?usize {
 ////////////////////////////////////////////////////////////////////////////////
 
 test "dataTypeSizes" {
-    try std.testing.expectEqualSlices(usize, &[0]usize{}, dataTypeSizes(&[0]type{}));
-    try std.testing.expectEqualSlices(usize, &[4]usize{ 1, 16, 8, 1 }, dataTypeSizes(&[4]type{ u8, u128, u64, bool }));
+    try std.testing.expectEqualSlices(usize, &[0]usize{}, comptime dataTypeSizes(&[0]type{}));
+    try std.testing.expectEqualSlices(usize, &[4]usize{ 1, 16, 8, 1 }, comptime dataTypeSizes(&[4]type{ u8, u128, u64, bool }));
 }
 
 test "make tuple const slice types" {
