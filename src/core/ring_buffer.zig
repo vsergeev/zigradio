@@ -1026,7 +1026,7 @@ test "MappedMemoryImpl" {
         return error.SkipZigTest;
     }
 
-    const capacity = std.heap.pageSize() * 8;
+    const capacity = std.heap.page_size_min * 8;
 
     // Create three mappings
     var memory1 = try MappedMemoryImpl.init(std.testing.allocator, capacity);
