@@ -1,3 +1,12 @@
+* v0.7.0 - 05/14/2025
+    * Migrate to Zig 0.14.0.
+    * Fix stuck multiple readers in ThreadSafeRingBuffer.
+    * Fix stream cut-off handling in ThreadSafeRingBuffer.
+    * Fix `setFrequency()` build error in AirspyHFSource.
+    * Add `push()` convenience API to ApplicationSource.
+    * Add `pop()` and `discard()` convenience APIs to ApplicationSink.
+    * Improve tests portability (e.g. aarch64).
+
 * v0.6.0 - 02/26/2025
     * Refactor SampleMux API.
     * Add raw block mode that uses SampleMux directly.
