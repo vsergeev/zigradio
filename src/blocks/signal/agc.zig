@@ -93,6 +93,11 @@ pub fn AGCBlock(comptime T: type) type {
             };
             self.gain_alpha = 1 / (1 + gain_tau * self.block.getRate(f32));
         }
+
+        pub fn reset(self: *Self) void {
+            self.average_power = 0;
+            self.gain = 0;
+        }
     };
 }
 
