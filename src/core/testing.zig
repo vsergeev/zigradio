@@ -16,6 +16,8 @@ fn _expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, eps
     const approx_equal = switch (T) {
         // Integers
         u8, u16, u32, u64, i8, i16, i32, i64 => expected == actual,
+        // Bit
+        u1 => expected == actual,
         // Floats
         f32, f64 => std.math.approxEqAbs(T, expected, actual, epsilon),
         // Complex Floats
