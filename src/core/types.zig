@@ -63,6 +63,7 @@ pub const RuntimeTypeSignature = struct {
             i16 => "Signed16",
             i32 => "Signed32",
             i64 => "Signed64",
+            u1 => "Bit",
             else => {
                 if (@hasDecl(data_type, "typeName")) return data_type.typeName();
                 @compileError("User-defined type " ++ @typeName(data_type) ++ " is missing a typeName() getter.");
