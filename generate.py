@@ -25,6 +25,10 @@ def random_float32(n):
     return numpy.around(numpy.array([2 * random.random() - 1.0 for _ in range(n)]).astype(numpy.float32), PRECISION)
 
 
+def random_bit(n):
+    return numpy.array([random.randint(0, 1) for _ in range(n)]).astype(numpy.bool_)
+
+
 ################################################################################
 # Vector Serialization
 ################################################################################
@@ -38,6 +42,8 @@ def serialize(vector):
             return f"[{len(vector)}]f32{{" + ("", " ")[len(vector) > 1] + ", ".join([f"{e:.{PRECISION}f}" for e in vector]) + ("", " ")[len(vector) > 1] + "}"
         elif vector.dtype == "complex64":
             return f"[{len(vector)}]std.math.Complex(f32){{" + ("", " ")[len(vector) > 1] + ", ".join([f".{{ .re = {e.real:.{PRECISION}f}, .im = {e.imag:.{PRECISION}f} }}" for e in vector]) + ("", " ")[len(vector) > 1] + "}"
+        elif vector.dtype == "bool":
+            return f"[{len(vector)}]u1{{" + ("", " ")[len(vector) > 1] + ", ".join([str(int(e)) for e in vector]) + ("", " ")[len(vector) > 1] + "}"
         else:
             raise NotImplementedError(f"Unsupported ndarray data type: {vector.dtype}")
     elif isinstance(vector, bytes):
