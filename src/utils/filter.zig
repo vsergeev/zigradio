@@ -188,6 +188,41 @@ pub fn firwinComplexBandstop(comptime N: comptime_int, cutoffs: struct { f32, f3
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Root Raised Cosine Filter
+////////////////////////////////////////////////////////////////////////////////
+
+// FIR Root Raised Cosine Filter
+// See https://en.wikipedia.org/wiki/Root-raised-cosine_filter
+
+pub fn firRootRaisedCosine(comptime N: comptime_int, sample_rate: f32, beta: f32, symbol_period: f32) [N]f32 {
+    var h: [N]f32 = undefined;
+
+    std.debug.assert((N % 2) == 1);
+
+    // Geenrate filter cooefficients
+    for (h, 0..) |_, i| {
+        const t = @as(f32, @floatFromInt(@as(isize, @intCast(i)) - (N - 1) / 2)) / sample_rate;
+
+        if (t == 0) {
+            h[i] = (1 / std.math.sqrt(symbol_period)) * (1 - beta + 4 * beta / std.math.pi);
+        } else if (std.math.approxEqAbs(f32, @abs(t), symbol_period / (4 * beta), 1e-5)) {
+            h[i] = (beta / std.math.sqrt(2 * symbol_period)) * ((1 + 2.0 / std.math.pi) * std.math.sin(std.math.pi / (4 * beta)) + (1 - 2.0 / std.math.pi) * std.math.cos(std.math.pi / (4 * beta)));
+        } else {
+            const num = std.math.cos((1 + beta) * std.math.pi * t / symbol_period) + std.math.sin((1 - beta) * std.math.pi * t / symbol_period) / (4 * beta * t / symbol_period);
+            const denom = (1 - (4 * beta * t / symbol_period) * (4 * beta * t / symbol_period));
+            h[i] = ((4 * beta) / (std.math.pi * std.math.sqrt(symbol_period))) * num / denom;
+        }
+    }
+
+    // Scale by DC gain
+    var scale: f32 = 0;
+    for (h) |e| scale += e;
+    for (&h) |*e| e.* /= scale;
+
+    return h;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,4 +245,8 @@ test "complexFirwin" {
     try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_positive, &firwinComplexBandstop(129, .{ 0.1, 0.3 }, WindowFunction.Hamming), 1e-6);
     try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_negative, &firwinComplexBandstop(129, .{ -0.1, -0.3 }, WindowFunction.Hamming), 1e-6);
     try expectEqualVectors(std.math.Complex(f32), &vectors.firwin_complex_bandstop_zero, &firwinComplexBandstop(129, .{ -0.2, 0.2 }, WindowFunction.Hamming), 1e-6);
+}
+
+test "firRootRaisedCosine" {
+    try expectEqualVectors(f32, &vectors.fir_root_raised_cosine, &firRootRaisedCosine(101, 24e3, 0.5, 1.0 / 1200.0), 1e-6);
 }
