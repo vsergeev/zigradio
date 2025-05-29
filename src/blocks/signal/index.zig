@@ -22,3 +22,4 @@ pub const ComplexToImagBlock = @import("complextoimag.zig").ComplexToImagBlock;
 pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitudeBlock;
 pub const AGCBlock = @import("agc.zig").AGCBlock;
 pub const PowerMeterBlock = @import("powermeter.zig").PowerMeterBlock;
+pub const RootRaisedCosineFilterBlock = @import("rootraisedcosinefilter.zig").RootRaisedCosineFilterBlock;
