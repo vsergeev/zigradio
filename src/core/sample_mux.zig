@@ -65,14 +65,11 @@ pub const SampleMux = struct {
             if (type_signature.inputs.len > 0 and min_input_samples == 0) {
                 // No input samples available for at least one input
                 try self.vtable.waitInputAvailable(self.ptr, min_input_samples_index, input_element_sizes[min_input_samples_index], timeout_ns);
-            } else if (type_signature.inputs.len > 0 and type_signature.outputs.len > 0 and min_output_samples < min_input_samples) {
-                // Insufficient output samples available for at least one output
-                try self.vtable.waitOutputAvailable(self.ptr, min_output_samples_index, min_input_samples * output_element_sizes[min_output_samples_index], timeout_ns);
             } else if (type_signature.outputs.len > 0 and min_output_samples == 0) {
                 // No output samples available for at least one output
                 try self.vtable.waitOutputAvailable(self.ptr, min_output_samples_index, output_element_sizes[min_output_samples_index], timeout_ns);
             } else {
-                min_samples_available = if (type_signature.inputs.len > 0) min_input_samples else min_output_samples;
+                min_samples_available = if (type_signature.inputs.len == 0) min_output_samples else if (type_signature.outputs.len == 0) min_input_samples else @min(min_input_samples, min_output_samples);
             }
         }
 
@@ -1114,9 +1111,9 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     input2_writer.write(&[_]u8{0xee} ** 1);
     input2_writer.write(&[_]u8{0xff} ** 1);
 
-    // Prewrite output 2 ring buffer to saturate it, leaving 2 samples available
-    output2_writer.write(&[_]u8{0x11} ** (std.heap.page_size_min - 3));
-    try std.testing.expectEqual(@as(usize, 2), output2_writer.getAvailable());
+    // Prewrite output 2 ring buffer to saturate it, leaving no samples available
+    output2_writer.write(&[_]u8{0x11} ** (std.heap.page_size_min - 1));
+    try std.testing.expectEqual(@as(usize, 0), output2_writer.getAvailable());
 
     // Verify sample mux wait times out
     try std.testing.expectError(error.Timeout, sample_mux.wait(ts, 0));
@@ -1139,8 +1136,8 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     // Check thread is blocking
     try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
 
-    // Consume 1 sample from output 2 ring buffer
-    output2_reader.update(1);
+    // Consume 3 samples from output 2 ring buffer
+    output2_reader.update(3);
 
     // Check buffer waiter completed
     try done_event.timedWait(std.time.ns_per_ms);
