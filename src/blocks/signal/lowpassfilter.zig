@@ -24,10 +24,10 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
         block: Block,
         cutoff: f32,
         options: Options,
-        filter: FIRFilter(T, f32, N),
+        filter: FIRFilter(T, f32),
 
         pub fn init(cutoff: f32, options: Options) Self {
-            return .{ .block = Block.init(@This()), .cutoff = cutoff, .options = options, .filter = FIRFilter(T, f32, N).init() };
+            return .{ .block = Block.init(@This()), .cutoff = cutoff, .options = options, .filter = FIRFilter(T, f32).init() };
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
@@ -35,10 +35,10 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
             const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
-            self.filter.taps = firwinLowpass(N, self.cutoff / nyquist, self.options.window);
+            const taps = firwinLowpass(N, self.cutoff / nyquist, self.options.window);
 
             // Initialize filter
-            return self.filter.initialize(allocator);
+            return self.filter.initialize(allocator, taps[0..]);
         }
 
         pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
@@ -49,17 +49,17 @@ pub fn LowpassFilterBlock(comptime T: type, comptime N: comptime_int) type {
             return self.filter.process(x, y);
         }
 
-        pub fn setCutoff(self: *Self, cutoff: f32) void {
+        pub fn setCutoff(self: *Self, cutoff: f32) !void {
             self.cutoff = cutoff;
 
             // Compute Nyquist frequency
             const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
-            self.filter.taps = firwinLowpass(N, self.cutoff / nyquist, self.options.window);
+            const taps = firwinLowpass(N, self.cutoff / nyquist, self.options.window);
 
             // Update filter
-            self.filter.updateTaps();
+            try self.filter.updateTaps(taps[0..]);
         }
 
         pub fn reset(self: *Self) void {
@@ -118,7 +118,7 @@ test "LowpassFilterBlock change cutoff" {
         const outputs1 = try fixture.process(.{&vectors.input_complexfloat32});
         try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_128_cutoff_0_2_complexfloat32, outputs1[0], 1e-6);
 
-        block.setCutoff(0.3);
+        try block.setCutoff(0.3);
         block.reset();
 
         const outputs2 = try fixture.process(.{&vectors.input_complexfloat32});
