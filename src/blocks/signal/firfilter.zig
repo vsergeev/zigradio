@@ -17,16 +17,15 @@ pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_i
         const Self = @This();
 
         block: Block,
-        filter: FIRFilter(T, U, N),
+        taps: [N]U,
+        filter: FIRFilter(T, U),
 
         pub fn init(taps: [N]U) Self {
-            var filter = FIRFilter(T, U, N).init();
-            @memcpy(&filter.taps, &taps);
-            return .{ .block = Block.init(@This()), .filter = filter };
+            return .{ .block = Block.init(@This()), .taps = taps, .filter = FIRFilter(T, U).init() };
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
-            return self.filter.initialize(allocator);
+            return self.filter.initialize(allocator, self.taps[0..]);
         }
 
         pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
@@ -43,7 +42,7 @@ pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_i
 // FIR Filter (Standalone)
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn FIRFilter(comptime T: type, comptime U: type, comptime N: comptime_int) type {
+pub fn FIRFilter(comptime T: type, comptime U: type) type {
     if (!((T == std.math.Complex(f32) and U == std.math.Complex(f32)) or
         (T == std.math.Complex(f32) and U == f32) or
         (T == f32 and U == f32))) @compileError("Data types combination not supported");
@@ -51,30 +50,29 @@ pub fn FIRFilter(comptime T: type, comptime U: type, comptime N: comptime_int) t
     return struct {
         const Self = @This();
 
-        taps: [N]U = [_]U{zero(U)} ** N,
         impl: union(enum) {
             none,
-            volk: _FIRFilterBlockVolkImpl(T, U, N, Self),
-            liquid: _FIRFilterBlockLiquidImpl(T, U, N, Self),
-            zig: _FIRFilterBlockZigImpl(T, U, N, Self),
+            volk: _FIRFilterBlockVolkImpl(T, U, Self),
+            liquid: _FIRFilterBlockLiquidImpl(T, U, Self),
+            zig: _FIRFilterBlockZigImpl(T, U, Self),
         } = .none,
 
         pub fn init() Self {
             return .{};
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, taps: []const U) !void {
             if (platform.libs.volk != null) {
-                self.impl = .{ .volk = _FIRFilterBlockVolkImpl(T, U, N, Self){ .parent = self } };
+                self.impl = .{ .volk = _FIRFilterBlockVolkImpl(T, U, Self){ .parent = self } };
             } else if (platform.libs.liquid != null) {
-                self.impl = .{ .liquid = _FIRFilterBlockLiquidImpl(T, U, N, Self){ .parent = self } };
+                self.impl = .{ .liquid = _FIRFilterBlockLiquidImpl(T, U, Self){ .parent = self } };
             } else {
-                self.impl = .{ .zig = _FIRFilterBlockZigImpl(T, U, N, Self){ .parent = self } };
+                self.impl = .{ .zig = _FIRFilterBlockZigImpl(T, U, Self){ .parent = self } };
             }
 
             switch (self.impl) {
                 .none => unreachable,
-                inline else => |*impl| try impl.initialize(allocator),
+                inline else => |*impl| try impl.initialize(allocator, taps),
             }
         }
 
@@ -92,10 +90,10 @@ pub fn FIRFilter(comptime T: type, comptime U: type, comptime N: comptime_int) t
             }
         }
 
-        pub fn updateTaps(self: *Self) void {
+        pub fn updateTaps(self: *Self, taps: []const U) !void {
             switch (self.impl) {
                 .none => unreachable,
-                inline else => |*impl| impl.updateTaps(),
+                inline else => |*impl| try impl.updateTaps(taps),
             }
         }
 
@@ -121,7 +119,7 @@ var volk_32fc_32f_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc
 var volk_32f_x2_dot_prod_32f: *const *const fn (*f32, [*c]const f32, [*c]const f32, c_uint) callconv(.C) void = undefined;
 var volk_loaded: bool = false;
 
-fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Parent: type) type {
+fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: type) type {
     return struct {
         const Self = @This();
         const Alignment = 32;
@@ -130,7 +128,7 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: compt
         taps: std.ArrayListAligned(U, Alignment) = undefined,
         state: std.ArrayList(T) = undefined,
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, taps: []const U) !void {
             if (!volk_loaded) {
                 volk_32fc_x2_dot_prod_32fc = platform.libs.volk.?.lookup(@TypeOf(volk_32fc_x2_dot_prod_32fc), "volk_32fc_x2_dot_prod_32fc") orelse return error.LookupFail;
                 volk_32fc_32f_dot_prod_32fc = platform.libs.volk.?.lookup(@TypeOf(volk_32fc_32f_dot_prod_32fc), "volk_32fc_32f_dot_prod_32fc") orelse return error.LookupFail;
@@ -140,12 +138,12 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: compt
 
             // Copy taps (backwards)
             self.taps = std.ArrayListAligned(U, Alignment).init(allocator);
-            try self.taps.resize(N);
-            for (0..N) |i| self.taps.items[i] = self.parent.taps[N - 1 - i];
+            try self.taps.resize(taps.len);
+            for (0..taps.len) |i| self.taps.items[i] = taps[taps.len - 1 - i];
 
             // Initialize state
             self.state = std.ArrayList(T).init(allocator);
-            try self.state.appendNTimes(zero(T), N);
+            try self.state.appendNTimes(zero(T), self.taps.items.len);
 
             if (platform.debug.enabled) std.debug.print("[FIRFilterBlock] Using VOLK implementation\n", .{});
         }
@@ -157,26 +155,28 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime N: compt
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
             // Shift last taps_length-1 state samples to the beginning of state
-            for (self.state.items.len - (N - 1)..self.state.items.len, 0..) |src, dst| self.state.items[dst] = self.state.items[src];
+            for (self.state.items.len - (self.taps.items.len - 1)..self.state.items.len, 0..) |src, dst| self.state.items[dst] = self.state.items[src];
             // Adjust state vector length for the input
-            try self.state.resize(N - 1 + x.len);
+            try self.state.resize(self.taps.items.len - 1 + x.len);
             // Copy input into state
-            @memcpy(self.state.items[N - 1 ..], x);
+            @memcpy(self.state.items[self.taps.items.len - 1 ..], x);
 
             // Inner product
             if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
-                for (0..x.len) |i| volk_32fc_x2_dot_prod_32fc.*(@ptrCast(&y[i]), @ptrCast(self.state.items[i .. i + N]), @ptrCast(self.taps.items.ptr), N);
+                for (0..x.len) |i| volk_32fc_x2_dot_prod_32fc.*(@ptrCast(&y[i]), @ptrCast(self.state.items[i .. i + self.taps.items.len]), @ptrCast(self.taps.items.ptr), @intCast(self.taps.items.len));
             } else if (T == std.math.Complex(f32) and U == f32) {
-                for (0..x.len) |i| volk_32fc_32f_dot_prod_32fc.*(@ptrCast(&y[i]), @ptrCast(self.state.items[i .. i + N]), self.taps.items.ptr, N);
+                for (0..x.len) |i| volk_32fc_32f_dot_prod_32fc.*(@ptrCast(&y[i]), @ptrCast(self.state.items[i .. i + self.taps.items.len]), self.taps.items.ptr, @intCast(self.taps.items.len));
             } else if (T == f32 and U == f32) {
-                for (0..x.len) |i| volk_32f_x2_dot_prod_32f.*(&y[i], @ptrCast(self.state.items[i .. i + N]), self.taps.items.ptr, N);
+                for (0..x.len) |i| volk_32f_x2_dot_prod_32f.*(&y[i], @ptrCast(self.state.items[i .. i + self.taps.items.len]), self.taps.items.ptr, @intCast(self.taps.items.len));
             }
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
 
-        pub fn updateTaps(self: *Self) void {
-            for (0..N) |i| self.taps.items[i] = self.parent.taps[N - 1 - i];
+        pub fn updateTaps(self: *Self, taps: []const U) !void {
+            for (0..taps.len) |i| self.taps.items[i] = taps[taps.len - 1 - i];
+
+            if (self.state.items.len < taps.len) try self.state.resize(taps.len);
         }
 
         pub fn reset(self: *Self) void {
@@ -220,14 +220,14 @@ var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) callconv(.C) c_int = undefi
 
 var liquid_loaded: bool = false;
 
-fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Parent: type) type {
+fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime Parent: type) type {
     return struct {
         const Self = @This();
 
         parent: *const Parent,
         filter: if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) firfilt_cccf else if (T == std.math.Complex(f32) and U == f32) firfilt_crcf else if (T == f32 and U == f32) firfilt_rrrf = undefined,
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, taps: []const U) !void {
             if (!liquid_loaded) {
                 firfilt_cccf_create = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_create), "firfilt_cccf_create") orelse return error.LookupFail;
                 firfilt_cccf_recreate = platform.libs.liquid.?.lookup(@TypeOf(firfilt_cccf_recreate), "firfilt_cccf_recreate") orelse return error.LookupFail;
@@ -248,11 +248,11 @@ fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: com
             }
 
             if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
-                self.filter = firfilt_cccf_create(@ptrCast(@constCast(self.parent.taps[0..])), N);
+                self.filter = firfilt_cccf_create(@ptrCast(@constCast(taps)), @intCast(taps.len));
             } else if (T == std.math.Complex(f32) and U == f32) {
-                self.filter = firfilt_crcf_create(@constCast(self.parent.taps[0..]), N);
+                self.filter = firfilt_crcf_create(@ptrCast(@constCast(taps)), @intCast(taps.len));
             } else if (T == f32 and U == f32) {
-                self.filter = firfilt_rrrf_create(@constCast(self.parent.taps[0..]), N);
+                self.filter = firfilt_rrrf_create(@ptrCast(@constCast(taps)), @intCast(taps.len));
             }
 
             if (self.filter == null) return error.OutOfMemory;
@@ -282,13 +282,13 @@ fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: com
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
 
-        pub fn updateTaps(self: *Self) void {
+        pub fn updateTaps(self: *Self, taps: []const U) !void {
             if (T == std.math.Complex(f32) and U == std.math.Complex(f32)) {
-                _ = firfilt_cccf_recreate(self.filter, @ptrCast(@constCast(self.parent.taps[0..])), N);
+                _ = firfilt_cccf_recreate(self.filter, @ptrCast(@constCast(taps)), @intCast(taps.len));
             } else if (T == std.math.Complex(f32) and U == f32) {
-                _ = firfilt_crcf_recreate(self.filter, @constCast(self.parent.taps[0..]), N);
+                _ = firfilt_crcf_recreate(self.filter, @ptrCast(@constCast(taps)), @intCast(taps.len));
             } else if (T == f32 and U == f32) {
-                _ = firfilt_rrrf_recreate(self.filter, @constCast(self.parent.taps[0..]), N);
+                _ = firfilt_rrrf_recreate(self.filter, @ptrCast(@constCast(taps)), @intCast(taps.len));
             }
         }
 
@@ -308,39 +308,53 @@ fn _FIRFilterBlockLiquidImpl(comptime T: type, comptime U: type, comptime N: com
 // FIR Filter Implementation (Zig)
 ////////////////////////////////////////////////////////////////////////////////
 
-fn _FIRFilterBlockZigImpl(comptime T: type, comptime U: type, comptime N: comptime_int, comptime Parent: type) type {
+fn _FIRFilterBlockZigImpl(comptime T: type, comptime U: type, comptime Parent: type) type {
     return struct {
         const Self = @This();
 
         parent: *const Parent,
-        state: [N]T = [_]T{zero(T)} ** N,
+        allocator: std.mem.Allocator = undefined,
+        taps: []U = &[0]U{},
+        state: []T = &[0]T{},
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
-            for (&self.state) |*e| e.* = zero(T);
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, taps: []const U) !void {
+            self.allocator = allocator;
+            self.taps = try allocator.dupe(U, taps);
+            self.state = try allocator.alloc(T, taps.len);
+
+            @memset(self.state, zero(T));
 
             if (platform.debug.enabled) std.debug.print("[FIRFilterBlock] Using Zig implementation\n", .{});
         }
 
-        pub fn deinitialize(_: *Self, _: std.mem.Allocator) void {}
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            allocator.free(self.state);
+            allocator.free(self.taps);
+        }
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
             for (x, 0..) |_, i| {
                 // Shift the input state samples down
-                for (0..N - 1) |j| self.state[N - 1 - j] = self.state[N - 2 - j];
+                for (0..self.taps.len - 1) |j| self.state[self.taps.len - 1 - j] = self.state[self.taps.len - 2 - j];
                 // Insert input sample into input state
                 self.state[0] = x[i];
 
                 // y[n] = b[0]*x[n] + b[1]*x[n-1] + b[2]*x[n-2] + ...
-                y[i] = innerProduct(T, U, &self.state, &self.parent.taps);
+                y[i] = innerProduct(T, U, self.state, self.taps);
             }
 
             return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});
         }
 
-        pub fn updateTaps(_: *Self) void {}
+        pub fn updateTaps(self: *Self, taps: []const U) !void {
+            self.allocator.free(self.taps);
+            self.taps = try self.allocator.dupe(U, taps);
+
+            if (self.state.len < taps.len) self.state = try self.allocator.realloc(self.state, taps.len);
+        }
 
         pub fn reset(self: *Self) void {
-            @memset(&self.state, zero(T));
+            @memset(self.state, zero(T));
         }
     };
 }
@@ -409,8 +423,7 @@ test "FIRFilterBlock change taps" {
         const outputs1 = try fixture.process(.{&vectors.input_complexfloat32});
         try expectEqualVectors(std.math.Complex(f32), &vectors.output_taps_8_complexfloat32, outputs1[0], 1e-6);
 
-        @memcpy(&block.filter.taps, &vectors.input_taps_8_alt);
-        block.filter.updateTaps();
+        try block.filter.updateTaps(&vectors.input_taps_8_alt);
         block.filter.reset();
 
         const outputs2 = try fixture.process(.{&vectors.input_complexfloat32});

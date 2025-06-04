@@ -24,10 +24,10 @@ pub fn BandstopFilterBlock(comptime T: type, comptime N: comptime_int) type {
         block: Block,
         cutoffs: struct { f32, f32 },
         options: Options,
-        filter: FIRFilter(T, f32, N),
+        filter: FIRFilter(T, f32),
 
         pub fn init(cutoffs: struct { f32, f32 }, options: Options) Self {
-            return .{ .block = Block.init(@This()), .cutoffs = cutoffs, .options = options, .filter = FIRFilter(T, f32, N).init() };
+            return .{ .block = Block.init(@This()), .cutoffs = cutoffs, .options = options, .filter = FIRFilter(T, f32).init() };
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
@@ -35,10 +35,10 @@ pub fn BandstopFilterBlock(comptime T: type, comptime N: comptime_int) type {
             const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
             // Generate taps
-            self.filter.taps = firwinBandstop(N, .{ self.cutoffs[0] / nyquist, self.cutoffs[1] / nyquist }, self.options.window);
+            const taps = firwinBandstop(N, .{ self.cutoffs[0] / nyquist, self.cutoffs[1] / nyquist }, self.options.window);
 
             // Initialize filter
-            return self.filter.initialize(allocator);
+            return self.filter.initialize(allocator, taps[0..]);
         }
 
         pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
