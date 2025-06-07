@@ -220,13 +220,16 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
 
         pub fn process(self: *Self, input_vectors: util.makeTupleConstSliceTypes(input_data_types)) !util.makeTupleConstSliceTypes(output_data_types) {
             // Convert input vectors to byte buffers in test sample mux
+            var max_input_elements: usize = 0;
             inline for (input_data_types, 0..) |_, i| {
                 self.test_sample_mux.input_buffers[i] = std.mem.sliceAsBytes(input_vectors[i][0..]);
                 self.test_sample_mux.input_buffer_indices[i] = 0;
+                max_input_elements = @max(max_input_elements, input_vectors[i].len);
             }
 
-            // Reset output vectors in test sample mux
+            // Resize and reset output vectors in test sample mux
             inline for (output_data_types, 0..) |_, i| {
+                self.test_sample_mux.output_buffers[i] = try std.testing.allocator.realloc(self.test_sample_mux.output_buffers[i], (if (max_input_elements > 0) max_input_elements else 2048) * @sizeOf(output_data_types[i]));
                 self.test_sample_mux.output_buffer_indices[i] = 0;
             }
 
