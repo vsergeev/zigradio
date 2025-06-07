@@ -25,3 +25,4 @@ pub const AGCBlock = @import("agc.zig").AGCBlock;
 pub const PowerMeterBlock = @import("powermeter.zig").PowerMeterBlock;
 pub const RootRaisedCosineFilterBlock = @import("rootraisedcosinefilter.zig").RootRaisedCosineFilterBlock;
 pub const RectangularMatchedFilterBlock = @import("rectangularmatchedfilter.zig").RectangularMatchedFilterBlock;
+pub const ComplexPLLBlock = @import("complexpll.zig").ComplexPLLBlock;
