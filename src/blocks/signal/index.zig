@@ -23,3 +23,4 @@ pub const RealToComplexBlock = @import("realtocomplex.zig").RealToComplexBlock;
 pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitudeBlock;
 pub const AGCBlock = @import("agc.zig").AGCBlock;
 pub const PowerMeterBlock = @import("powermeter.zig").PowerMeterBlock;
+pub const RectangularMatchedFilterBlock = @import("rectangularmatchedfilter.zig").RectangularMatchedFilterBlock;
