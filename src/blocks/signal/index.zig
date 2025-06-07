@@ -24,3 +24,4 @@ pub const ComplexMagnitudeBlock = @import("complexmagnitude.zig").ComplexMagnitu
 pub const AGCBlock = @import("agc.zig").AGCBlock;
 pub const PowerMeterBlock = @import("powermeter.zig").PowerMeterBlock;
 pub const RectangularMatchedFilterBlock = @import("rectangularmatchedfilter.zig").RectangularMatchedFilterBlock;
+pub const ComplexPLLBlock = @import("complexpll.zig").ComplexPLLBlock;
