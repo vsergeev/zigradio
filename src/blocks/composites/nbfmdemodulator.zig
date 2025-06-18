@@ -24,7 +24,7 @@ pub const NBFMDemodulatorBlock = struct {
     pub fn init(options: Options) NBFMDemodulatorBlock {
         return .{
             .block = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
-            .bb_filter = LowpassFilterBlock(std.math.Complex(f32), 64).init(2 * (options.deviation + options.bandwidth), .{}),
+            .bb_filter = LowpassFilterBlock(std.math.Complex(f32), 64).init(options.deviation + options.bandwidth, .{}),
             .fm_demod = FrequencyDiscriminatorBlock.init(options.deviation),
             .af_filter = LowpassFilterBlock(f32, 64).init(options.bandwidth, .{}),
         };
