@@ -17,11 +17,11 @@ pub const TunerBlock = struct {
     filter: LowpassFilterBlock(std.math.Complex(f32), 64),
     downsampler: DownsamplerBlock(std.math.Complex(f32)),
 
-    pub fn init(offset: f32, cutoff: f32, factor: usize) TunerBlock {
+    pub fn init(offset: f32, bandwidth: f32, factor: usize) TunerBlock {
         return .{
             .block = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
             .translator = FrequencyTranslatorBlock.init(offset),
-            .filter = LowpassFilterBlock(std.math.Complex(f32), 64).init(cutoff, .{}),
+            .filter = LowpassFilterBlock(std.math.Complex(f32), 64).init(bandwidth / 2, .{}),
             .downsampler = DownsamplerBlock(std.math.Complex(f32)).init(factor),
         };
     }
