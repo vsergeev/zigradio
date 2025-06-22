@@ -51,26 +51,6 @@ pub fn main() !void {
 
 Check out some more [examples](examples) of what you can build with ZigRadio.
 
-## Installation
-
-Fetch the ZigRadio package:
-
-```
-zig fetch --save git+https://github.com/vsergeev/zigradio#master
-```
-
-Add ZigRadio as a dependency to your `build.zig`:
-
-```
-const radio = b.dependency("radio", .{});
-...
-exe.root_module.addImport("radio", radio.module("radio"));
-exe.linkLibC();
-```
-
-Optimization `ReleaseFast` is recommended for real-time applications. libc is
-required for loading dynamic libraries used for acceleration and I/O.
-
 ## Building
 
 ZigRadio requires Zig version 0.14.0.
@@ -92,6 +72,26 @@ Try out one of the [examples](examples) with an
 ```
 $ ./zig-out/bin/example-rtlsdr_wbfm_mono 89.7e6
 ```
+
+## Embedding ZigRadio
+
+Fetch the ZigRadio package:
+
+```
+zig fetch --save git+https://github.com/vsergeev/zigradio#master
+```
+
+Add ZigRadio as a dependency to your `build.zig`:
+
+```
+const radio = b.dependency("radio", .{});
+...
+exe.root_module.addImport("radio", radio.module("radio"));
+exe.linkLibC();
+```
+
+Optimization `ReleaseFast` is recommended for real-time applications. libc is
+required for loading dynamic libraries used for acceleration and I/O.
 
 ## Project Structure
 
