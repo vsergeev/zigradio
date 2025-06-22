@@ -8,3 +8,4 @@ pub const AMEnvelopeDemodulatorBlock = @import("amenvelopedemodulator.zig").AMEn
 pub const AMSynchronousDemodulatorBlock = @import("amsynchronousdemodulator.zig").AMSynchronousDemodulatorBlock;
 pub const NBFMDemodulatorBlock = @import("nbfmdemodulator.zig").NBFMDemodulatorBlock;
 pub const WBFMMonoDemodulatorBlock = @import("wbfmmonodemodulator.zig").WBFMMonoDemodulatorBlock;
+pub const WBFMStereoDemodulatorBlock = @import("wbfmstereodemodulator.zig").WBFMStereoDemodulatorBlock;
