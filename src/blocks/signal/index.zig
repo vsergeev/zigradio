@@ -3,6 +3,7 @@ test {
     @import("std").testing.refAllDecls(@This());
 }
 
+pub const AddBlock = @import("add.zig").AddBlock;
 pub const MultiplyBlock = @import("multiply.zig").MultiplyBlock;
 pub const MultiplyConjugateBlock = @import("multiplyconjugate.zig").MultiplyConjugateBlock;
 pub const DownsamplerBlock = @import("downsampler.zig").DownsamplerBlock;
