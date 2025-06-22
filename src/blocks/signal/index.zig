@@ -7,6 +7,7 @@ pub const AddBlock = @import("add.zig").AddBlock;
 pub const SubtractBlock = @import("subtract.zig").SubtractBlock;
 pub const MultiplyBlock = @import("multiply.zig").MultiplyBlock;
 pub const MultiplyConjugateBlock = @import("multiplyconjugate.zig").MultiplyConjugateBlock;
+pub const DelayBlock = @import("delay.zig").DelayBlock;
 pub const DownsamplerBlock = @import("downsampler.zig").DownsamplerBlock;
 pub const FrequencyTranslatorBlock = @import("frequencytranslator.zig").FrequencyTranslatorBlock;
 pub const FrequencyDiscriminatorBlock = @import("frequencydiscriminator.zig").FrequencyDiscriminatorBlock;
