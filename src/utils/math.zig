@@ -12,6 +12,14 @@ pub fn zero(comptime T: type) T {
     } else unreachable;
 }
 
+pub fn add(comptime T: type, x: T, y: T) T {
+    if (T == std.math.Complex(f32)) {
+        return x.add(y);
+    } else if (T == f32) {
+        return x + y;
+    } else unreachable;
+}
+
 pub fn sub(comptime T: type, x: T, y: T) T {
     if (T == std.math.Complex(f32)) {
         return x.sub(y);
@@ -59,6 +67,11 @@ pub fn innerProduct(comptime T: type, comptime U: type, x: []const T, y: []const
 test "zero" {
     try std.testing.expectEqual(std.math.Complex(f32).init(0, 0), zero(std.math.Complex(f32)));
     try std.testing.expectEqual(@as(f32, 0), zero(f32));
+}
+
+test "add" {
+    try std.testing.expectEqual(std.math.Complex(f32).init(3, 4), add(std.math.Complex(f32), std.math.Complex(f32).init(2, 3), std.math.Complex(f32).init(1, 1)));
+    try std.testing.expectEqual(@as(f32, 6), add(f32, 4, 2));
 }
 
 test "sub" {
