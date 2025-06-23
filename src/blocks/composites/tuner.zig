@@ -1,32 +1,27 @@
 const std = @import("std");
 
-const CompositeBlock = @import("../../radio.zig").CompositeBlock;
-const Flowgraph = @import("../../radio.zig").Flowgraph;
-
-const FrequencyTranslatorBlock = @import("../signal/frequencytranslator.zig").FrequencyTranslatorBlock;
-const LowpassFilterBlock = @import("../signal/lowpassfilter.zig").LowpassFilterBlock;
-const DownsamplerBlock = @import("../signal/downsampler.zig").DownsamplerBlock;
+const radio = @import("../../radio.zig");
 
 ////////////////////////////////////////////////////////////////////////////////
 // Tuner Block
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const TunerBlock = struct {
-    block: CompositeBlock,
-    translator: FrequencyTranslatorBlock,
-    filter: LowpassFilterBlock(std.math.Complex(f32), 64),
-    downsampler: DownsamplerBlock(std.math.Complex(f32)),
+    block: radio.CompositeBlock,
+    translator: radio.blocks.FrequencyTranslatorBlock,
+    filter: radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 64),
+    downsampler: radio.blocks.DownsamplerBlock(std.math.Complex(f32)),
 
     pub fn init(offset: f32, bandwidth: f32, factor: usize) TunerBlock {
         return .{
-            .block = CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
-            .translator = FrequencyTranslatorBlock.init(offset),
-            .filter = LowpassFilterBlock(std.math.Complex(f32), 64).init(bandwidth / 2, .{}),
-            .downsampler = DownsamplerBlock(std.math.Complex(f32)).init(factor),
+            .block = radio.CompositeBlock.init(@This(), &.{"in1"}, &.{"out1"}),
+            .translator = radio.blocks.FrequencyTranslatorBlock.init(offset),
+            .filter = radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 64).init(bandwidth / 2, .{}),
+            .downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(factor),
         };
     }
 
-    pub fn connect(self: *TunerBlock, flowgraph: *Flowgraph) !void {
+    pub fn connect(self: *TunerBlock, flowgraph: *radio.Flowgraph) !void {
         try flowgraph.connect(&self.translator.block, &self.filter.block);
         try flowgraph.connect(&self.filter.block, &self.downsampler.block);
 
