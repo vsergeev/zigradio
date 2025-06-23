@@ -37,3 +37,11 @@ pub const AMEnvelopeDemodulatorBlock = struct {
         try flowgraph.call(&self.af_filter.block, radio.blocks.LowpassFilterBlock(f32, 64).setCutoff, .{bandwidth});
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// Tests
+////////////////////////////////////////////////////////////////////////////////
+
+test "AMEnvelopeDemodulatorBlock" {
+    _ = AMEnvelopeDemodulatorBlock.init(.{});
+}
