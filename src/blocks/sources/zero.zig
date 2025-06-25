@@ -1,3 +1,13 @@
+// @block ZeroSource
+// @description Source a zero-valued signal of the specified type.
+// @category Sources
+// @ctparam T type Complex(f32), f32, u1, etc.
+// @param rate f64 Sample rate in Hz
+// @signature > out:T
+// @usage
+// var src = radio.blocks.ZeroSource(std.math.Complex(f32)).init(1e6);
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

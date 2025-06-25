@@ -1,3 +1,17 @@
+// @block BenchmarkSink
+// @description Benchmark throughput.
+//
+// Consumes samples and periodically reports the sample rate and byte rate.
+// @category Sinks
+// @ctparam T type Complex(f32), f32, u1, etc.
+// @param options Options Additional options:
+//      * `title` (`[]const u8`, default "BenchmarkSink")
+//      * `report_period_ms` (`usize`, reporting period in milliseconds, default 3000)
+// @signature in:T >
+// @usage
+// var snk = radio.blocks.BenchmarkSink(std.math.Complex(f32)).init(.{});
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

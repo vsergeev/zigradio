@@ -1,3 +1,19 @@
+// @block FIRFilterBlock
+// @description Filter a complex or real valued signal with an FIR filter.
+//
+// $$ y[n] = (x * h)[n] $$
+//
+// $$ y[n] = b_0 x[n] + b_1 x[n-1] + ... + b_N x[n-N] $$
+//
+// @category Filtering
+// @ctparam T type Complex(f32), f32
+// @ctparam U type Tap data type (e.g. Complex(f32), f32)
+// @ctparam N comptime_int Number of taps
+// @param taps [N]U Taps
+// @signature in:T > out:T
+// @usage
+// var filter = radio.blocks.FIRFilterBlock(std.math.Complex(f32), f32, 64).init(taps);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

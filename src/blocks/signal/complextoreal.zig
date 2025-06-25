@@ -1,3 +1,13 @@
+// @block ComplexToRealBlock
+// @description Decompose the real part of a complex-valued signal.
+//
+// $$ y[n] = \text{Re}(x[n]) $$
+//
+// @category Type Conversion
+// @signature in:Complex(f32) > out:f32
+// @usage
+// var complextoreal = radio.blocks.ComplexToRealBlock.init();
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

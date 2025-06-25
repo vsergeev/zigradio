@@ -1,3 +1,25 @@
+// @block AGCBlock
+// @description Apply automatic gain to a real or complex valued signal to
+// maintain an average target power.
+//
+// $$ y[n] = \text{AGC}(x[n], \text{mode}, \text{target}, \text{threshold}) $$
+//
+// Implementation note: this is a feedforward AGC. The `power_tau` time
+// constant controls the moving average of the power estimator. The `gain_tau`
+// time constant controls the speed of the gain adjustment. The gain has
+// symmetric attack and decay dynamics.
+//
+// @category Level Control
+// @ctparam T type Complex(f32), f32
+// @param mode Mode AGC mode, either preset of .Slow, .Medium, .Fast or a custom time constant
+// @param options Options Additional options:
+//      * `target_dbfs` (`f32`, target level in dBFS, default -20)
+//      * `threshold_dbfs` (`f32`, threshold level in dBFS, default -75)
+//      * `power_tau` (`f32`, power estimator time constant, default 1.0)
+// @signature in:T > out:T
+// @usage
+// var agc = radio.blocks.AGCBlock(std.math.Complex(f32)).init(.{ .preset = .Fast }, .{ .target_dbfs = -30, .threshold_dbfs = -75 });
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

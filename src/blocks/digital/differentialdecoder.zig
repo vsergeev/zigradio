@@ -1,3 +1,11 @@
+// @block DifferentialDecoderBlock
+// @description Decode a differentially encoded bit stream.
+// @category Digital
+// @cparam invert bool Invert the output
+// @signature in:u1 > out:u1
+// @usage
+// var diffdecoder = radio.blocks.DifferentialDecoderBlock(false).init();
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

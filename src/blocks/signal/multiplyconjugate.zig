@@ -1,3 +1,17 @@
+// @block MultiplyConjugateBlock
+// @description Multiply a complex-valued signal by the complex conjugate of
+// another complex-valued signal.
+//
+// $$ y[n] = x_{1}[n] \; x_{2}^*[n] $$
+//
+// @category Math Operations
+// @signature in1:Complex(f32) in2:Complex(f32) > out:Complex(f32)
+// @usage
+// var mixer = radio.blocks.MultiplyConjugateBlock.init();
+// try top.connectPort(&src1.block, "out1", &mixer.block, "in1");
+// try top.connectPort(&src2.block, "out1", &mixer.block, "in2");
+// try top.connect(&mixer.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

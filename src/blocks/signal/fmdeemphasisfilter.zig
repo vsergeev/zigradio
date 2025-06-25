@@ -1,3 +1,15 @@
+// @block FMDeemphasisFilterBlock
+// @description Filter a complex or real valued signal with an FM De-emphasis
+// filter, a single-pole low-pass IIR filter.
+//
+// $$ y[n] = (x * h_{fmdeemph})[n] $$
+//
+// @category Filtering
+// @param tau De-emphasis time constant
+// @signature in:f32 > out:f32
+// @usage
+// var deemphasis = radio.blocks.FMDeemphasisFilterBlock.init(75e-6);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

@@ -1,3 +1,15 @@
+// @block PowerMeterBlock
+// @description Compute the average power of a signal in dBFS, using an
+// exponential moving average.
+// @category Level control
+// @ctparam T type Complex(f32), f32
+// @param report_interval_ms f32 Reporting interval in milliseconds
+// @param options Options Additional options:
+//      * `power_tau` (`f32`, power estimator time constant, default 0.5)
+// @signature in:T > out:f32
+// @usage
+// var power_meter = radio.blocks.PowerMeterBlock(std.math.Complex(f32)).init(50, .{});
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

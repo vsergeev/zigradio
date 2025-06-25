@@ -1,3 +1,17 @@
+// @block ApplicationSource
+// @description Source a signal from a host application.
+//
+// Provides an interface for applications to push samples into the flowgraph.
+// @category Sources
+// @ctparam T type Complex(f32), f32, u1, etc.
+// @param rate f64 Sample rate in Hz
+// @signature > out:T
+// @usage
+// var src = radio.blocks.ApplicationSource(std.math.Complex(f32)).init(1e6);
+// try top.connect(&src.block, &snk.block);
+// ...
+// try src.push(std.math.Complex(f32).init(2, 3));
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

@@ -1,3 +1,18 @@
+// @block RealStreamSink
+// @description Sink a real-valued signal to a binary stream, using the
+// specified sample format.
+// @category Sinks
+// @param writer std.io.AnyWriter Writer
+// @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
+// @param options Options Additional options
+// @signature in:f32 >
+// @usage
+// var output_file = try std.fs.cwd().createFile("samples.real", .{});
+// defer output_file.close();
+// ...
+// var snk = radio.blocks.RealStreamSink.init(output_file.writer().any(), .u16be, .{});
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

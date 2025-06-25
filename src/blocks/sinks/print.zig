@@ -1,3 +1,12 @@
+// @block PrintSink
+// @description Sink a signal to standard out.
+// @category Sinks
+// @ctparam T type Any type formattable by `std.debug.print()`
+// @signature in:T >
+// @usage
+// var snk = radio.blocks.PrintSink(f32).init();
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

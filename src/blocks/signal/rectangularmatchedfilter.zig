@@ -1,3 +1,12 @@
+// @block RectangularMatchedFilterBlock
+// @description Correlate a real-valued signal with a rectangular matched
+// filter.
+// @category Filtering
+// @param baudrate Baudrate
+// @signature in:f32 > out:f32
+// @usage
+// var matched_filter = radio.blocks.RectangularMatchedFilterBlock.init(2400);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

@@ -1,3 +1,20 @@
+// @block IIRFilterBlock
+// @description Filter a complex or real valued signal with an IIR filter.
+//
+// $$ y[n] = (x * h)[n] $$
+//
+// $$ \begin{align} y[n] = &\frac{1}{a_0}(b_0 x[n] + b_1 x[n-1] + ... + b_N x[n-N] \\ - &a_1 y[n-1] - a_2 y[n-2] - ... - a_M x[n-M])\end{align} $$
+//
+// @category Filtering
+// @ctparam T type Complex(f32), f32
+// @ctparam N comptime_int Number of feedforward taps
+// @ctparam M comptime_int Number of feedback taps
+// @param b_taps [N]f32 Feedforward taps
+// @param a_taps [M]f32 Feedback taps
+// @signature in:T > out:T
+// @usage
+// var filter = radio.blocks.IIRFilterBlock(std.math.Complex(f32), 3, 3).init(b_taps, a_taps);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

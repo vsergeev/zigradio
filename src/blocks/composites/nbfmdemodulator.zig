@@ -1,3 +1,18 @@
+// @block NBFMDemodulatorBlock
+// @description Demodulate a baseband, narrowband FM modulated complex-valued signal.
+//
+// $$ y[n] = \text{NBFMDemodulate}(x[n], \text{deviation}, \text{bandwidth}) $$
+//
+// @category Demodulation
+// @param options Options Additional options:
+//      * `bandwidth` (`f32`, bandwidth in Hz, default 5e3)
+//      * `deviation` (`f32`, deviation in Hz, default 4e3)
+// @signature in1:Complex(f32) > out1:f32
+// @usage
+// var demod = radio.blocks.NBFMDemodulatorBlock.init(.{});
+// try top.connect(&src.block, &demod.block);
+// try top.connect(&demod.block, &snk.block);
+
 const std = @import("std");
 
 const radio = @import("../../radio.zig");

@@ -1,3 +1,15 @@
+// @block ComplexMagnitudeBlock
+// @description Compute the magnitude of a complex-valued signal.
+//
+// $$ y[n] = |x[n]| $$
+//
+// $$ y[n] = \sqrt{\text{Re}(x[n])^2 + \text{Im}(x[n])^2} $$
+//
+// @category Math Operations
+// @signature in:Complex(f32) > out:f32
+// @usage
+// var mag = radio.blocks.ComplexMagnitudeBlock.init();
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

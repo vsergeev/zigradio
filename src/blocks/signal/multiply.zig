@@ -1,3 +1,17 @@
+// @block MultiplyBlock
+// @description Multiply two signals.
+//
+// $$ y[n] = x_{1}[n] \; x_{2}[n] $$
+//
+// @category Math Operations
+// @ctparam T type Complex(f32), f32, etc.
+// @signature in1:T in2:T > out:T
+// @usage
+// var multiplier = radio.blocks.MultiplyBlock(std.math.Complex(f32)).init();
+// try top.connectPort(&src1.block, "out1", &multiplier.block, "in1");
+// try top.connectPort(&src2.block, "out1", &multiplier.block, "in2");
+// try top.connect(&multiplier.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

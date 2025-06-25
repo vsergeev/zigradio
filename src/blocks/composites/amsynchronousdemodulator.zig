@@ -1,3 +1,18 @@
+// @block AMSynchronousDemodulatorBlock
+// @description Demodulate a baseband, double-sideband amplitude modulated
+// complex-valued signal with a synchronous detector.
+//
+// $$ y[n] = \text{AMDemodulate}(x[n], \text{bandwidth}) $$
+//
+// @category Demodulation
+// @param options Options Additional options:
+//      * `bandwidth` (`f32`, bandwidth in Hz, default 5e3)
+// @signature in1:Complex(f32) > out1:f32
+// @usage
+// var demod = radio.blocks.AMSynchronousDemodulatorBlock.init(.{});
+// try top.connect(&src.block, &demod.block);
+// try top.connect(&demod.block, &snk.block);
+
 const std = @import("std");
 
 const radio = @import("../../radio.zig");

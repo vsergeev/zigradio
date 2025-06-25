@@ -1,3 +1,15 @@
+// @block FrequencyTranslatorBlock
+// @description Frequency translate a complex-valued signal by mixing it with
+// \( e^{j \omega_0 n} \), where \( \omega_0 = 2 \pi f_o / f_s \).
+//
+// $$ y[n] = x[n] \; e^{j\omega_0 n} $$
+//
+// @category Spectrum Manipulation
+// @param offset Translation offset in Hz
+// @signature in:Complex(f32) > out:Complex(f32)
+// @usage
+// var translator = radio.blocks.FrequencyTranslatorBlock.init(-50e3);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

@@ -1,3 +1,14 @@
+// @block RealToComplexBlock
+// @description Compose a complex-valued signal from a real-valued signal and a
+// zero-valued imaginary part.
+//
+// $$ y[n] = x[n] + 0 \, j $$
+//
+// @category Type Conversion
+// @signature in:f32 > out:Complex(f32)
+// @usage
+// var realtocomplex = radio.blocks.RealToComplexBlock.init();
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

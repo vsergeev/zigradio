@@ -1,3 +1,19 @@
+// @block RealStreamSource
+// @description Source a real-valued signal from a binary stream, using the
+// specified sample format.
+// @category Sources
+// @param reader std.io.AnyReader Reader
+// @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
+// @param rate f64 Sample rate in Hz
+// @param options Options Additional options
+// @signature > out:f32
+// @usage
+// var input_file = try std.fs.cwd().openFile("samples.real", .{});
+// defer input_file.close();
+// ...
+// var src = radio.blocks.RealStreamSource.init(input_file.reader().any(), .s16le, 1e6, .{});
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

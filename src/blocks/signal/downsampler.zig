@@ -1,3 +1,18 @@
+// @block DownsamplerBlock
+// @description Downsample a complex or real valued signal. This block reduces
+// the sample rate for downstream blocks in the flow graph by a factor of M.
+//
+// $$ y[n] = x[nM] $$
+//
+// Note: this block performs no anti-alias filtering.
+//
+// @category Sample Rate Manipulation
+// @ctparam T type Complex(f32), f32, etc.
+// @param factor usize Downsampling factor
+// @signature in:T > out:T
+// @usage
+// var downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(4);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

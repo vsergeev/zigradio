@@ -1,3 +1,20 @@
+// @block SinglepoleHighpassFilterBlock
+// @description Filter a complex or real valued signal with a single-pole
+// high-pass IIR filter.
+//
+// $$ H(s) = \frac{\tau s}{\tau s + 1} $$
+//
+// $$ H(z) = \frac{2\tau f_s}{1 + 2\tau f_s} \frac{1 - z^{-1}}{1 + (\frac{1 - 2\tau f_s}{1 + 2\tau f_s}) z^{-1}} $$
+//
+// $$ y[n] = \frac{2\tau f_s}{1 + 2\tau f_s} \; x[n] + \frac{2\tau f_s}{1 + 2\tau f_s} \; x[n-1] - \frac{1 - 2\tau f_s}{1 + 2\tau f_s} \; y[n-1] $$
+//
+// @category Filtering
+// @ctparam T type Complex(f32), f32
+// @param cutoff f32 Cutoff frequency in Hz
+// @signature in:T > out:T
+// @usage
+// var filter = radio.blocks.SinglepoleHighpassFilterBlock(f32).init(100);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

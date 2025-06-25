@@ -1,3 +1,15 @@
+// @block DelayBlock
+// @description Delay a signal by a fixed number of samples.
+//
+// $$ y[n] = x[n - D] $$
+//
+// @category Miscellaneous
+// @ctparam T type Complex(f32), f32, etc.
+// @param delay usize Number of samples to delay
+// @signature in:T > out:T
+// @usage
+// var delay = radio.blocks.DelayBlock(std.math.Complex(f32)).init(7);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

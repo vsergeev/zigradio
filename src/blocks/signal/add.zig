@@ -1,3 +1,17 @@
+// @block AddBlock
+// @description Add two signals.
+//
+// $$ y[n] = x_{1}[n] + x_{2}[n] $$
+//
+// @category Math Operations
+// @ctparam T type Complex(f32), f32, etc.
+// @signature in1:T in2:T > out:T
+// @usage
+// var summer = radio.blocks.AddBlock(std.math.Complex(f32)).init();
+// try top.connectPort(&src1.block, "out1", &summer.block, "in1");
+// try top.connectPort(&src2.block, "out1", &summer.block, "in2");
+// try top.connect(&summer.block, &sink.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

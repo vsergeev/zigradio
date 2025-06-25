@@ -1,3 +1,20 @@
+// @block TunerBlock
+// @description Frequency translate, low-pass filter, and downsample a
+// complex-valued signal.
+//
+// $$ y[n] = (\text{FrequencyTranslate}(x[n], f_{offset}) * h_{lpf})[nM] $$
+//
+// This block is convenient for translating signals to baseband.
+// @category Spectrum Manipulation
+// @param offset f32 Translation offset in Hz
+// @param bandwidth f32 Signal bandwidth in Hz
+// @param factor usize Downsampling factor M
+// @signature in1:Complex(f32) > out1:Complex(f32)
+// @usage
+// var tuner = radio.blocks.TunerBlock.init(50e3, 10e3, 5);
+// try top.connect(&src.block, &tuner.block);
+// try top.connect(&tuner.block, &snk.block);
+
 const std = @import("std");
 
 const radio = @import("../../radio.zig");

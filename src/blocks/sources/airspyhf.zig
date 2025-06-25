@@ -1,3 +1,21 @@
+// @block AirspyHFSource
+// @description Source a complex-valued signal from an Airspy HF+. This source
+// requires the libairspyhf library.
+// @category Sources
+// @param frequency f64 Tuning frequency in Hz
+// @param rate f64 Sample rate in Hz (e.g. 192 kHz, 256 kHz, 384 kHz, 768 kHz)
+// @param options Options Additional options:
+//      * `hf_agc` (`bool`, default true)
+//      * `hf_agc_threshold` (`enum { Low, High}`, default .Low)
+//      * `hf_att` (`u8`, default 0 dB, for manual attenuation when HF AGC is
+//                  disabled, range of 0 to 48 dB, 6 dB step)
+//      * `hf_lna` (`bool`, default false)
+//      * `debug` (`bool`, default false)
+// @signature > out:Complex(f32)
+// @usage
+// var src = radio.blocks.AirspyHFSource.init(7.150e6, 192e3, .{ .hf_lna = true });
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 const builtin = @import("builtin");
 

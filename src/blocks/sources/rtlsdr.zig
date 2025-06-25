@@ -1,3 +1,22 @@
+// @block RtlSdrSource
+// @description Source a complex-valued signal from an RTL-SDR dongle. This
+// source requires the librtlsdr library.
+// @category Sources
+// @param frequency f64 Tuning frequency in Hz
+// @param rate f64 Sample rate in Hz
+// @param options Options Additional options: struct (bias_tee, direct_sampling, bandwidth, rf_gain, freq_correction, device_index, debug)
+//      * `biastee` (`bool`, default false)
+//      * `direct_sampling` (`?DirectSamplingMode`, default null, choice of .I, .Q)
+//      * `bandwidth` (`?f32`, default null for sample rate)
+//      * `rf_gain` (`?f32`, number in dB for manual gain, default null for auto-gain)
+//      * `freq_correction` (`isize`, in PPM, default 0)
+//      * `device_index` (`isize`, default 0)
+//      * `debug` (`bool`, default false)
+// @signature > out:Complex(f32)
+// @usage
+// var src = radio.blocks.RtlSdrSource.init(162.400e6, 1e6, .{ .autogain = true });
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 const builtin = @import("builtin");
 

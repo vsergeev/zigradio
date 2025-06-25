@@ -1,3 +1,21 @@
+// @block ComplexPLLBlock
+// @description Generate a phase-locked complex sinusoid to a complex-valued reference
+// signal.
+//
+// $$ y[n] = \text{PLL}(x[n], f_{BW}, f_{min}, f_{max}, M) $$
+//
+// @category Carrier and Clock Recovery
+// @param loop_bandwidth f32 Loop bandwidth in Hz
+// @param frequency_range struct{f32,f32} Minimum and maximum frequency range in Hz
+// @param options Options Additional options:
+//      * `multiplier` (`f32`, frequency multiplier, default 1.0)
+// @signature in:Complex(f32) > out:Complex(f32) err:f32
+// @usage
+// var pll = radio.blocks.ComplexPLLBlock.init(500, .{ 8e3, 12e3 }, .{});
+// try top.connect(&src.block, &pll.block);
+// try top.connectPort(&pll.block, "out1", &snk.block);
+// try top.connectPort(&pll.block, "out2", &err_snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

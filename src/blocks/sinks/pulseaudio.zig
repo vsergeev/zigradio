@@ -1,3 +1,14 @@
+// @block PulseAudioSink
+// @description Sink a mono or stereo real-valued signal to the PulseAudio
+// sound server. This sink requires the libpulse-simple library.
+// @category Sinks
+// @cparam N comptime_int Number of channels: 1 for mono, 2 for stereo
+// @signature in1:f32 in2:f32 >
+// @usage
+// var snk = radio.blocks.PulseAudioSink(2).init();
+// try top.connectPort(&src_left.block, "out", &snk.block, "in1");
+// try top.connectPort(&src_right.block, "out", &snk.block, "in2");
+
 const std = @import("std");
 const builtin = @import("builtin");
 

@@ -1,3 +1,13 @@
+// @block ComplexToImagBlock
+// @description Decompose the imaginary part of a complex-valued signal.
+//
+// $$ y[n] = \text{Im}(x[n]) $$
+//
+// @category Type Conversion
+// @signature in:Complex(f32) > out:f32
+// @usage
+// var complextoimag = radio.blocks.ComplexToImagBlock.init();
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

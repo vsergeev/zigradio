@@ -1,3 +1,21 @@
+// @block WBFMStereoDemodulatorBlock
+// @description Demodulate a baseband, broadcast radio wideband FM modulated
+// complex-valued signal into the real-valued stereo channel (L and R) signals.
+//
+// $$ y_{left}[n], y_{right}[n] = \text{WBFMStereoDemodulate}(x[n], \text{deviation}, \text{bandwidth}, \tau) $$
+//
+// @category Demodulation
+// @param options Options Additional options:
+//      * `deviation` (`f32`, deviation in Hz, default 75e3)
+//      * `af_bandwidth` (`f32`, audio bandwidth in Hz, default 15e3)
+//      * `af_deemphasis_tau` (`f32`, audio de-emphasis time constant, default 75e-6)
+// @signature in1:Complex(f32) > out1:f32 out2:f32
+// @usage
+// var demod = radio.blocks.WBFMStereoDemodulatorBlock.init(.{});
+// try top.connect(&src.block, &demod.block);
+// try top.connectPort(&demod.block, "out1", &left_snk.block, "in1");
+// try top.connectPort(&demod.block, "out2", &right_snk.block, "in1");
+
 const std = @import("std");
 
 const radio = @import("../../radio.zig");

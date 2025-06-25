@@ -1,3 +1,18 @@
+// @block JSONStreamSink
+// @description Sink a signal to a binary stream, serialized with JSON. Samples
+// are serialized individually and newline delimited.
+// @category Sinks
+// @ctparam T type Any type serializable by `std.json.stringify()`
+// @param writer std.io.AnyWriter Writer
+// @param options Options Additional options
+// @signature in:T >
+// @usage
+// var output_file = try std.fs.cwd().createFile("samples.json", .{});
+// defer output_file.close();
+// ...
+// var snk = radio.blocks.JSONStreamSink(Foo).init(output_file.writer().any(), .{});
+// try top.connect(&src.block, &snk.block);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;

@@ -1,3 +1,15 @@
+// @block FrequencyDiscriminatorBlock
+// @description Compute the instantaneous frequency of a complex-valued input
+// signal. This is a method of frequency demodulation.
+//
+// $$ y[n] = \frac{\text{arg}(x[n] \; x^*[n-1])}{2 \pi k} $$
+//
+// @category Demodulation
+// @param deviation f32 Frequency deviation in Hz
+// @signature in:Complex(f32) > out:f32
+// @usage
+// var demod = radio.blocks.FrequencyDiscriminatorBlock.init(5e3);
+
 const std = @import("std");
 
 const Block = @import("../../radio.zig").Block;
