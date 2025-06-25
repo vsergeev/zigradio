@@ -107,6 +107,7 @@ required for loading dynamic libraries used for acceleration and I/O.
 * [examples/](examples) - Examples
 * [benchmarks/](benchmarks) - Benchmark Suite
 * [docs/](docs) - Documentation
+* [website/](website) - Website
 * [build.zig](build.zig) - Zig build script
 * [build.zig.zon](build.zig.zon) - Zig package manifest
 * [CHANGELOG.md](CHANGELOG.md) - Change log
