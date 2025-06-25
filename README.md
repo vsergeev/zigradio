@@ -22,10 +22,9 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
     const frequency: f64 = 91.1e6; // 91.1 MHz
-    const tune_offset = -250e3;
 
-    var source = radio.blocks.RtlSdrSource.init(frequency + tune_offset, 960000, .{ .debug = true });
-    var if_translator = radio.blocks.FrequencyTranslatorBlock.init(tune_offset);
+    var source = radio.blocks.RtlSdrSource.init(frequency - 250e3, 960000, .{});
+    var if_translator = radio.blocks.FrequencyTranslatorBlock.init(-250e3);
     var if_filter = radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 128).init(200e3, .{});
     var if_downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(4);
     var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(75e3);
