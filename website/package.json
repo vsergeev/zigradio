@@ -1,0 +1,20 @@
+{
+  "name": "zigradio-website",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npx @11ty/eleventy",
+    "serve": "npx @11ty/eleventy --serve",
+    "format": "prettier --write ."
+  },
+  "keywords": [],
+  "author": "Vanya A. Sergeev",
+  "license": "MIT",
+  "description": "ZigRadio Website",
+  "dependencies": {
+    "@11ty/eleventy": "^3.1.1",
+    "@11ty/eleventy-plugin-syntaxhighlight": "^5.0.1"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.1"
+  }
+}

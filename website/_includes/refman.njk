@@ -1,0 +1,32 @@
+---
+title: ZigRadio
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="stylesheet" href="/bundle.css">
+    <title>{{ [title, subtitle].join(' - ') if subtitle else title }}</title>
+  </head>
+  <body>
+    <div class="refman">
+      <div class="sidebar">
+        <h1 class="title"><a href="/">ZigRadio</a></h1>
+        <div class="links">
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">{{ version.git_tag }}</code></a><br />
+          <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br />
+        </div>
+        <div class="toc">
+           {% include "refman-toc.njk" %}
+        </div>
+        <a class="contact" href="mailto:v@sergeev.io"><span class="lucide--mail icon"></span> v@sergeev.io</a>
+      </div>
+      <div class="content">
+        {{ content | safe }}
+      </div>
+    </div>
+  </body>
+</html>

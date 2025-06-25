@@ -1,0 +1,220 @@
+/* Top-level */
+
+:root, :host {
+  --theme-color: #db7633;
+  --pico-font-family-sans-serif: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --pico-typography-spacing-vertical: 0.8rem;
+}
+
+@media (min-width: 1024px) {
+  :root, :host {
+    --pico-font-size: 105%;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container {
+    max-width: 1200px;
+  }
+}
+
+body {
+  border-top: 7px solid var(--theme-color);
+  padding-top: 1.5rem;
+  padding-bottom: 1rem;
+}
+
+/* Container Grid */
+
+@media (min-width: 768px) {
+  .container {
+    display: grid;
+    grid-template-columns: 20% 75%;
+    grid-column-gap: 5%;
+  }
+
+}
+
+/* Reference Manual Flex */
+
+.refman {
+  width: 100%;
+  padding-left: var(--pico-spacing);
+  padding-right: var(--pico-spacing);
+}
+
+.refman .sidebar {
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.refman .spacer {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .refman {
+    padding-left: 0;
+  }
+
+  .refman .sidebar {
+    position: fixed;
+    top: 0;
+    padding-top: 1.5rem;
+    border-top: 7px solid var(--theme-color);
+    width: 30vw;
+  }
+
+  .refman .content {
+    margin-left: 31vw;
+  }
+}
+
+@media (min-width: 1536px) {
+  .refman .sidebar {
+    width: 20vw;
+  }
+
+  .refman .content {
+    margin-left: 21vw;
+    max-width: 50vw;
+  }
+}
+
+/* Headers */
+
+h1, h2, h3, h4, h5 {
+  --pico-typography-spacing-top: 1.5rem;
+}
+
+h1, h2 {
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #eee;
+}
+
+/* Icons */
+
+.icon {
+  vertical-align: -0.125em;
+}
+
+/* Links */
+
+a {
+  color: var(--theme-color);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--theme-color);
+  text-decoration: underline;
+}
+
+/* Code Blocks */
+
+pre[class*="language-"] {
+  padding: 0em;
+}
+
+code[class*="language-"],
+pre[class*="language-"] {
+  font-size: 0.875em;
+}
+
+/* Sidebar */
+
+.sidebar .title {
+  text-align: center;
+  font-size: 1.8rem;
+  padding: 0;
+  margin-bottom: 0.5rem;
+  border-bottom: none;
+}
+
+.sidebar .title a:hover {
+  text-decoration: none;
+}
+
+.sidebar .version {
+  color: var(--theme-color);
+  background-color: inherit;
+  padding-left: 0;
+  font-size: 1em;
+}
+
+.sidebar .links {
+  margin-bottom: 1rem;
+}
+
+.sidebar .toc {
+  max-height: 80svh;
+  overflow: scroll;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.0rem;
+  border: solid #ddd;
+  border-width: 1px 0;
+}
+
+.sidebar .toc ul li {
+  list-style: none;
+}
+
+.sidebar .toc ul {
+  padding-left: 0;
+  margin-bottom: 0;
+}
+
+.sidebar .toc ul ul {
+  padding-left: 1rem;
+  padding-top: 0.25rem;
+}
+
+.sidebar .toc a {
+  color: var(--pico-h2-color);
+}
+
+.sidebar .toc a:visited {
+  color: var(--pico-h2-color);
+}
+
+.sidebar .contact {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .sidebar .contact {
+    display: block;
+    text-align: center;
+  }
+}
+
+/* Reference Manual */
+
+.refman h5 {
+  --pico-typography-spacing-top: 1rem;
+}
+
+.refman .block {
+  margin-left: 1rem;
+}
+
+.refman .block ul li {
+  --pico-typography-spacing-vertical: 0.5rem;
+}
+
+.refman .block h6 {
+  --pico-typography-spacing-top: 0.5rem;
+}
+
+@media (prefers-color-scheme: light) {
+  .refman {
+    --pico-code-color: #222222;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .refman {
+    --pico-code-color: #dddddd;
+  }
+}

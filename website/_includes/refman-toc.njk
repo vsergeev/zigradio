@@ -1,0 +1,20 @@
+<ul>
+  <li><a href="#example">Example</a></li>
+  <li><a href="#building">Building</a></li>
+  <li><a href="#running">Running</a></li>
+  <li>
+    <a href="#blocks">Blocks</a>
+    <ul>
+      {% for category in categories -%}
+        <li>
+          <a href="#{{ category.replaceAll(" ", "-").toLowerCase() }}">{{ category }}</a>
+          <ul>
+            {% for block, _ in refman.blocks[category] -%}
+            <li><a href="#{{ block.toLowerCase() }}">{{ block }}</a>
+            {% endfor -%}
+          </ul>
+        </li>
+      {% endfor -%}
+    </ul>
+  </li>
+</ul>

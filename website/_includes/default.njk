@@ -1,0 +1,30 @@
+---
+title: ZigRadio
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/bundle.css">
+    <title>{{ [title, subtitle].join(' - ') if subtitle else title }}</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="sidebar">
+        <h1 class="title"><a href="/">ZigRadio</a></h1>
+        <div class="links">
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">{{ version.git_tag }}</code></a><br />
+          <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br />
+        </div>
+        <div class="toc">
+           {%- renderFile "./_includes/toc.md" -%}
+        </div>
+        <a class="contact" href="mailto:v@sergeev.io"><span class="lucide--mail icon"></span> v@sergeev.io</a>
+      </div>
+      <div>
+        {{ content | safe }}
+      </div>
+    </div>
+  </body>
+</html>
