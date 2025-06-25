@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/bundle.css">
+    <title>ZigRadio - AM (Envelope) Receiver Example</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="sidebar">
+        <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
+        <div class="links">
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.8.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
+        </div>
+        <div class="toc"><ul>
+<li><a href="/getting-started.html">Getting Started</a></li>
+<li><a href="/creating-flowgraphs.html">Creating Flowgraphs</a></li>
+<li><a href="/creating-blocks.html">Creating Blocks</a></li>
+<li><a href="/embedding-zigradio.html">Embedding ZigRadio</a></li>
+<li><a href="/reference-manual.html">Reference Manual</a></li>
+<li><a href="/examples/">Examples</a>
+<ul>
+<li><a href="/examples/play-tone.html">Play Tone</a></li>
+<li><a href="/examples/rtlsdr-wbfm-mono.html">WBFM Mono</a></li>
+<li><a href="/examples/rtlsdr-wbfm-stereo.html">WBFM Stereo</a></li>
+<li><a href="/examples/rtlsdr-nbfm.html">NBFM</a></li>
+<li><a href="/examples/rtlsdr-am-envelope.html">AM (Envelope)</a></li>
+<li><a href="/examples/rtlsdr-am-synchronous.html">AM (Synchronous)</a></li>
+<li><a href="/examples/rtlsdr-ssb.html">SSB</a></li>
+<li><a href="/examples/iqfile-converter.html">IQ File Converter</a></li>
+</ul>
+</li>
+</ul>
+</div>
+        <a class="contact" href="mailto:v@sergeev.io"><span class="lucide--mail icon"></span> v@sergeev.io</a>
+      </div>
+      <div>
+        <h1 id="rtlsdr-am-envelope-zig"><code>rtlsdr_am_envelope.zig</code></h1>
+<p>This example is an AM radio receiver, implemented with an envelope detector. It
+can be used to listen to broadcast stations on the MF (<a href="https://en.wikipedia.org/wiki/AM_broadcasting">AM
+Broadcast</a>) and HF (<a href="https://en.wikipedia.org/wiki/Shortwave_radio#Shortwave_broadcasting">Shortwave
+Broadcast</a>)
+bands, as well as aviation communication on the VHF
+<a href="https://en.wikipedia.org/wiki/Airband">airband</a>. It uses the RTL-SDR as an SDR
+source and plays audio with PulseAudio.</p>
+<p>This AM envelope demodulator composition is available in ZigRadio as the
+<code>AMEnvelopeDemodulator</code> block.</p>
+<h3 id="source">Source</h3>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> std <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"std"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">const</span> args <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>process<span class="token punctuation">.</span><span class="token function">argsAlloc</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">defer</span> std<span class="token punctuation">.</span>process<span class="token punctuation">.</span><span class="token function">argsFree</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> args<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>args<span class="token punctuation">.</span>len <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        std<span class="token punctuation">.</span>debug<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Usage: {s} &lt;frequency>\n"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>args<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        std<span class="token punctuation">.</span>posix<span class="token punctuation">.</span><span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">const</span> frequency <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fmt<span class="token punctuation">.</span><span class="token function">parseFloat</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f64</span><span class="token punctuation">,</span> args<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> tune_offset <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">50e3</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> bandwidth <span class="token operator">=</span> <span class="token number">5e3</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">var</span> source <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RtlSdrSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>frequency <span class="token operator">+</span> tune_offset<span class="token punctuation">,</span> <span class="token number">960000</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> tuner <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>TunerBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>tune_offset<span class="token punctuation">,</span> <span class="token number">2</span> <span class="token operator">*</span> bandwidth<span class="token punctuation">,</span> <span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> am_demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>ComplexMagnitudeBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> dcr_filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SinglepoleHighpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> af_filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">LowpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>bandwidth<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> af_gain <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">AGCBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>preset <span class="token operator">=</span> <span class="token punctuation">.</span>Slow <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> af_downsampler <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">DownsamplerBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> sink <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PulseAudioSink</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>am_demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>am_demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dcr_filter<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>dcr_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>af_gain<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_gain<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>af_downsampler<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_downsampler<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sink<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    radio<span class="token punctuation">.</span>platform<span class="token punctuation">.</span><span class="token function">waitForInterrupt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    _ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">stop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<h3 id="usage">Usage</h3>
+<pre class="language-plain"><code class="language-plain">Usage: ./zig-out/bin/example-rtlsdr_am_envelope &lt;frequency></code></pre>
+<p>For example, listen to <a href="https://en.wikipedia.org/wiki/WWV_(radio_station)">WWV</a> at 5 MHz:</p>
+<pre class="language-plain"><code class="language-plain">$ ./zig-out/bin/example-rtlsdr_am_envelope 5e6</code></pre>
+<p>For example, listen to an AM radio station at 890 kHz:</p>
+<pre class="language-plain"><code class="language-plain">$ ./zig-out/bin/example-rtlsdr_am_envelope 890e3</code></pre>
+
+      </div>
+    </div>
+  </body>
+</html>
