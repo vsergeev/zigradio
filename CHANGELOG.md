@@ -1,3 +1,33 @@
+* v0.8.0 - 06/25/2025
+    * Fix flowgraph stall from waiting on excess output samples in SampleMux.
+    * Refactor FIRFilter to support runtime length taps.
+    * Simplify bandwidth parameter for TunerBlock.
+    * Reduce default target power in AGCBlock.
+    * Add asynchronous `reset()` API to AGCBlock.
+    * Add support for bit type (`u1`).
+    * Add new blocks:
+        * AddBlock
+        * SubtractBlock
+        * MultiplyBlock
+        * MultiplyConjugateBlock
+        * DelayBlock
+        * RealToComplexBlock
+        * RectangularMatchedFilterBlock
+        * ComplexPLLBlock
+        * SlicerBlock
+        * DifferentialDecoderBlock
+        * JSONStreamSink
+    * Add new composites:
+        * NBFMDemodulatorBlock
+        * AMSynchronousDemodulatorBlock
+        * WBFMMonoDemodulatorBlock
+        * WBFMStereoDemodulatorBlock
+    * Add new examples:
+        * rtlsdr_am_synchronous
+        * rtlsdr_wbfm_stereo
+    * Add block docstrings.
+    * Add website.
+
 * v0.7.0 - 05/14/2025
     * Migrate to Zig 0.14.0.
     * Fix stuck multiple readers in ThreadSafeRingBuffer.
