@@ -117,20 +117,20 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_32f_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const f32, c_uint) callconv(.C) void = undefined;
-var volk_32f_x2_dot_prod_32f: *const *const fn (*f32, [*c]const f32, [*c]const f32, c_uint) callconv(.C) void = undefined;
+var volk_32fc_32f_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const f32, c_uint) callconv(.c) void = undefined;
+var volk_32f_x2_dot_prod_32f: *const *const fn (*f32, [*c]const f32, [*c]const f32, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 fn _IIRFilterBlockVolkImpl(comptime T: type, comptime N: comptime_int, comptime M: comptime_int, comptime Parent: type) type {
     return struct {
         const Self = @This();
-        const Alignment = 32;
+        const Alignment: std.mem.Alignment = .@"32";
 
         parent: *const Parent,
-        b_taps: std.ArrayListAligned(f32, Alignment) = undefined,
-        a_taps: std.ArrayListAligned(f32, Alignment) = undefined,
-        input_state: std.ArrayList(T) = undefined,
-        output_state: std.ArrayList(T) = undefined,
+        b_taps: std.array_list.AlignedManaged(f32, Alignment) = undefined,
+        a_taps: std.array_list.AlignedManaged(f32, Alignment) = undefined,
+        input_state: std.array_list.Managed(T) = undefined,
+        output_state: std.array_list.Managed(T) = undefined,
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             if (!volk_loaded) {
@@ -140,17 +140,17 @@ fn _IIRFilterBlockVolkImpl(comptime T: type, comptime N: comptime_int, comptime 
             }
 
             // Copy b taps (backwards)
-            self.b_taps = std.ArrayListAligned(f32, Alignment).init(allocator);
+            self.b_taps = std.array_list.AlignedManaged(f32, Alignment).init(allocator);
             try self.b_taps.resize(N);
             for (0..N) |i| self.b_taps.items[i] = self.parent.b_taps[N - 1 - i];
 
             // Copy a taps (forwards)
-            self.a_taps = std.ArrayListAligned(f32, Alignment).init(allocator);
+            self.a_taps = std.array_list.AlignedManaged(f32, Alignment).init(allocator);
             try self.a_taps.appendSlice(self.parent.a_taps[0..M]);
 
             // Initialize state
-            self.input_state = std.ArrayList(T).init(allocator);
-            self.output_state = std.ArrayList(T).init(allocator);
+            self.input_state = std.array_list.Managed(T).init(allocator);
+            self.output_state = std.array_list.Managed(T).init(allocator);
             try self.input_state.appendNTimes(zero(T), N);
             try self.output_state.appendNTimes(zero(T), M - 1);
 
@@ -214,15 +214,15 @@ const liquid_float_complex = extern struct {
 
 const struct_iirfilt_crcf_s = opaque {};
 const iirfilt_crcf = ?*struct_iirfilt_crcf_s;
-var iirfilt_crcf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.C) iirfilt_crcf = undefined;
-var iirfilt_crcf_destroy: *const fn (_q: iirfilt_crcf) callconv(.C) c_int = undefined;
-var iirfilt_crcf_execute_block: *const fn (_q: iirfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
+var iirfilt_crcf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.c) iirfilt_crcf = undefined;
+var iirfilt_crcf_destroy: *const fn (_q: iirfilt_crcf) callconv(.c) c_int = undefined;
+var iirfilt_crcf_execute_block: *const fn (_q: iirfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.c) c_int = undefined;
 
 const struct_iirfilt_rrrf_s = opaque {};
 const iirfilt_rrrf = ?*struct_iirfilt_rrrf_s;
-var iirfilt_rrrf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.C) iirfilt_rrrf = undefined;
-var iirfilt_rrrf_destroy: *const fn (_q: iirfilt_rrrf) callconv(.C) c_int = undefined;
-var iirfilt_rrrf_execute_block: *const fn (_q: iirfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.C) c_int = undefined;
+var iirfilt_rrrf_create: *const fn (_b: [*c]f32, _nb: c_uint, _a: [*c]f32, _na: c_uint) callconv(.c) iirfilt_rrrf = undefined;
+var iirfilt_rrrf_destroy: *const fn (_q: iirfilt_rrrf) callconv(.c) c_int = undefined;
+var iirfilt_rrrf_execute_block: *const fn (_q: iirfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.c) c_int = undefined;
 
 var liquid_loaded: bool = false;
 

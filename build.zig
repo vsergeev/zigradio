@@ -5,8 +5,8 @@ const Example = struct {
     path: []const u8,
 };
 
-fn discoverExamples(allocator: std.mem.Allocator, dir_path: []const u8) !std.ArrayList(Example) {
-    var examples = std.ArrayList(Example).init(allocator);
+fn discoverExamples(allocator: std.mem.Allocator, dir_path: []const u8) !std.array_list.Managed(Example) {
+    var examples = std.array_list.Managed(Example).init(allocator);
 
     var examples_dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer examples_dir.close();
@@ -38,9 +38,11 @@ pub fn build(b: *std.Build) !void {
     for (examples.items) |example| {
         const example_exe = b.addExecutable(.{
             .name = example.name,
-            .root_source_file = b.path(example.path),
-            .target = target,
-            .optimize = .ReleaseFast,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(example.path),
+                .target = target,
+                .optimize = .ReleaseFast,
+            }),
         });
         example_exe.root_module.addImport("radio", radio_module);
         example_exe.linkLibC();
@@ -51,9 +53,11 @@ pub fn build(b: *std.Build) !void {
 
     // Run unit tests
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/radio.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/radio.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     tests.linkLibC();
     const run_tests = b.addRunArtifact(tests);
@@ -64,9 +68,11 @@ pub fn build(b: *std.Build) !void {
     // Run benchmark suite
     const benchmark_suite = b.addExecutable(.{
         .name = "benchmark",
-        .root_source_file = b.path("benchmarks/benchmark.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmarks/benchmark.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+        }),
     });
     benchmark_suite.root_module.addImport("radio", radio_module);
     benchmark_suite.linkLibC();

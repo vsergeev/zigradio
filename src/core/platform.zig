@@ -56,9 +56,9 @@ pub fn initialize(allocator: std.mem.Allocator) !void {
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn waitForInterrupt() void {
-    var mask = std.posix.empty_sigset;
+    var mask = std.posix.sigemptyset();
     var signal: c_int = undefined;
-    std.os.linux.sigaddset(&mask, std.posix.SIG.INT);
-    _ = std.c.sigprocmask(std.posix.SIG.BLOCK, &mask, null);
+    std.posix.sigaddset(&mask, std.posix.SIG.INT);
+    _ = std.posix.sigprocmask(std.posix.SIG.BLOCK, &mask, null);
     _ = std.c.sigwait(&mask, &signal);
 }

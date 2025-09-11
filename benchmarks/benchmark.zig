@@ -14,7 +14,7 @@ const BENCHMARK_TRIAL_DURATION_MS = 5000;
 
 fn benchmark_run(flowgraph: *radio.Flowgraph) !void {
     try flowgraph.start();
-    std.time.sleep(BENCHMARK_TRIAL_DURATION_MS * 1e6);
+    std.Thread.sleep(BENCHMARK_TRIAL_DURATION_MS * 1e6);
     _ = try flowgraph.stop();
 }
 

@@ -73,7 +73,7 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_s32fc_x2_rotator_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, lv_32fc_t, [*c]lv_32fc_t, c_uint) callconv(.C) void = undefined;
+var volk_32fc_s32fc_x2_rotator_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, lv_32fc_t, [*c]lv_32fc_t, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 pub const _FrequencyTranslatorBlockVolkImpl = struct {
@@ -117,11 +117,11 @@ const LIQUID_VCO: c_int = 1;
 const liquid_ncotype = c_uint;
 const struct_nco_crcf_s = opaque {};
 const nco_crcf = ?*struct_nco_crcf_s;
-var nco_crcf_create: *const fn (_type: liquid_ncotype) callconv(.C) nco_crcf = undefined;
-var nco_crcf_destroy: *const fn (_q: nco_crcf) callconv(.C) c_int = undefined;
-var nco_crcf_set_frequency: *const fn (_q: nco_crcf, _dtheta: f32) callconv(.C) c_int = undefined;
-var nco_crcf_set_phase: *const fn (_q: nco_crcf, _phi: f32) callconv(.C) c_int = undefined;
-var nco_crcf_mix_block_up: *const fn (_q: nco_crcf, _x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint) callconv(.C) c_int = undefined;
+var nco_crcf_create: *const fn (_type: liquid_ncotype) callconv(.c) nco_crcf = undefined;
+var nco_crcf_destroy: *const fn (_q: nco_crcf) callconv(.c) c_int = undefined;
+var nco_crcf_set_frequency: *const fn (_q: nco_crcf, _dtheta: f32) callconv(.c) c_int = undefined;
+var nco_crcf_set_phase: *const fn (_q: nco_crcf, _phi: f32) callconv(.c) c_int = undefined;
+var nco_crcf_mix_block_up: *const fn (_q: nco_crcf, _x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint) callconv(.c) c_int = undefined;
 var liquid_loaded: bool = false;
 
 pub const _FrequencyTranslatorBlockLiquidImpl = struct {

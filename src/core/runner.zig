@@ -88,7 +88,7 @@ pub const ThreadedBlockRunner = struct {
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
-                        std.time.sleep(std.time.ns_per_us);
+                        std.Thread.sleep(std.time.ns_per_us);
                     }
 
                     runner.mutex.lock();
@@ -445,7 +445,7 @@ test "ThreadedBlockRunner infinite run" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    std.time.sleep(std.time.ns_per_ms);
+    std.Thread.sleep(std.time.ns_per_ms);
 
     // Stop source runner
     test_source_runner.stop();
@@ -497,7 +497,7 @@ test "ThreadedBlockRunner block errors" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    std.time.sleep(std.time.ns_per_ms);
+    std.Thread.sleep(std.time.ns_per_ms);
 
     // Join block runners
     test_source_runner.join();

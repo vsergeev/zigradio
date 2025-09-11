@@ -31,7 +31,7 @@ pub const RealStreamSource = struct {
     pub const Options = struct {};
 
     block: Block,
-    reader: std.io.AnyReader,
+    reader: *std.io.Reader,
     rate: f64,
     options: Options,
 
@@ -39,7 +39,7 @@ pub const RealStreamSource = struct {
     buffer: [16384]u8 = undefined,
     offset: usize = 0,
 
-    pub fn init(reader: std.io.AnyReader, format: SampleFormat, rate: f64, options: Options) Self {
+    pub fn init(reader: *std.io.Reader, format: SampleFormat, rate: f64, options: Options) Self {
         return .{ .block = Block.init(@This()), .reader = reader, .rate = rate, .options = options, .converter = format.converter() };
     }
 
@@ -53,7 +53,7 @@ pub const RealStreamSource = struct {
 
     pub fn process(self: *Self, z: []f32) !ProcessResult {
         // Read into buffer
-        const bytes_read = try self.reader.read(self.buffer[self.offset..]);
+        const bytes_read = try self.reader.readSliceShort(self.buffer[self.offset..]);
         if (bytes_read == 0 and self.offset < self.converter.ELEMENT_SIZE) {
             return ProcessResult.EOS;
         }
@@ -83,24 +83,24 @@ test "RealStreamSource" {
     // Teardown test hook to reset fbs reader between runs
     const hooks = struct {
         fn teardown(context: *anyopaque) !void {
-            var fbs: *std.io.FixedBufferStream([]const u8) = @ptrCast(@alignCast(context));
-            fbs.reset();
+            var reader: *std.io.Reader = @ptrCast(@alignCast(context));
+            reader.seek = 0;
         }
     };
 
     // Basic test
     {
-        var fbs = std.io.fixedBufferStream(&vectors.bytes_real_u16be);
-        var block = RealStreamSource.init(fbs.reader().any(), .u16be, 8000, .{});
+        var reader = std.io.Reader.fixed(&vectors.bytes_real_u16be);
+        var block = RealStreamSource.init(&reader, .u16be, 8000, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.checkSource(.{&vectors.samples_real_u16be}, .{ .context = &fbs, .teardown = hooks.teardown });
+        try tester.checkSource(.{&vectors.samples_real_u16be}, .{ .context = &reader, .teardown = hooks.teardown });
     }
 
     // Test cut-off stream
     {
-        var fbs = std.io.fixedBufferStream(vectors.bytes_real_u16be[0 .. vectors.bytes_real_u16be.len - 1]);
-        var block = RealStreamSource.init(fbs.reader().any(), .u16be, 8000, .{});
+        var reader = std.io.Reader.fixed(vectors.bytes_real_u16be[0 .. vectors.bytes_real_u16be.len - 1]);
+        var block = RealStreamSource.init(&reader, .u16be, 8000, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
-        try tester.checkSource(.{vectors.samples_real_u16be[0 .. vectors.samples_real_u16be.len - 1]}, .{ .context = &fbs, .teardown = hooks.teardown });
+        try tester.checkSource(.{vectors.samples_real_u16be[0 .. vectors.samples_real_u16be.len - 1]}, .{ .context = &reader, .teardown = hooks.teardown });
     }
 }

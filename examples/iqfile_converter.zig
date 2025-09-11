@@ -22,8 +22,11 @@ pub fn main() !void {
     var output_file = try std.fs.cwd().createFile(args[3], .{});
     defer output_file.close();
 
-    var source = radio.blocks.IQStreamSource.init(input_file.reader().any(), input_format, 0, .{});
-    var sink = radio.blocks.IQStreamSink.init(output_file.writer().any(), output_format, .{});
+    var input_reader = input_file.reader(&.{});
+    var output_writer = output_file.writer(&.{});
+
+    var source = radio.blocks.IQStreamSource.init(&input_reader.interface, input_format, 0, .{});
+    var sink = radio.blocks.IQStreamSink.init(&output_writer.interface, output_format, .{});
 
     var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
     defer top.deinit();

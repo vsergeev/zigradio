@@ -130,19 +130,19 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_x2_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.C) void = undefined;
-var volk_32fc_32f_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const f32, c_uint) callconv(.C) void = undefined;
-var volk_32f_x2_dot_prod_32f: *const *const fn (*f32, [*c]const f32, [*c]const f32, c_uint) callconv(.C) void = undefined;
+var volk_32fc_x2_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.c) void = undefined;
+var volk_32fc_32f_dot_prod_32fc: *const *const fn (*lv_32fc_t, [*c]const lv_32fc_t, [*c]const f32, c_uint) callconv(.c) void = undefined;
+var volk_32f_x2_dot_prod_32f: *const *const fn (*f32, [*c]const f32, [*c]const f32, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: type) type {
     return struct {
         const Self = @This();
-        const Alignment = 32;
+        const Alignment: std.mem.Alignment = .@"32";
 
         parent: *const Parent,
-        taps: std.ArrayListAligned(U, Alignment) = undefined,
-        state: std.ArrayList(T) = undefined,
+        taps: std.array_list.AlignedManaged(U, Alignment) = undefined,
+        state: std.array_list.Managed(T) = undefined,
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator, taps: []const U) !void {
             if (!volk_loaded) {
@@ -153,12 +153,12 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: 
             }
 
             // Copy taps (backwards)
-            self.taps = std.ArrayListAligned(U, Alignment).init(allocator);
+            self.taps = std.array_list.AlignedManaged(U, Alignment).init(allocator);
             try self.taps.resize(taps.len);
             for (0..taps.len) |i| self.taps.items[i] = taps[taps.len - 1 - i];
 
             // Initialize state
-            self.state = std.ArrayList(T).init(allocator);
+            self.state = std.array_list.Managed(T).init(allocator);
             try self.state.appendNTimes(zero(T), self.taps.items.len);
 
             if (platform.debug.enabled) std.debug.print("[FIRFilterBlock] Using VOLK implementation\n", .{});
@@ -212,27 +212,27 @@ const liquid_float_complex = extern struct {
 
 const struct_firfilt_cccf_s = opaque {};
 const firfilt_cccf = ?*struct_firfilt_cccf_s;
-var firfilt_cccf_create: *const fn (_h: [*c]liquid_float_complex, _n: c_uint) callconv(.C) firfilt_cccf = undefined;
-var firfilt_cccf_recreate: *const fn (_q: firfilt_cccf, _h: [*c]liquid_float_complex, _n: c_uint) callconv(.C) firfilt_cccf = undefined;
-var firfilt_cccf_destroy: *const fn (_q: firfilt_cccf) callconv(.C) c_int = undefined;
-var firfilt_cccf_execute_block: *const fn (_q: firfilt_cccf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
-var firfilt_cccf_reset: *const fn (_q: firfilt_cccf) callconv(.C) c_int = undefined;
+var firfilt_cccf_create: *const fn (_h: [*c]liquid_float_complex, _n: c_uint) callconv(.c) firfilt_cccf = undefined;
+var firfilt_cccf_recreate: *const fn (_q: firfilt_cccf, _h: [*c]liquid_float_complex, _n: c_uint) callconv(.c) firfilt_cccf = undefined;
+var firfilt_cccf_destroy: *const fn (_q: firfilt_cccf) callconv(.c) c_int = undefined;
+var firfilt_cccf_execute_block: *const fn (_q: firfilt_cccf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.c) c_int = undefined;
+var firfilt_cccf_reset: *const fn (_q: firfilt_cccf) callconv(.c) c_int = undefined;
 
 const struct_firfilt_crcf_s = opaque {};
 const firfilt_crcf = ?*struct_firfilt_crcf_s;
-var firfilt_crcf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.C) firfilt_crcf = undefined;
-var firfilt_crcf_recreate: *const fn (_q: firfilt_crcf, _h: [*c]f32, _n: c_uint) callconv(.C) firfilt_crcf = undefined;
-var firfilt_crcf_destroy: *const fn (_q: firfilt_crcf) callconv(.C) c_int = undefined;
-var firfilt_crcf_execute_block: *const fn (_q: firfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.C) c_int = undefined;
-var firfilt_crcf_reset: *const fn (_q: firfilt_crcf) callconv(.C) c_int = undefined;
+var firfilt_crcf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.c) firfilt_crcf = undefined;
+var firfilt_crcf_recreate: *const fn (_q: firfilt_crcf, _h: [*c]f32, _n: c_uint) callconv(.c) firfilt_crcf = undefined;
+var firfilt_crcf_destroy: *const fn (_q: firfilt_crcf) callconv(.c) c_int = undefined;
+var firfilt_crcf_execute_block: *const fn (_q: firfilt_crcf, _x: [*c]liquid_float_complex, _n: c_uint, _y: [*c]liquid_float_complex) callconv(.c) c_int = undefined;
+var firfilt_crcf_reset: *const fn (_q: firfilt_crcf) callconv(.c) c_int = undefined;
 
 const struct_firfilt_rrrf_s = opaque {};
 const firfilt_rrrf = ?*struct_firfilt_rrrf_s;
-var firfilt_rrrf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.C) firfilt_rrrf = undefined;
-var firfilt_rrrf_recreate: *const fn (_q: firfilt_rrrf, _h: [*c]f32, _n: c_uint) callconv(.C) firfilt_rrrf = undefined;
-var firfilt_rrrf_destroy: *const fn (_q: firfilt_rrrf) callconv(.C) c_int = undefined;
-var firfilt_rrrf_execute_block: *const fn (_q: firfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.C) c_int = undefined;
-var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) callconv(.C) c_int = undefined;
+var firfilt_rrrf_create: *const fn (_h: [*c]f32, _n: c_uint) callconv(.c) firfilt_rrrf = undefined;
+var firfilt_rrrf_recreate: *const fn (_q: firfilt_rrrf, _h: [*c]f32, _n: c_uint) callconv(.c) firfilt_rrrf = undefined;
+var firfilt_rrrf_destroy: *const fn (_q: firfilt_rrrf) callconv(.c) c_int = undefined;
+var firfilt_rrrf_execute_block: *const fn (_q: firfilt_rrrf, _x: [*c]f32, _n: c_uint, _y: [*c]f32) callconv(.c) c_int = undefined;
+var firfilt_rrrf_reset: *const fn (_q: firfilt_rrrf) callconv(.c) c_int = undefined;
 
 var liquid_loaded: bool = false;
 

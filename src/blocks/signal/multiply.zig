@@ -80,8 +80,8 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_x2_multiply_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.C) void = undefined;
-var volk_32f_x2_multiply_32f: *const *const fn ([*c]f32, [*c]const f32, [*c]const f32, c_uint) callconv(.C) void = undefined;
+var volk_32fc_x2_multiply_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.c) void = undefined;
+var volk_32f_x2_multiply_32f: *const *const fn ([*c]f32, [*c]const f32, [*c]const f32, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 fn _MultiplyBlockVolkImpl(comptime T: type) type {
@@ -122,8 +122,8 @@ const liquid_float_complex = extern struct {
     real: f32,
     imag: f32,
 };
-var liquid_vectorcf_mul: *const fn (_x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint, _z: [*c]liquid_float_complex) callconv(.C) void = undefined;
-var liquid_vectorf_mul: *const fn (_x: [*c]f32, _y: [*c]f32, _n: c_uint, _z: [*c]f32) callconv(.C) void = undefined;
+var liquid_vectorcf_mul: *const fn (_x: [*c]liquid_float_complex, _y: [*c]liquid_float_complex, _n: c_uint, _z: [*c]liquid_float_complex) callconv(.c) void = undefined;
+var liquid_vectorf_mul: *const fn (_x: [*c]f32, _y: [*c]f32, _n: c_uint, _z: [*c]f32) callconv(.c) void = undefined;
 var liquid_loaded: bool = false;
 
 fn _MultiplyBlockLiquidImpl(comptime T: type) type {

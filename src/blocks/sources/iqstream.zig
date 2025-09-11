@@ -2,7 +2,7 @@
 // @description Source a complex-valued signal from a binary stream, using the
 // specified sample format.
 // @category Sources
-// @param reader std.io.AnyReader Reader
+// @param reader *std.io.Reader Reader
 // @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
 // @param rate f64 Sample rate in Hz
 // @param options Options Additional options
@@ -31,7 +31,7 @@ pub const IQStreamSource = struct {
     pub const Options = struct {};
 
     block: Block,
-    reader: std.io.AnyReader,
+    reader: *std.io.Reader,
     rate: f64,
     options: Options,
 
@@ -39,7 +39,7 @@ pub const IQStreamSource = struct {
     buffer: [16384]u8 = undefined,
     offset: usize = 0,
 
-    pub fn init(reader: std.io.AnyReader, format: SampleFormat, rate: f64, options: Options) Self {
+    pub fn init(reader: *std.io.Reader, format: SampleFormat, rate: f64, options: Options) Self {
         return .{ .block = Block.init(@This()), .reader = reader, .rate = rate, .options = options, .converter = format.converter() };
     }
 
@@ -53,7 +53,7 @@ pub const IQStreamSource = struct {
 
     pub fn process(self: *Self, z: []std.math.Complex(f32)) !ProcessResult {
         // Read into buffer
-        const bytes_read = try self.reader.read(self.buffer[self.offset..]);
+        const bytes_read = try self.reader.readSliceShort(self.buffer[self.offset..]);
         if (bytes_read == 0 and self.offset < 2 * self.converter.ELEMENT_SIZE) {
             return ProcessResult.EOS;
         }
@@ -83,24 +83,24 @@ test "IQStreamSource" {
     // Teardown test hook to reset fbs reader between runs
     const hooks = struct {
         fn teardown(context: *anyopaque) !void {
-            var fbs: *std.io.FixedBufferStream([]const u8) = @ptrCast(@alignCast(context));
-            fbs.reset();
+            var reader: *std.io.Reader = @ptrCast(@alignCast(context));
+            reader.seek = 0;
         }
     };
 
     // Basic test
     {
-        var fbs = std.io.fixedBufferStream(&vectors.bytes_complex_u16be);
-        var block = IQStreamSource.init(fbs.reader().any(), .u16be, 8000, .{});
+        var reader = std.io.Reader.fixed(&vectors.bytes_complex_u16be);
+        var block = IQStreamSource.init(&reader, .u16be, 8000, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
-        try tester.checkSource(.{&vectors.samples_complex_u16be}, .{ .context = &fbs, .teardown = hooks.teardown });
+        try tester.checkSource(.{&vectors.samples_complex_u16be}, .{ .context = &reader, .teardown = hooks.teardown });
     }
 
     // Test cut-off stream
     {
-        var fbs = std.io.fixedBufferStream(vectors.bytes_complex_u16be[0 .. vectors.bytes_complex_u16be.len - 1]);
-        var block = IQStreamSource.init(fbs.reader().any(), .u16be, 8000, .{});
+        var reader = std.io.Reader.fixed(vectors.bytes_complex_u16be[0 .. vectors.bytes_complex_u16be.len - 1]);
+        var block = IQStreamSource.init(&reader, .u16be, 8000, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{std.math.Complex(f32)}).init(&block.block, 1e-6);
-        try tester.checkSource(.{vectors.samples_complex_u16be[0 .. vectors.samples_complex_u16be.len - 1]}, .{ .context = &fbs, .teardown = hooks.teardown });
+        try tester.checkSource(.{vectors.samples_complex_u16be[0 .. vectors.samples_complex_u16be.len - 1]}, .{ .context = &reader, .teardown = hooks.teardown });
     }
 }

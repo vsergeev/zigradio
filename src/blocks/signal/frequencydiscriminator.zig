@@ -74,13 +74,13 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_x2_multiply_conjugate_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.C) void = undefined;
-var volk_32fc_s32f_atan2_32f: *const *const fn ([*c]f32, [*c]const lv_32fc_t, f32, c_uint) callconv(.C) void = undefined;
+var volk_32fc_x2_multiply_conjugate_32fc: *const *const fn ([*c]lv_32fc_t, [*c]const lv_32fc_t, [*c]const lv_32fc_t, c_uint) callconv(.c) void = undefined;
+var volk_32fc_s32f_atan2_32f: *const *const fn ([*c]f32, [*c]const lv_32fc_t, f32, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
     parent: *const FrequencyDiscriminatorBlock,
-    tmp: std.ArrayList(std.math.Complex(f32)) = undefined,
+    tmp: std.array_list.Managed(std.math.Complex(f32)) = undefined,
     prev_sample: std.math.Complex(f32) = .{ .re = 0, .im = 0 },
     normalization: f32 = 0,
 
@@ -91,7 +91,7 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
             volk_loaded = true;
         }
 
-        self.tmp = std.ArrayList(std.math.Complex(f32)).init(allocator);
+        self.tmp = std.array_list.Managed(std.math.Complex(f32)).init(allocator);
         try self.tmp.append(.{ .re = 0, .im = 0 });
         self.prev_sample = .{ .re = 0, .im = 0 };
         self.normalization = (2 * std.math.pi * self.parent.deviation) / self.parent.block.getRate(f32);
@@ -133,9 +133,9 @@ const liquid_float_complex = extern struct {
 
 const struct_freqdem_s = opaque {};
 const freqdem = ?*struct_freqdem_s;
-var freqdem_create: *const fn (_kf: f32) callconv(.C) freqdem = undefined;
-var freqdem_destroy: *const fn (_q: freqdem) callconv(.C) c_int = undefined;
-var freqdem_demodulate_block: *const fn (_q: freqdem, _r: [*c]liquid_float_complex, _n: c_uint, _m: [*c]f32) callconv(.C) c_int = undefined;
+var freqdem_create: *const fn (_kf: f32) callconv(.c) freqdem = undefined;
+var freqdem_destroy: *const fn (_q: freqdem) callconv(.c) c_int = undefined;
+var freqdem_demodulate_block: *const fn (_q: freqdem, _r: [*c]liquid_float_complex, _n: c_uint, _m: [*c]f32) callconv(.c) c_int = undefined;
 var liquid_loaded: bool = false;
 
 pub const _FrequencyDiscriminatorBlockLiquidImpl = struct {

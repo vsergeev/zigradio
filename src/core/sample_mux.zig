@@ -142,14 +142,14 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 pub const ThreadSafeRingBufferSampleMux = struct {
     const Self = @This();
 
-    readers: std.ArrayList(ThreadSafeRingBuffer.Reader),
-    writers: std.ArrayList(ThreadSafeRingBuffer.Writer),
+    readers: std.array_list.Managed(ThreadSafeRingBuffer.Reader),
+    writers: std.array_list.Managed(ThreadSafeRingBuffer.Writer),
 
     pub fn init(allocator: std.mem.Allocator, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !Self {
-        var readers = std.ArrayList(ThreadSafeRingBuffer.Reader).init(allocator);
+        var readers = std.array_list.Managed(ThreadSafeRingBuffer.Reader).init(allocator);
         for (inputs) |ring_buffer| try readers.append(ring_buffer.reader());
 
-        var writers = std.ArrayList(ThreadSafeRingBuffer.Writer).init(allocator);
+        var writers = std.array_list.Managed(ThreadSafeRingBuffer.Writer).init(allocator);
         for (outputs) |ring_buffer| try writers.append(ring_buffer.writer());
 
         return .{
@@ -392,8 +392,8 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
 const builtin = @import("builtin");
 
 test "TestSampleMux multiple input, single output" {
-    const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
-    const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
+    const ibuf1: [8]u8 align(4) = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
+    const ibuf2: [8]u8 align(4) = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
     const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
 

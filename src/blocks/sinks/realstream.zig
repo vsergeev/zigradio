@@ -2,7 +2,7 @@
 // @description Sink a real-valued signal to a binary stream, using the
 // specified sample format.
 // @category Sinks
-// @param writer std.io.AnyWriter Writer
+// @param writer *std.io.Writer Writer
 // @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
 // @param options Options Additional options
 // @signature in:f32 >
@@ -30,13 +30,13 @@ pub const RealStreamSink = struct {
     pub const Options = struct {};
 
     block: Block,
-    writer: std.io.AnyWriter,
+    writer: *std.io.Writer,
     options: Options,
 
     converter: SampleFormat.Converter,
     buffer: [16384]u8 = undefined,
 
-    pub fn init(writer: std.io.AnyWriter, format: SampleFormat, options: Options) Self {
+    pub fn init(writer: *std.io.Writer, format: SampleFormat, options: Options) Self {
         return .{ .block = Block.init(@This()), .writer = writer, .options = options, .converter = format.converter() };
     }
 
@@ -66,24 +66,24 @@ const vectors = @import("../../vectors/utils/sample_format.zig");
 
 test "RealStreamSink" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
+    var writer = std.io.Writer.fixed(&buf);
 
     // Basic test
-    var block = RealStreamSink.init(fbs.writer().any(), .u16be, .{});
+    var block = RealStreamSink.init(&writer, .u16be, .{});
     var fixture = try BlockFixture(&[1]type{f32}, &[0]type{}).init(&block.block, 8000);
     defer fixture.deinit();
 
     // Test whole vector
     _ = try fixture.process(.{&vectors.input_real_samples});
 
-    try std.testing.expectEqualSlices(u8, &vectors.bytes_real_u16be, fbs.getWritten());
+    try std.testing.expectEqualSlices(u8, &vectors.bytes_real_u16be, writer.buffered());
 
-    fbs.reset();
+    writer = std.io.Writer.fixed(&buf);
 
     // Test sample by sample
     for (vectors.input_real_samples) |sample| {
         _ = try fixture.process(.{&[1]f32{sample}});
     }
 
-    try std.testing.expectEqualSlices(u8, &vectors.bytes_real_u16be, fbs.getWritten());
+    try std.testing.expectEqualSlices(u8, &vectors.bytes_real_u16be, writer.buffered());
 }

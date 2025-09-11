@@ -151,9 +151,9 @@ const FlowgraphRunState = struct {
         }
 
         // Temporary storage for input and output ring buffer slices
-        var input_ring_buffers = std.ArrayList(*ThreadSafeRingBuffer).init(allocator);
+        var input_ring_buffers = std.array_list.Managed(*ThreadSafeRingBuffer).init(allocator);
         defer input_ring_buffers.deinit();
-        var output_ring_buffers = std.ArrayList(*ThreadSafeRingBuffer).init(allocator);
+        var output_ring_buffers = std.array_list.Managed(*ThreadSafeRingBuffer).init(allocator);
         defer output_ring_buffers.deinit();
 
         // For each block, collect ring buffers and create a sample mux
@@ -224,7 +224,7 @@ pub const Flowgraph = struct {
     allocator: std.mem.Allocator,
     options: Options,
 
-    input_aliases: std.AutoHashMap(InputPort, std.ArrayList(InputPort)),
+    input_aliases: std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)),
     output_aliases: std.AutoHashMap(OutputPort, OutputPort),
     connections: std.AutoHashMap(InputPort, OutputPort),
     flattened_connections: std.AutoHashMap(BlockInputPort, BlockOutputPort),
@@ -238,7 +238,7 @@ pub const Flowgraph = struct {
         return .{
             .allocator = allocator,
             .options = options,
-            .input_aliases = std.AutoHashMap(InputPort, std.ArrayList(InputPort)).init(allocator),
+            .input_aliases = std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)).init(allocator),
             .output_aliases = std.AutoHashMap(OutputPort, OutputPort).init(allocator),
             .connections = std.AutoHashMap(InputPort, OutputPort).init(allocator),
             .flattened_connections = std.AutoHashMap(BlockInputPort, BlockOutputPort).init(allocator),
@@ -295,7 +295,7 @@ pub const Flowgraph = struct {
         }
 
         // Crawl aliases for underlying destination ports
-        var underlying_dst_ports = std.ArrayList(InputPort).init(self.allocator);
+        var underlying_dst_ports = std.array_list.Managed(InputPort).init(self.allocator);
         defer underlying_dst_ports.deinit();
         try underlying_dst_ports.append(dst_port);
 
@@ -350,7 +350,7 @@ pub const Flowgraph = struct {
             const aliased_port = InputPort{ .block = BlockVariant.wrap(aliased_block), .index = util.indexOfString(aliased_block.inputs, aliased_port_name) orelse return FlowgraphError.PortNotFound };
 
             if (!self.input_aliases.contains(composite_port)) {
-                try self.input_aliases.put(composite_port, std.ArrayList(InputPort).init(self.allocator));
+                try self.input_aliases.put(composite_port, std.array_list.Managed(InputPort).init(self.allocator));
             }
 
             try self.input_aliases.getPtr(composite_port).?.append(aliased_port);
@@ -1497,10 +1497,10 @@ const TestInverterBlock = struct {
 
 const TestBufferSink = struct {
     block: Block,
-    buf: std.ArrayList(u8),
+    buf: std.array_list.Managed(u8),
 
     pub fn init(allocator: std.mem.Allocator) TestBufferSink {
-        return .{ .block = Block.init(@This()), .buf = std.ArrayList(u8).init(allocator) };
+        return .{ .block = Block.init(@This()), .buf = std.array_list.Managed(u8).init(allocator) };
     }
 
     pub fn deinit(self: *TestBufferSink) void {
@@ -1581,7 +1581,7 @@ test "Flowgraph start, stop" {
     try top.start();
 
     // Run for 1 ms
-    std.time.sleep(std.time.ns_per_ms);
+    std.Thread.sleep(std.time.ns_per_ms);
 
     // Stop flow graph and check for success
     try std.testing.expectEqual(true, try top.stop());

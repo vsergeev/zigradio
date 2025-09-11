@@ -57,45 +57,45 @@ const airspyhf_transfer_t = extern struct {
     dropped_samples: u64,
 };
 
-const airspyhf_sample_block_cb_fn = ?*const fn (*airspyhf_transfer_t) callconv(.C) c_int;
+const airspyhf_sample_block_cb_fn = ?*const fn (*airspyhf_transfer_t) callconv(.c) c_int;
 
-var airspyhf_lib_version: *const fn (lib_version: [*c]airspyhf_lib_version_t) callconv(.C) void = undefined;
-var airspyhf_list_devices: *const fn (serials: [*c]u64, count: c_int) callconv(.C) c_int = undefined;
-var airspyhf_open: *const fn (device: [*c]?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_open_sn: *const fn (device: [*c]?*airspyhf_device_t, serial_number: u64) callconv(.C) c_int = undefined;
-var airspyhf_open_fd: *const fn (device: [*c]?*airspyhf_device_t, fd: c_int) callconv(.C) c_int = undefined;
-var airspyhf_close: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_get_output_size: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_start: *const fn (device: ?*airspyhf_device_t, callback: airspyhf_sample_block_cb_fn, ctx: ?*anyopaque) callconv(.C) c_int = undefined;
-var airspyhf_stop: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_is_streaming: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_is_low_if: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_set_freq: *const fn (device: ?*airspyhf_device_t, freq_hz: u32) callconv(.C) c_int = undefined;
-var airspyhf_set_freq_double: *const fn (device: ?*airspyhf_device_t, freq_hz: f64) callconv(.C) c_int = undefined;
-var airspyhf_set_lib_dsp: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.C) c_int = undefined;
-var airspyhf_get_samplerates: *const fn (device: ?*airspyhf_device_t, buffer: [*c]u32, len: u32) callconv(.C) c_int = undefined;
-var airspyhf_set_samplerate: *const fn (device: ?*airspyhf_device_t, samplerate: u32) callconv(.C) c_int = undefined;
-var airspyhf_set_att: *const fn (device: ?*airspyhf_device_t, value: f32) callconv(.C) c_int = undefined;
-var airspyhf_get_att_steps: *const fn (device: ?*airspyhf_device_t, buffer: ?*anyopaque, len: u32) callconv(.C) c_int = undefined;
-var airspyhf_set_bias_tee: *const fn (device: ?*airspyhf_device_t, value: i8) callconv(.C) c_int = undefined;
-var airspyhf_get_bias_tee_count: *const fn (device: ?*airspyhf_device_t, count: [*c]i32) callconv(.C) c_int = undefined;
-var airspyhf_get_bias_tee_name: *const fn (device: ?*airspyhf_device_t, index: i32, version: [*c]u8, length: u8) callconv(.C) c_int = undefined;
-var airspyhf_get_calibration: *const fn (device: ?*airspyhf_device_t, ppb: [*c]i32) callconv(.C) c_int = undefined;
-var airspyhf_set_calibration: *const fn (device: ?*airspyhf_device_t, ppb: i32) callconv(.C) c_int = undefined;
-var airspyhf_get_vctcxo_calibration: *const fn (device: ?*airspyhf_device_t, vc: [*c]u16) callconv(.C) c_int = undefined;
-var airspyhf_set_vctcxo_calibration: *const fn (device: ?*airspyhf_device_t, vc: u16) callconv(.C) c_int = undefined;
-var airspyhf_get_frontend_options: *const fn (device: ?*airspyhf_device_t, flags: [*c]u32) callconv(.C) c_int = undefined;
-var airspyhf_set_frontend_options: *const fn (device: ?*airspyhf_device_t, flags: u32) callconv(.C) c_int = undefined;
-var airspyhf_set_optimal_iq_correction_point: *const fn (device: ?*airspyhf_device_t, w: f32) callconv(.C) c_int = undefined;
-var airspyhf_iq_balancer_configure: *const fn (device: ?*airspyhf_device_t, buffers_to_skip: c_int, fft_integration: c_int, fft_overlap: c_int, correlation_integration: c_int) callconv(.C) c_int = undefined;
-var airspyhf_flash_configuration: *const fn (device: ?*airspyhf_device_t) callconv(.C) c_int = undefined;
-var airspyhf_board_partid_serialno_read: *const fn (device: ?*airspyhf_device_t, read_partid_serialno: [*c]airspyhf_read_partid_serialno_t) callconv(.C) c_int = undefined;
-var airspyhf_version_string_read: *const fn (device: ?*airspyhf_device_t, version: [*c]u8, length: u8) callconv(.C) c_int = undefined;
-var airspyhf_set_user_output: *const fn (device: ?*airspyhf_device_t, pin: airspyhf_user_output_t, value: airspyhf_user_output_state_t) callconv(.C) c_int = undefined;
-var airspyhf_set_hf_agc: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.C) c_int = undefined;
-var airspyhf_set_hf_agc_threshold: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.C) c_int = undefined;
-var airspyhf_set_hf_att: *const fn (device: ?*airspyhf_device_t, att_index: u8) callconv(.C) c_int = undefined;
-var airspyhf_set_hf_lna: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.C) c_int = undefined;
+var airspyhf_lib_version: *const fn (lib_version: [*c]airspyhf_lib_version_t) callconv(.c) void = undefined;
+var airspyhf_list_devices: *const fn (serials: [*c]u64, count: c_int) callconv(.c) c_int = undefined;
+var airspyhf_open: *const fn (device: [*c]?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_open_sn: *const fn (device: [*c]?*airspyhf_device_t, serial_number: u64) callconv(.c) c_int = undefined;
+var airspyhf_open_fd: *const fn (device: [*c]?*airspyhf_device_t, fd: c_int) callconv(.c) c_int = undefined;
+var airspyhf_close: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_get_output_size: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_start: *const fn (device: ?*airspyhf_device_t, callback: airspyhf_sample_block_cb_fn, ctx: ?*anyopaque) callconv(.c) c_int = undefined;
+var airspyhf_stop: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_is_streaming: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_is_low_if: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_set_freq: *const fn (device: ?*airspyhf_device_t, freq_hz: u32) callconv(.c) c_int = undefined;
+var airspyhf_set_freq_double: *const fn (device: ?*airspyhf_device_t, freq_hz: f64) callconv(.c) c_int = undefined;
+var airspyhf_set_lib_dsp: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.c) c_int = undefined;
+var airspyhf_get_samplerates: *const fn (device: ?*airspyhf_device_t, buffer: [*c]u32, len: u32) callconv(.c) c_int = undefined;
+var airspyhf_set_samplerate: *const fn (device: ?*airspyhf_device_t, samplerate: u32) callconv(.c) c_int = undefined;
+var airspyhf_set_att: *const fn (device: ?*airspyhf_device_t, value: f32) callconv(.c) c_int = undefined;
+var airspyhf_get_att_steps: *const fn (device: ?*airspyhf_device_t, buffer: ?*anyopaque, len: u32) callconv(.c) c_int = undefined;
+var airspyhf_set_bias_tee: *const fn (device: ?*airspyhf_device_t, value: i8) callconv(.c) c_int = undefined;
+var airspyhf_get_bias_tee_count: *const fn (device: ?*airspyhf_device_t, count: [*c]i32) callconv(.c) c_int = undefined;
+var airspyhf_get_bias_tee_name: *const fn (device: ?*airspyhf_device_t, index: i32, version: [*c]u8, length: u8) callconv(.c) c_int = undefined;
+var airspyhf_get_calibration: *const fn (device: ?*airspyhf_device_t, ppb: [*c]i32) callconv(.c) c_int = undefined;
+var airspyhf_set_calibration: *const fn (device: ?*airspyhf_device_t, ppb: i32) callconv(.c) c_int = undefined;
+var airspyhf_get_vctcxo_calibration: *const fn (device: ?*airspyhf_device_t, vc: [*c]u16) callconv(.c) c_int = undefined;
+var airspyhf_set_vctcxo_calibration: *const fn (device: ?*airspyhf_device_t, vc: u16) callconv(.c) c_int = undefined;
+var airspyhf_get_frontend_options: *const fn (device: ?*airspyhf_device_t, flags: [*c]u32) callconv(.c) c_int = undefined;
+var airspyhf_set_frontend_options: *const fn (device: ?*airspyhf_device_t, flags: u32) callconv(.c) c_int = undefined;
+var airspyhf_set_optimal_iq_correction_point: *const fn (device: ?*airspyhf_device_t, w: f32) callconv(.c) c_int = undefined;
+var airspyhf_iq_balancer_configure: *const fn (device: ?*airspyhf_device_t, buffers_to_skip: c_int, fft_integration: c_int, fft_overlap: c_int, correlation_integration: c_int) callconv(.c) c_int = undefined;
+var airspyhf_flash_configuration: *const fn (device: ?*airspyhf_device_t) callconv(.c) c_int = undefined;
+var airspyhf_board_partid_serialno_read: *const fn (device: ?*airspyhf_device_t, read_partid_serialno: [*c]airspyhf_read_partid_serialno_t) callconv(.c) c_int = undefined;
+var airspyhf_version_string_read: *const fn (device: ?*airspyhf_device_t, version: [*c]u8, length: u8) callconv(.c) c_int = undefined;
+var airspyhf_set_user_output: *const fn (device: ?*airspyhf_device_t, pin: airspyhf_user_output_t, value: airspyhf_user_output_state_t) callconv(.c) c_int = undefined;
+var airspyhf_set_hf_agc: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.c) c_int = undefined;
+var airspyhf_set_hf_agc_threshold: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.c) c_int = undefined;
+var airspyhf_set_hf_att: *const fn (device: ?*airspyhf_device_t, att_index: u8) callconv(.c) c_int = undefined;
+var airspyhf_set_hf_lna: *const fn (device: ?*airspyhf_device_t, flag: u8) callconv(.c) c_int = undefined;
 var airspyhf_loaded: bool = false;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,7 +275,7 @@ pub const AirspyHFSource = struct {
         }
     }
 
-    fn callback(transfer: *airspyhf_transfer_t) callconv(.C) c_int {
+    fn callback(transfer: *airspyhf_transfer_t) callconv(.c) c_int {
         var self: *AirspyHFSource = @ptrCast(@alignCast(transfer.ctx));
 
         // Check for dropped samples

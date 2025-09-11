@@ -69,7 +69,7 @@ const lv_32fc_t = extern struct {
     real: f32,
     imag: f32,
 };
-var volk_32fc_magnitude_32f: *const *const fn ([*c]f32, [*c]const lv_32fc_t, c_uint) callconv(.C) void = undefined;
+var volk_32fc_magnitude_32f: *const *const fn ([*c]f32, [*c]const lv_32fc_t, c_uint) callconv(.c) void = undefined;
 var volk_loaded: bool = false;
 
 pub const _ComplexMagnitudeBlockVolkImpl = struct {

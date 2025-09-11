@@ -55,10 +55,10 @@ const struct_pa_channel_map = extern struct {
 };
 const pa_channel_map = struct_pa_channel_map;
 
-var pa_simple_new: *const fn (server: [*c]const u8, name: [*c]const u8, dir: pa_stream_direction_t, dev: [*c]const u8, stream_name: [*c]const u8, ss: [*c]const pa_sample_spec, map: [*c]const pa_channel_map, attr: [*c]const pa_buffer_attr, @"error": [*c]c_int) callconv(.C) ?*pa_simple = undefined;
-var pa_simple_write: *const fn (s: ?*pa_simple, data: ?*const anyopaque, bytes: usize, @"error": [*c]c_int) callconv(.C) c_int = undefined;
-var pa_simple_free: *const fn (s: ?*pa_simple) callconv(.C) void = undefined;
-var pa_strerror: *const fn (@"error": c_int) callconv(.C) [*c]const u8 = undefined;
+var pa_simple_new: *const fn (server: [*c]const u8, name: [*c]const u8, dir: pa_stream_direction_t, dev: [*c]const u8, stream_name: [*c]const u8, ss: [*c]const pa_sample_spec, map: [*c]const pa_channel_map, attr: [*c]const pa_buffer_attr, @"error": [*c]c_int) callconv(.c) ?*pa_simple = undefined;
+var pa_simple_write: *const fn (s: ?*pa_simple, data: ?*const anyopaque, bytes: usize, @"error": [*c]c_int) callconv(.c) c_int = undefined;
+var pa_simple_free: *const fn (s: ?*pa_simple) callconv(.c) void = undefined;
+var pa_strerror: *const fn (@"error": c_int) callconv(.c) [*c]const u8 = undefined;
 var pa_simple_loaded: bool = false;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
 
         block: Block,
         pa_conn: ?*pa_simple = null,
-        interleaved: std.ArrayList(f32) = undefined,
+        interleaved: std.array_list.Managed(f32) = undefined,
 
         pub fn init() Self {
             return .{
@@ -112,7 +112,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
             }
 
             // Allocate interleaved array
-            if (N > 1) self.interleaved = std.ArrayList(f32).init(allocator);
+            if (N > 1) self.interleaved = std.array_list.Managed(f32).init(allocator);
         }
 
         pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
