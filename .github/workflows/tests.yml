@@ -8,7 +8,7 @@ jobs:
   tests:
     strategy:
       matrix:
-        zig-version: [ 0.14.1 ]
+        zig-version: [ 0.15.1 ]
 
     runs-on: ubuntu-24.04
 
