@@ -6,7 +6,7 @@
 // @category Miscellaneous
 // @ctparam T type Complex(f32), f32, etc.
 // @param delay usize Number of samples to delay
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var delay = radio.blocks.DelayBlock(std.math.Complex(f32)).init(7);
 

@@ -9,7 +9,7 @@
 //      * `amplitude` (`f32`, default 1.0)
 //      * `offset` (`f32`, default 0.0)
 //      * `phase` (`f32`, in radians, default 0.0)
-// @signature > out:f32
+// @signature > out1:f32
 // @usage
 // var src = radio.blocks.SignalSource.init(.Sine, 1000, 48000, .{ .amplitude = 0.5 });
 // try top.connect(&src.block, &snk.block);

@@ -11,7 +11,7 @@
 // @param options Options Additional options:
 //      * `nyquist` (`?f32`, alternate Nyquist frequency in Hz)
 //      * `window` (`WindowFunction`, window function, default Hamming)
-// @signature in:Complex(f32) > out:Complex(f32)
+// @signature in1:Complex(f32) > out1:Complex(f32)
 // @usage
 // var filter = radio.blocks.ComplexBandstopFilterBlock(129).init(.{ 10e3, 20e3 }, .{});
 

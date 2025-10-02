@@ -11,7 +11,7 @@
 //                  disabled, range of 0 to 48 dB, 6 dB step)
 //      * `hf_lna` (`bool`, default false)
 //      * `debug` (`bool`, default false)
-// @signature > out:Complex(f32)
+// @signature > out1:Complex(f32)
 // @usage
 // var src = radio.blocks.AirspyHFSource.init(7.150e6, 192e3, .{ .hf_lna = true });
 // try top.connect(&src.block, &snk.block);

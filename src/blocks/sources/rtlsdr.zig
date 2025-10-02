@@ -12,7 +12,7 @@
 //      * `freq_correction` (`isize`, in PPM, default 0)
 //      * `device_index` (`isize`, default 0)
 //      * `debug` (`bool`, default false)
-// @signature > out:Complex(f32)
+// @signature > out1:Complex(f32)
 // @usage
 // var src = radio.blocks.RtlSdrSource.init(162.400e6, 1e6, .{ .autogain = true });
 // try top.connect(&src.block, &snk.block);

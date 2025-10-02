@@ -11,7 +11,7 @@
 // @category Filtering
 // @ctparam T type Complex(f32), f32
 // @param cutoff f32 Cutoff frequency in Hz
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var filter = radio.blocks.SinglepoleLowpassFilterBlock(f32).init(1e3);
 

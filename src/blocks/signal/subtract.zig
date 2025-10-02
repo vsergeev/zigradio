@@ -5,7 +5,7 @@
 //
 // @category Math Operations
 // @ctparam T type Complex(f32), f32, etc.
-// @signature in1:T in2:T > out:T
+// @signature in1:T in2:T > out1:T
 // @usage
 // var subtractor = radio.blocks.SubtractBlock(std.math.Complex(f32)).init();
 // try top.connectPort(&src1.block, "out1", &subtractor.block, "in1");

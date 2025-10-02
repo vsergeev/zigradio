@@ -6,7 +6,7 @@
 //
 // @category Demodulation
 // @param deviation f32 Frequency deviation in Hz
-// @signature in:Complex(f32) > out:f32
+// @signature in1:Complex(f32) > out1:f32
 // @usage
 // var demod = radio.blocks.FrequencyDiscriminatorBlock.init(5e3);
 

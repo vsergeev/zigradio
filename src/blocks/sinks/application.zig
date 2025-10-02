@@ -4,7 +4,7 @@
 // Provides an interface for applications to consume samples from the flowgraph.
 // @category Sinks
 // @ctparam T type Complex(f32), f32, u1, etc.
-// @signature in:T >
+// @signature in1:T >
 // @usage
 // var snk = radio.blocks.ApplicationSink(std.math.Complex(f32)).init();
 // try top.connect(&src.block, &snk.block);

@@ -5,7 +5,7 @@
 // $$ y[n] = x_{1}[n] \; x_{2}^*[n] $$
 //
 // @category Math Operations
-// @signature in1:Complex(f32) in2:Complex(f32) > out:Complex(f32)
+// @signature in1:Complex(f32) in2:Complex(f32) > out1:Complex(f32)
 // @usage
 // var mixer = radio.blocks.MultiplyConjugateBlock.init();
 // try top.connectPort(&src1.block, "out1", &mixer.block, "in1");

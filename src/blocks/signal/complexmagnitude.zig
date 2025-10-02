@@ -6,7 +6,7 @@
 // $$ y[n] = \sqrt{\text{Re}(x[n])^2 + \text{Im}(x[n])^2} $$
 //
 // @category Math Operations
-// @signature in:Complex(f32) > out:f32
+// @signature in1:Complex(f32) > out1:f32
 // @usage
 // var mag = radio.blocks.ComplexMagnitudeBlock.init();
 

@@ -9,7 +9,7 @@
 // @param frequency_range struct{f32,f32} Minimum and maximum frequency range in Hz
 // @param options Options Additional options:
 //      * `multiplier` (`f32`, frequency multiplier, default 1.0)
-// @signature in:Complex(f32) > out:Complex(f32) err:f32
+// @signature in1:Complex(f32) > out1:Complex(f32) out2:f32
 // @usage
 // var pll = radio.blocks.ComplexPLLBlock.init(500, .{ 8e3, 12e3 }, .{});
 // try top.connect(&src.block, &pll.block);

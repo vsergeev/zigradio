@@ -5,7 +5,7 @@
 // $$ y[n] = x[n] + 0 \, j $$
 //
 // @category Type Conversion
-// @signature in:f32 > out:Complex(f32)
+// @signature in1:f32 > out1:Complex(f32)
 // @usage
 // var realtocomplex = radio.blocks.RealToComplexBlock.init();
 

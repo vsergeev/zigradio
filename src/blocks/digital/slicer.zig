@@ -2,7 +2,7 @@
 // @description Slice a signal into symbols using the specified slicer.
 // @category Digital
 // @cparam slicer type Slicer type implementing `fn process(value: T) U`
-// @signature in:T > out:U
+// @signature in1:T > out1:U
 // @usage
 // var slicer = radio.blocks.SlicerBlock(radio.blocks.BinarySlicer).init();
 

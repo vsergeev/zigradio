@@ -7,7 +7,7 @@
 // @param options Options Additional options:
 //      * `title` (`[]const u8`, default "BenchmarkSink")
 //      * `report_period_ms` (`usize`, reporting period in milliseconds, default 3000)
-// @signature in:T >
+// @signature in1:T >
 // @usage
 // var snk = radio.blocks.BenchmarkSink(std.math.Complex(f32)).init(.{});
 // try top.connect(&src.block, &snk.block);

@@ -6,7 +6,7 @@
 //
 // @category Spectrum Manipulation
 // @param offset Translation offset in Hz
-// @signature in:Complex(f32) > out:Complex(f32)
+// @signature in1:Complex(f32) > out1:Complex(f32)
 // @usage
 // var translator = radio.blocks.FrequencyTranslatorBlock.init(-50e3);
 

@@ -3,7 +3,7 @@
 // filter.
 // @category Filtering
 // @param baudrate Baudrate
-// @signature in:f32 > out:f32
+// @signature in1:f32 > out1:f32
 // @usage
 // var matched_filter = radio.blocks.RectangularMatchedFilterBlock.init(2400);
 

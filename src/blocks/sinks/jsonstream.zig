@@ -5,7 +5,7 @@
 // @ctparam T type Any type serializable by `std.json.stringify()`
 // @param writer *std.io.Writer Writer
 // @param options Options Additional options
-// @signature in:T >
+// @signature in1:T >
 // @usage
 // var output_file = try std.fs.cwd().createFile("samples.json", .{});
 // defer output_file.close();

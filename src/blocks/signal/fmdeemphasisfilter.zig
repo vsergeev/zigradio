@@ -6,7 +6,7 @@
 //
 // @category Filtering
 // @param tau De-emphasis time constant
-// @signature in:f32 > out:f32
+// @signature in1:f32 > out1:f32
 // @usage
 // var deemphasis = radio.blocks.FMDeemphasisFilterBlock.init(75e-6);
 

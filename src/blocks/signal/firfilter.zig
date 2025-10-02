@@ -10,7 +10,7 @@
 // @ctparam U type Tap data type (e.g. Complex(f32), f32)
 // @ctparam N comptime_int Number of taps
 // @param taps [N]U Taps
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var filter = radio.blocks.FIRFilterBlock(std.math.Complex(f32), f32, 64).init(taps);
 

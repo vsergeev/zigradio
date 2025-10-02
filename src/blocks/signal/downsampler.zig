@@ -9,7 +9,7 @@
 // @category Sample Rate Manipulation
 // @ctparam T type Complex(f32), f32, etc.
 // @param factor usize Downsampling factor
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(4);
 

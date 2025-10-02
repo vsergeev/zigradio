@@ -6,7 +6,7 @@
 // @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
 // @param rate f64 Sample rate in Hz
 // @param options Options Additional options
-// @signature > out:Complex(f32)
+// @signature > out1:Complex(f32)
 // @usage
 // var input_file = try std.fs.cwd().openFile("samples.iq", .{});
 // defer input_file.close();

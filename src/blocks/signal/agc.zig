@@ -16,7 +16,7 @@
 //      * `target_dbfs` (`f32`, target level in dBFS, default -20)
 //      * `threshold_dbfs` (`f32`, threshold level in dBFS, default -75)
 //      * `power_tau` (`f32`, power estimator time constant, default 1.0)
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var agc = radio.blocks.AGCBlock(std.math.Complex(f32)).init(.{ .preset = .Fast }, .{ .target_dbfs = -30, .threshold_dbfs = -75 });
 

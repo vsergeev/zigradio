@@ -6,7 +6,7 @@
 // @param report_interval_ms f32 Reporting interval in milliseconds
 // @param options Options Additional options:
 //      * `power_tau` (`f32`, power estimator time constant, default 0.5)
-// @signature in:T > out:f32
+// @signature in1:T > out1:f32
 // @usage
 // var power_meter = radio.blocks.PowerMeterBlock(std.math.Complex(f32)).init(50, .{});
 

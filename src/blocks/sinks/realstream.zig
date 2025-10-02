@@ -5,7 +5,7 @@
 // @param writer *std.io.Writer Writer
 // @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
 // @param options Options Additional options
-// @signature in:f32 >
+// @signature in1:f32 >
 // @usage
 // var output_file = try std.fs.cwd().createFile("samples.real", .{});
 // defer output_file.close();

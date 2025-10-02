@@ -4,7 +4,7 @@
 // $$ y[n] = \text{Re}(x[n]) $$
 //
 // @category Type Conversion
-// @signature in:Complex(f32) > out:f32
+// @signature in1:Complex(f32) > out1:f32
 // @usage
 // var complextoreal = radio.blocks.ComplexToRealBlock.init();
 

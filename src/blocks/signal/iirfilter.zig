@@ -11,7 +11,7 @@
 // @ctparam M comptime_int Number of feedback taps
 // @param b_taps [N]f32 Feedforward taps
 // @param a_taps [M]f32 Feedback taps
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var filter = radio.blocks.IIRFilterBlock(std.math.Complex(f32), 3, 3).init(b_taps, a_taps);
 

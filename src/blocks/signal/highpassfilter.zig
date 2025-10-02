@@ -11,7 +11,7 @@
 // @param options Options Additional options:
 //      * `nyquist` (`?f32`, alternate Nyquist frequency in Hz)
 //      * `window` (`WindowFunction`, window function, default Hamming)
-// @signature in:T > out:T
+// @signature in1:T > out1:T
 // @usage
 // var filter = radio.blocks.HighpassFilterBlock(std.math.Complex(f32), 129).init(100, .{});
 
