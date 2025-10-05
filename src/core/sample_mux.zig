@@ -260,7 +260,10 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
 
         pub fn init(input_buffers: [input_data_types.len][]const u8, options: Options) !Self {
             var output_buffers: [output_data_types.len][]u8 = undefined;
-            inline for (&output_buffers) |*output_buffer| output_buffer.* = try std.testing.allocator.alloc(u8, 16384);
+            inline for (&output_buffers) |*output_buffer| {
+                output_buffer.* = try std.testing.allocator.alloc(u8, 16384);
+                @memset(output_buffer.*, 0);
+            }
 
             return .{
                 .input_buffers = input_buffers,
