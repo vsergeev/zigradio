@@ -25,7 +25,7 @@ fn _expectEqualValue(comptime T: type, expected: T, actual: T, index: usize, eps
         // Complex Floats
         std.math.Complex(f32), std.math.Complex(f64) => expected.sub(actual).magnitude() < epsilon,
         // Unknown
-        else => unreachable,
+        else => std.meta.eql(expected, actual),
     };
 
     if (!approx_equal) {
