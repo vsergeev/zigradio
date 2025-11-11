@@ -1,5 +1,5 @@
 - [Getting Started](/getting-started.html)
-- [Creating Flowgraphs](/creating-flowgraphs.html)
+- [Creating Flow Graphs](/creating-flow-graphs.html)
 - [Creating Blocks](/creating-blocks.html)
 - [Embedding ZigRadio](/embedding-zigradio.html)
 - [Reference Manual](/reference-manual.html)
