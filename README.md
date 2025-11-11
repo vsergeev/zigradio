@@ -50,7 +50,7 @@ pub fn main() !void {
 
 Check out some more [examples](examples) of what you can build with ZigRadio.
 
-## Building
+## Quickstart
 
 ZigRadio requires Zig version 0.15.
 
@@ -72,7 +72,7 @@ Try out one of the [examples](examples) with an
 $ ./zig-out/bin/example-rtlsdr_wbfm_mono 89.7e6
 ```
 
-## Embedding ZigRadio
+## Building
 
 Fetch the ZigRadio package:
 
@@ -82,7 +82,7 @@ zig fetch --save git+https://github.com/vsergeev/zigradio#master
 
 Add ZigRadio as a dependency to your `build.zig`:
 
-```
+``` zig
 const radio = b.dependency("radio", .{});
 ...
 exe.root_module.addImport("radio", radio.module("radio"));
