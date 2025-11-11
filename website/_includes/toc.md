@@ -1,7 +1,7 @@
 - [Getting Started](/getting-started.html)
 - [Creating Flow Graphs](/creating-flow-graphs.html)
 - [Creating Blocks](/creating-blocks.html)
-- [Embedding ZigRadio](/embedding-zigradio.html)
+- [Integrating ZigRadio](/integrating-zigradio.html)
 - [Reference Manual](/reference-manual.html)
 - [Examples](/examples/)
   - [Play Tone](/examples/play-tone.html)
