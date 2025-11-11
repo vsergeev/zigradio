@@ -210,7 +210,7 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             try instance.setRate(rate);
             try instance.initialize(std.testing.allocator);
 
-            return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(.{&[_]u8{}} ** input_data_types.len, .{}) };
+            return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(.{&[_]u8{}} ** input_data_types.len, .{ .num_readers = 1 }) };
         }
 
         pub fn deinit(self: *Self) void {
