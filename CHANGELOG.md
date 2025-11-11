@@ -1,3 +1,15 @@
+* v0.9.0 - 11/11/2025
+    * Migrate to Zig 0.15.
+    * Fix type signature port labels in block docstrings.
+    * Add new website content:
+        * Add Example, Building, Running, Flowgraph sections to Reference
+          Manual.
+        * Add Building section to index page.
+        * Add Getting Started page.
+        * Add Creating Flow Graphs page.
+        * Add Creating Blocks page.
+        * Add Integrating ZigRadio page.
+
 * v0.8.0 - 06/25/2025
     * Fix flowgraph stall from waiting on excess output samples in SampleMux.
     * Refactor FIRFilter to support runtime length taps.
