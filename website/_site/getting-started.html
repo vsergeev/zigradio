@@ -11,14 +11,14 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.8.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
 <li><a href="/getting-started.html">Getting Started</a></li>
-<li><a href="/creating-flowgraphs.html">Creating Flowgraphs</a></li>
+<li><a href="/creating-flow-graphs.html">Creating Flow Graphs</a></li>
 <li><a href="/creating-blocks.html">Creating Blocks</a></li>
-<li><a href="/embedding-zigradio.html">Embedding ZigRadio</a></li>
+<li><a href="/integrating-zigradio.html">Integrating ZigRadio</a></li>
 <li><a href="/reference-manual.html">Reference Manual</a></li>
 <li><a href="/examples/">Examples</a>
 <ul>
@@ -38,7 +38,143 @@
       </div>
       <div>
         <h1 id="getting-started">Getting Started</h1>
-<p>Coming soon...</p>
+<h2 id="introduction">Introduction</h2>
+<p>ZigRadio is a framework for building signal processing flow graphs. A flow
+graph is a directed graph of blocks that processes data samples. Samples in a
+flow graph originate at source blocks, are manipulated through intermediate
+processing blocks, and terminate at sink blocks. This paradigm — also called
+dataflow programming — is useful for software-defined radio, because it allows
+you to model the architectures of conventional hardware radios.</p>
+<p>In a software-defined radio flow graph, source and sink blocks tend to
+implement some kind of I/O, like reading samples from an SDR dongle, or writing
+samples to an audio device, while processing blocks tend to be computational,
+like filters and multipliers.</p>
+<h3 id="type-signatures">Type Signatures</h3>
+<p>ZigRadio blocks have data types associated with their input and output ports.
+For example, the
+<a href="/reference-manual.html#complexmagnitudeblock"><code>ComplexMagnitudeBlock</code></a> has a
+complex-valued input port of type <code>std.math.Complex(f32)</code> and real-valued
+output port of type <code>f32</code>. Block ports can use any Zig type, including custom
+types. Many generic processing blocks, such as the
+<a href="/reference-manual.html#multiplyblock"><code>MultiplyBlock</code></a>, support compile-time
+type parameterization of their ports, and can be instantiated for a variety of
+types.</p>
+<h3 id="sample-rate">Sample Rate</h3>
+<p>ZigRadio blocks have a sample rate associated with them. This is the rate at
+which the discrete samples are spaced in time, relative to one another, but not
+the rate that they are computationally produced, processed, or consumed by the
+framework. Source blocks define their sample rates, while downstream blocks
+inherit — and possibly modify — the sample rate of their upstream block. For
+example, upsampler and downsampler blocks will multiply and divide the sample
+rate, respectively.</p>
+<p>ZigRadio propagates sample rates between blocks for you, and ensures that
+sample rates match across multiple inputs. Blocks can access their runtime
+sample rate to perform sample rate dependent initialization and processing.
+Since blocks know their sample rate, blocks can accept parameters in terms of
+actual frequencies, e.g. cut-off frequencies in hertz for a filter.</p>
+<h3 id="flow-graph-termination">Flow Graph Termination</h3>
+<p>While some flow graphs implement a continuously running system (e.g. an FM
+broadcast radio receiver), ZigRadio flow graphs are not required to run
+forever. When a source terminates, the framework will gracefully collapse the
+flow graph as the final samples propagate their way though the graph. This
+allows you to build utilities that process finite inputs, like files, to
+completion.</p>
+<h2 id="example">Example</h2>
+<p>In this example, we will create a simple flow graph to double the frequency of
+a tone. It will demonstrate the basic mechanics of instantiating blocks,
+connecting blocks, and running a flow graph.</p>
+<p>This flow graph <a href="https://en.wikipedia.org/wiki/Frequency_mixer">mixes</a> a 440 Hz
+(A4) tone with itself to create the sum and difference frequency tones at 0 Hz
+and 880 Hz, respectively. This output is then filtered with a highpass filter
+to leave the 880 Hz (A5) tone, which is played out the speakers with a
+PulseAudio sink.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> std <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"std"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">var</span> source <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>SignalSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>SignalSource<span class="token punctuation">.</span>WaveformFunction<span class="token punctuation">.</span>Cosine<span class="token punctuation">,</span> <span class="token number">440</span><span class="token punctuation">,</span> <span class="token number">44100</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> mixer <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">MultiplyBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SinglepoleHighpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> sink <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PulseAudioSink</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>filter<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sink<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    radio<span class="token punctuation">.</span>platform<span class="token punctuation">.</span><span class="token function">waitForInterrupt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    _ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">stop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span></code></pre>
+<p>Run the example within the ZigRadio source tree with:</p>
+<pre class="language-plain"><code class="language-plain">$ zig run -lc --dep radio -Mroot=frequency_doubler.zig -Mradio=src/radio.zig</code></pre>
+<p>The flow graph can be terminated with <code>SIGINT</code> (e.g. Ctrl-C).</p>
+<h3 id="explanation">Explanation</h3>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> std <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"std"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The first line of the example imports the Zig standard library.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The second line imports the <code>radio</code> package containing ZigRadio. This package
+exposes all ZigRadio blocks, as well the facilities to create flow graphs,
+blocks, and types.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> source <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>SignalSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>SignalSource<span class="token punctuation">.</span>WaveformFunction<span class="token punctuation">.</span>Cosine<span class="token punctuation">,</span> <span class="token number">440</span><span class="token punctuation">,</span> <span class="token number">44100</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> mixer <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">MultiplyBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SinglepoleHighpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> sink <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PulseAudioSink</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>These lines instantiate each block of the flow graph. Note that the sample rate
+is only required for the source block; all other blocks inherit their sample
+rate through the connections in the flow graph.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>filter<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sink<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The next lines instantiate a flow graph with a default general purpose
+allocator, and connect the blocks within the flow graph.</p>
+<p>The first two connections demonstrate the explicit connection syntax. For
+example, <code>try top.connectPort(&amp;source.block, &quot;out1&quot;, &amp;mixer.block, &quot;in1);</code>,
+where <code>source</code>'s output port named <code>out1</code> is connected the <code>mixer</code>'s input port
+named <code>in1</code>. In this case, the mixer has two inputs, <code>in1</code> and <code>in2</code>, so we use
+the explicit connection syntax to connect the <code>source</code>'s one output to both of
+the <code>mixer</code>'s inputs.</p>
+<p>The third and fourth connections demonstrate the linear block connection
+syntax, which is used to connect the first output to the first input of two
+blocks. This syntax is convenient for connecting blocks that only have one
+input and output, which is most blocks.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+radio<span class="token punctuation">.</span>platform<span class="token punctuation">.</span><span class="token function">waitForInterrupt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+_ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">stop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The last lines of the example start the flow graph, wait for the user's
+<code>SIGINT</code> signal, and then stop the flow graph. The flow graph will run
+indefinitely until the user raises <code>SIGINT</code> (e.g. Ctrl-C).</p>
+<h2 id="blocks-and-types">Blocks and Types</h2>
+<p>Building flow graphs with ZigRadio is a matter of choosing the right blocks and
+connecting them. The <a href="/reference-manual.html">ZigRadio Reference Manual</a> documents all packaged
+blocks, including a description of their operation, their arguments, and their
+input/output port names and data types.</p>
+<p>ZigRadio blocks use native Zig types for their input and output ports. Common
+data types include:</p>
+<ul>
+<li><code>std.math.Complex(f32)</code>, for complex-valued samples</li>
+<li><code>f32</code>, for real-valued samples</li>
+<li><code>u8</code>, for byte samples</li>
+<li><code>u1</code>, for bit samples</li>
+</ul>
+<p>In addition, users can create custom data types to represent complex
+structures like digital protocol frames.</p>
+<p>ZigRadio blocks can also leverage the C APIs of external libraries for custom
+processing, acceleration, or I/O.</p>
+<h2 id="next-steps">Next Steps...</h2>
+<p>The <a href="/creating-flow-graphs.html">Creating Flow Graphs</a> guide describes the connecting, running, and
+modifying flow graphs.</p>
+<p>The <a href="/creating-blocks.html">Creating Blocks</a> guide describes creating blocks and data types.</p>
 
       </div>
     </div>

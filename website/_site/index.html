@@ -11,14 +11,14 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.8.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
 <li><a href="/getting-started.html">Getting Started</a></li>
-<li><a href="/creating-flowgraphs.html">Creating Flowgraphs</a></li>
+<li><a href="/creating-flow-graphs.html">Creating Flow Graphs</a></li>
 <li><a href="/creating-blocks.html">Creating Blocks</a></li>
-<li><a href="/embedding-zigradio.html">Embedding ZigRadio</a></li>
+<li><a href="/integrating-zigradio.html">Integrating ZigRadio</a></li>
 <li><a href="/reference-manual.html">Reference Manual</a></li>
 <li><a href="/examples/">Examples</a>
 <ul>
@@ -79,8 +79,8 @@ modulation/demodulation utilities, and signal processing experiments.</p>
     _ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span></code></pre>
 <p>Check out some more <a href="examples">examples</a> of what you can build with ZigRadio.</p>
-<h2 id="building">Building</h2>
-<p>ZigRadio requires Zig version 0.14.</p>
+<h2 id="quickstart">Quickstart</h2>
+<p>ZigRadio requires Zig version 0.15.</p>
 <pre class="language-plain"><code class="language-plain">$ git clone https://github.com/vsergeev/zigradio.git
 $ cd zigradio</code></pre>
 <p>Build examples:</p>
@@ -88,6 +88,16 @@ $ cd zigradio</code></pre>
 <p>Try out one of the <a href="examples">examples</a> with an
 <a href="http://www.rtl-sdr.com/about-rtl-sdr/">RTL-SDR</a> dongle:</p>
 <pre class="language-plain"><code class="language-plain">$ ./zig-out/bin/example-rtlsdr_wbfm_mono 89.7e6</code></pre>
+<h2 id="building">Building</h2>
+<p>Fetch the ZigRadio package:</p>
+<pre class="language-plain"><code class="language-plain">zig fetch --save git+https://github.com/vsergeev/zigradio#master</code></pre>
+<p>Add ZigRadio as a dependency to your <code>build.zig</code>:</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> b<span class="token punctuation">.</span><span class="token function">dependency</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token operator">...</span>
+exe<span class="token punctuation">.</span>root_module<span class="token punctuation">.</span><span class="token function">addImport</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">,</span> radio<span class="token punctuation">.</span><span class="token function">module</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+exe<span class="token punctuation">.</span><span class="token function">linkLibC</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>Optimization <code>ReleaseFast</code> is recommended for real-time applications. libc is
+required for loading dynamic libraries used for acceleration and I/O.</p>
 
       </div>
     </div>

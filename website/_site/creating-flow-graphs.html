@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/bundle.css">
+    <title>ZigRadio</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="sidebar">
+        <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
+        <div class="links">
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
+        </div>
+        <div class="toc"><ul>
+<li><a href="/getting-started.html">Getting Started</a></li>
+<li><a href="/creating-flow-graphs.html">Creating Flow Graphs</a></li>
+<li><a href="/creating-blocks.html">Creating Blocks</a></li>
+<li><a href="/integrating-zigradio.html">Integrating ZigRadio</a></li>
+<li><a href="/reference-manual.html">Reference Manual</a></li>
+<li><a href="/examples/">Examples</a>
+<ul>
+<li><a href="/examples/play-tone.html">Play Tone</a></li>
+<li><a href="/examples/rtlsdr-wbfm-mono.html">WBFM Mono</a></li>
+<li><a href="/examples/rtlsdr-wbfm-stereo.html">WBFM Stereo</a></li>
+<li><a href="/examples/rtlsdr-nbfm.html">NBFM</a></li>
+<li><a href="/examples/rtlsdr-am-envelope.html">AM (Envelope)</a></li>
+<li><a href="/examples/rtlsdr-am-synchronous.html">AM (Synchronous)</a></li>
+<li><a href="/examples/rtlsdr-ssb.html">SSB</a></li>
+<li><a href="/examples/iqfile-converter.html">IQ File Converter</a></li>
+</ul>
+</li>
+</ul>
+</div>
+        <a class="contact" href="mailto:v@sergeev.io"><span class="lucide--mail icon"></span> v@sergeev.io</a>
+      </div>
+      <div>
+        <h1 id="creating-flow-graphs">Creating Flow Graphs</h1>
+<p>The <a href="/reference-manual.html#flowgraph"><code>Flowgraph</code></a> is the top-level container
+for a ZigRadio flow graph, and provides a simple API for connecting blocks,
+running the flow graph, and making asynchronous calls into blocks.</p>
+<h2 id="instantiation">Instantiation</h2>
+<p>A <code>Flowgraph</code> is instantiated with <code>init(allocator: std.mem.Allocator, options: Options) Flowgraph</code>, which takes an allocator and additional options.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h2 id="connecting-blocks">Connecting Blocks</h2>
+<p>Blocks can be connected within a flow graph in one of two ways.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Example of explicit block connections</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pilot_pll<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The explicit block connection API <code>connectPort(self: *Flowgraph, src: anytype, src_port_name: []const u8, dst: anytype, dst_port_name: []const u8) !void</code>
+connects an output port by name of a source block to an input port by name of a
+destination block. This syntax is required when connecting blocks with multiple
+outputs or multiple inputs.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Example of linear block connections</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fm_demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>fm_demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>The linear block connection API <code>connect(self: *Flowgraph, src: anytype, dst: anytype) !void</code> omits the port names, and connects the single output port of a
+source block to the single input port of a destination block. This syntax can
+only be used when connecting single output blocks to single input blocks, which
+is most blocks.</p>
+<p>A third connection API <code>alias(self: *Flowgraph, composite: *CompositeBlock, port_name: []const u8, aliased_block: anytype, aliased_port_name: []const u8) !void</code> is used with composite blocks to alias a composite block's input or
+output port to an internal block's input or output port. See the <a href="/creating-blocks.html#composite-blocks">Creating
+Blocks</a> guide for more information.</p>
+<h2 id="running-flow-graphs">Running Flow Graphs</h2>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Start a flow graph and wait until completion</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+_ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">wait</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Alternatively</span>
+_ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">run</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>A flow graph is started with the non-blocking <code>start(self: *Flowgraph) !void</code>
+API. The blocking <code>wait(self: *Flowgraph) !bool</code> API can then be used to wait
+for a flow graph to terminate naturally. For convenience, the blocking
+<code>run(self: *Flowgraph) !bool</code> API combines <code>start()</code> and <code>wait()</code>. Both
+<code>wait()</code> and <code>run()</code> return a success boolean, indicating the flow graph
+completed without block process errors.</p>
+<p>For flow graphs that run indefinitely, the blocking <code>stop(self: *Flowgraph) !bool</code> API can be used to shutdown all source blocks and wait for termination
+as the flow graph collapses.</p>
+<h2 id="asynchronous-control">Asynchronous Control</h2>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Set the cutoff frequency of audio filter</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">LowpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">.</span>setCutoff<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token number">5e3</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Get cutoff frequency of audio filter</span>
+<span class="token keyword">const</span> cutoff <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">LowpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">.</span>getCutoff<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>Since flow graph blocks run in their own threads, calls into blocks must be
+made from their running thread for race and memory safety. The <code>Flowgraph</code>
+wrapper <code>call(self: *Flowgraph, block: anytype, comptime function: anytype, args: anytype) CallReturnType(function)</code> API is used to make arbitrary
+thread-safe calls into a block. This API can be used to set and get parameters,
+trigger functionality, etc. in a block.</p>
+
+      </div>
+    </div>
+  </body>
+</html>

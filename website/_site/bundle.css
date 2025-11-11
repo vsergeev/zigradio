@@ -388,6 +388,28 @@ a:hover {
   text-decoration: underline;
 }
 
+a code {
+  color: var(--theme-color);
+}
+
+/* Code */
+
+code {
+  display: inline;
+}
+
+@media (prefers-color-scheme: light) {
+  .container {
+    --pico-code-color: #222222;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .container {
+    --pico-code-color: #dddddd;
+  }
+}
+
 /* Code Blocks */
 
 pre[class*="language-"] {
