@@ -250,6 +250,7 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         pub const Options = struct {
             single_input_samples: bool = false,
             single_output_samples: bool = false,
+            num_readers: usize = 0,
         };
 
         input_buffers: [input_data_types.len][]const u8,
@@ -360,8 +361,10 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
             self.output_buffer_indices[index] += count;
         }
 
-        pub fn getNumReadersForOutput(_: *anyopaque, _: usize) usize {
-            return 0;
+        pub fn getNumReadersForOutput(ptr: *anyopaque, _: usize) usize {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+
+            return self.options.num_readers;
         }
 
         pub fn setEOS(_: *anyopaque) void {
