@@ -8,6 +8,8 @@ const RuntimeTypeSignature = @import("types.zig").RuntimeTypeSignature;
 const SampleMux = @import("sample_mux.zig").SampleMux;
 const TestSampleMux = @import("sample_mux.zig").TestSampleMux;
 
+const hasTypeTag = @import("types.zig").hasTypeTag;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Expect Helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,6 +249,16 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             }
 
             return outputs;
+        }
+
+        pub fn unref(_: *Self, output_vectors: util.makeTupleConstSliceTypes(output_data_types)) void {
+            // Handle RefCounted(T) outputs (decrement reference count)
+            inline for (output_data_types, 0..) |output_type, i| {
+                if (comptime hasTypeTag(output_type, .RefCounted)) {
+                    // TODO @constCast() here is ugly, but safe
+                    for (output_vectors[i]) |*e| @constCast(e).unref();
+                }
+            }
         }
     };
 }
