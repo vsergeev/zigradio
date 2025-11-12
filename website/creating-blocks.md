@@ -193,7 +193,7 @@ pub const MyPacket = struct {
     dst: u32 = 0,
     payload: []u8 = &.{},
 
-    allocator: std.mem.Allocatorr,
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) MyPacket {
         return .{ .allocator = allocator };
@@ -219,6 +219,7 @@ pub fn process(self: *MyPacketDecoderBlock, x: []const u1, z: []RefCounted(MyPac
     z[j].value.src = ...;
     z[j].value.dst = ...;
     z[j].value.payload = try self.allocator.dupe(u8, ...);
+    j += 1;
     ...
     return ProcessResult.init(&[1]usize{i}, &[1]usize{j});
 }
