@@ -16,7 +16,7 @@ to completion.
 ### Source
 
 ```zig
-{% include "../examples/rtlsdr_am_synchronous.zig" %}
+{% include "../examples/iqfile_converter.zig" %}
 ```
 
 ### Usage
