@@ -101,15 +101,16 @@ required for loading dynamic libraries used for acceleration and I/O.
         * [sources/](src/blocks/sources) - Sources
         * [sinks/](src/blocks/sinks) - Sinks
         * [signal/](src/blocks/signal) - Signal blocks
+        * [digital/](src/blocks/digital) - Digital blocks
         * [composites/](src/blocks/composites) - Composite blocks
     * [utils/](src/utils) - Utility functions
     * [vectors/](src/vectors) - Generated test vectors
 * [examples/](examples) - Examples
 * [benchmarks/](benchmarks) - Benchmark Suite
-* [docs/](docs) - Documentation
 * [website/](website) - Website
 * [build.zig](build.zig) - Zig build script
 * [build.zig.zon](build.zig.zon) - Zig package manifest
+* [generate.py](generate.py) - Test vectors generator
 * [CHANGELOG.md](CHANGELOG.md) - Change log
 * [LICENSE](LICENSE) - MIT License
 * [README.md](README.md) - This README
