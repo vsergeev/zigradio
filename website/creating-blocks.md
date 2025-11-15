@@ -51,10 +51,10 @@ connecting blocks or for calling into them.
 The `process()` function is the main function of the block, called by the
 framework repeatedly to convert input samples to output samples. The framework
 deduces the input and output ports and their data types from the type signature
-of a block's `process()` function. Arguments of a constant slice type map to
-input ports, and those of mutable slice type map to output ports. The
-`process()` function may access and manipulate a block's state through `self`
-argument.
+of the block's `process()` function. Arguments of a constant slice type map to
+input ports, while those of mutable slice type map to output ports. The
+`process()` function may access and manipulate the block's state through the
+`self` argument.
 
 The ZigRadio framework guarantees that `process()` is only called when there
 are a non-zero amount of input samples available across all inputs, and at
