@@ -6,6 +6,14 @@ subtitle: Examples
 
 # Examples
 
+Examples can be built within the ZigRadio repository:
+
+```plain
+$ zig build examples
+```
+
+#### Examples
+
 - [Play Tone](/examples/play-tone.html)
 - [RTL-SDR WBFM Mono Receiver](/examples/rtlsdr-wbfm-mono.html)
 - [RTL-SDR WBFM Stereo Receiver](/examples/rtlsdr-wbfm-stereo.html)
