@@ -42,7 +42,7 @@ slice of samples and returns the number of samples successfully written, which
 may be zero.
 
 The high-level `push(self: *Self, value: T) error{Unavailable}!void` API writes
-a single sample and returns an error if space was not available.
+a single sample, or returns an error if space was not available.
 
 The `setEOS(self: *Self) void` sets the end-of-stream condition on the source,
 which will subsequently collapse the flow graph.
@@ -111,6 +111,7 @@ pub fn main() !void {
 
     // Wait for 3 samples available for reading
     try sink.wait(3, null);
+
     // Read three samples
     std.debug.print("{any}\n", .{sink.pop()});
     std.debug.print("{any}\n", .{sink.pop()});
