@@ -65,7 +65,7 @@ with the number of samples written.</p>
 slice of samples and returns the number of samples successfully written, which
 may be zero.</p>
 <p>The high-level <code>push(self: *Self, value: T) error{Unavailable}!void</code> API writes
-a single sample and returns an error if space was not available.</p>
+a single sample, or returns an error if space was not available.</p>
 <p>The <code>setEOS(self: *Self) void</code> sets the end-of-stream condition on the source,
 which will subsequently collapse the flow graph.</p>
 <h2 id="application-sink">Application Sink</h2>
@@ -120,6 +120,7 @@ respectively.</p>
 
     <span class="token comment">// Wait for 3 samples available for reading</span>
     <span class="token keyword">try</span> sink<span class="token punctuation">.</span><span class="token function">wait</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> <span class="token keyword">null</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
     <span class="token comment">// Read three samples</span>
     std<span class="token punctuation">.</span>debug<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"{any}\n"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>sink<span class="token punctuation">.</span><span class="token function">pop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     std<span class="token punctuation">.</span>debug<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"{any}\n"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>sink<span class="token punctuation">.</span><span class="token function">pop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>

@@ -76,10 +76,10 @@ connecting blocks or for calling into them.</p>
 <p>The <code>process()</code> function is the main function of the block, called by the
 framework repeatedly to convert input samples to output samples. The framework
 deduces the input and output ports and their data types from the type signature
-of a block's <code>process()</code> function. Arguments of a constant slice type map to
-input ports, and those of mutable slice type map to output ports. The
-<code>process()</code> function may access and manipulate a block's state through <code>self</code>
-argument.</p>
+of the block's <code>process()</code> function. Arguments of a constant slice type map to
+input ports, while those of mutable slice type map to output ports. The
+<code>process()</code> function may access and manipulate the block's state through the
+<code>self</code> argument.</p>
 <p>The ZigRadio framework guarantees that <code>process()</code> is only called when there
 are a non-zero amount of input samples available across all inputs, and at
 least as many output samples available, across all outputs. Blocks that need to
@@ -183,7 +183,7 @@ final block.</p>
     dst<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">u32</span></span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
     payload<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin-type keyword">u8</span></span> <span class="token operator">=</span> <span class="token operator">&amp;</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
 
-    allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocatorr</span><span class="token punctuation">,</span>
+    allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">,</span>
 
     <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">init</span><span class="token punctuation">(</span>allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">)</span> <span class="token class-name">MyPacket</span> <span class="token punctuation">{</span>
         <span class="token keyword">return</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>allocator <span class="token operator">=</span> allocator <span class="token punctuation">}</span><span class="token punctuation">;</span>
@@ -205,6 +205,7 @@ a <code>RefCounted(MyPacket)</code> as in the example below:</p>
     z<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">.</span>value<span class="token punctuation">.</span>src <span class="token operator">=</span> <span class="token operator">...</span><span class="token punctuation">;</span>
     z<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">.</span>value<span class="token punctuation">.</span>dst <span class="token operator">=</span> <span class="token operator">...</span><span class="token punctuation">;</span>
     z<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">.</span>value<span class="token punctuation">.</span>payload <span class="token operator">=</span> <span class="token keyword">try</span> self<span class="token punctuation">.</span>allocator<span class="token punctuation">.</span><span class="token function">dupe</span><span class="token punctuation">(</span><span class="token builtin-type keyword">u8</span><span class="token punctuation">,</span> <span class="token operator">...</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    j <span class="token operator">+=</span> <span class="token number">1</span><span class="token punctuation">;</span>
     <span class="token operator">...</span>
     <span class="token keyword">return</span> ProcessResult<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span>i<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span>j<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span></code></pre>
