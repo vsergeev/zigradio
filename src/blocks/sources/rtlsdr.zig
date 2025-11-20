@@ -11,6 +11,7 @@
 //      * `rf_gain` (`?f32`, number in dB for manual gain, default null for auto-gain)
 //      * `freq_correction` (`isize`, in PPM, default 0)
 //      * `device_index` (`isize`, default 0)
+//      * `device_serial` (`?[]const u8`, default null)
 //      * `debug` (`bool`, default false)
 // @signature > out1:Complex(f32)
 // @usage
@@ -31,6 +32,7 @@ const struct_rtlsdr_dev = opaque {};
 const rtlsdr_dev_t = struct_rtlsdr_dev;
 
 var rtlsdr_open: *const fn (dev: [*c]?*rtlsdr_dev_t, index: u32) callconv(.c) c_int = undefined;
+var rtlsdr_get_index_by_serial: *const fn (serial: [*c]const u8) callconv(.c) c_int = undefined;
 var rtlsdr_get_device_name: *const fn (index: u32) callconv(.c) [*c]const u8 = undefined;
 var rtlsdr_get_usb_strings: *const fn (dev: ?*rtlsdr_dev_t, manufact: [*c]u8, product: [*c]u8, serial: [*c]u8) callconv(.c) c_int = undefined;
 var rtlsdr_set_bias_tee: *const fn (dev: ?*rtlsdr_dev_t, on: c_int) callconv(.c) c_int = undefined;
@@ -65,6 +67,7 @@ pub const RtlSdrSource = struct {
         rf_gain: ?f32 = null,
         freq_correction: isize = 0,
         device_index: usize = 0,
+        device_serial: ?[]const u8 = null,
         debug: bool = false,
     };
 
@@ -101,6 +104,7 @@ pub const RtlSdrSource = struct {
         if (!rtlsdr_loaded) {
             var lib = try std.DynLib.open("librtlsdr.so");
             rtlsdr_open = lib.lookup(@TypeOf(rtlsdr_open), "rtlsdr_open") orelse return error.LookupFail;
+            rtlsdr_get_index_by_serial = lib.lookup(@TypeOf(rtlsdr_get_index_by_serial), "rtlsdr_get_index_by_serial") orelse return error.LookupFail;
             rtlsdr_get_device_name = lib.lookup(@TypeOf(rtlsdr_get_device_name), "rtlsdr_get_device_name") orelse return error.LookupFail;
             rtlsdr_get_usb_strings = lib.lookup(@TypeOf(rtlsdr_get_usb_strings), "rtlsdr_get_usb_strings") orelse return error.LookupFail;
             rtlsdr_set_bias_tee = lib.lookup(@TypeOf(rtlsdr_set_bias_tee), "rtlsdr_set_bias_tee") orelse return error.LookupFail;
@@ -120,8 +124,22 @@ pub const RtlSdrSource = struct {
             rtlsdr_loaded = true;
         }
 
+        // Get device index
+        const device_index: u32 = blk: {
+            if (self.options.device_serial) |device_serial| {
+                const ret = rtlsdr_get_index_by_serial(@ptrCast(device_serial));
+                if (ret < 0) {
+                    std.debug.print("rtlsdr_get_index_by_serial(): {d}\n", .{ret});
+                    return RtlSdrError.InitializationError;
+                }
+                break :blk @intCast(ret);
+            } else {
+                break :blk @intCast(self.options.device_index);
+            }
+        };
+
         // Open device
-        var ret = rtlsdr_open(&self.dev, @intCast(self.options.device_index));
+        var ret = rtlsdr_open(&self.dev, device_index);
         if (ret != 0) {
             std.debug.print("rtlsdr_open(): {d}\n", .{ret});
             return RtlSdrError.InitializationError;
