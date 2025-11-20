@@ -10,6 +10,7 @@
 //      * `hf_att` (`u8`, default 0 dB, for manual attenuation when HF AGC is
 //                  disabled, range of 0 to 48 dB, 6 dB step)
 //      * `hf_lna` (`bool`, default false)
+//      * `device_serial` (`?u64`, default null)
 //      * `debug` (`bool`, default false)
 // @signature > out1:Complex(f32)
 // @usage
@@ -109,6 +110,7 @@ pub const AirspyHFSource = struct {
         hf_agc_threshold: enum { Low, High } = .Low,
         hf_att: u8 = 0,
         hf_lna: bool = false,
+        device_serial: ?u64 = null,
         debug: bool = false,
     };
 
@@ -184,7 +186,7 @@ pub const AirspyHFSource = struct {
         self.dev = null;
 
         // Open device
-        var ret = airspyhf_open(&self.dev);
+        var ret = if (self.options.device_serial) |serial| airspyhf_open_sn(&self.dev, serial) else airspyhf_open(&self.dev);
         if (ret != 0) {
             std.debug.print("airspyhf_open(): {d}\n", .{ret});
             return AirspyHFError.InitializationError;
