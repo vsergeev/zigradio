@@ -53,6 +53,8 @@ pub const SampleFormat = enum {
         complexToBytes: *const fn (samples: []const std.math.Complex(f32), bytes: []u8) usize,
         bytesToReal: *const fn (bytes: []u8, samples: []f32) usize,
         realToBytes: *const fn (samples: []const f32, bytes: []u8) usize,
+        bytesToInterleavedReal: *const fn (bytes: []u8, samples1: []f32, samples2: []f32) usize,
+        interleavedRealToBytes: *const fn (samples1: []const f32, samples2: []const f32, bytes: []u8) usize,
     };
 
     pub fn converter(self: SampleFormat) Converter {
@@ -76,7 +78,8 @@ pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Conv
             fn swapBytes(bytes: []u8) void {
                 if (comptime info.endianness == null or info.endianness.? == builtin.cpu.arch.endian()) return;
 
-                const buf = std.mem.bytesAsSlice(std.meta.Int(.unsigned, 8 * @sizeOf(info.data_type)), bytes);
+                const UintType = std.meta.Int(.unsigned, 8 * @sizeOf(info.data_type));
+                const buf = std.mem.bytesAsSlice(UintType, bytes);
                 for (buf) |*elem| elem.* = @byteSwap(elem.*);
             }
 
@@ -133,6 +136,36 @@ pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Conv
 
                 return samples.len * @sizeOf(info.data_type);
             }
+
+            fn bytesToInterleavedReal(bytes: []u8, samples1: []f32, samples2: []f32) usize {
+                std.debug.assert(samples1.len == samples2.len);
+                std.debug.assert(bytes.len <= samples1.len * 2 * @sizeOf(info.data_type));
+
+                swapBytes(bytes);
+
+                const buf = std.mem.bytesAsSlice(info.data_type, bytes);
+                for (0..buf.len / 2) |i| {
+                    samples1[i] = (std.math.lossyCast(f32, buf[2 * i]) - info.offset) / info.scale;
+                    samples2[i] = (std.math.lossyCast(f32, buf[2 * i + 1]) - info.offset) / info.scale;
+                }
+
+                return buf.len / 2;
+            }
+
+            fn interleavedRealToBytes(samples1: []const f32, samples2: []const f32, bytes: []u8) usize {
+                std.debug.assert(samples1.len == samples2.len);
+                std.debug.assert(samples1.len * 2 * @sizeOf(info.data_type) <= bytes.len);
+
+                const buf = std.mem.bytesAsSlice(info.data_type, bytes);
+                for (0..samples1.len) |i| {
+                    buf[2 * i] = std.math.lossyCast(info.data_type, (samples1[i] * info.scale) + info.offset);
+                    buf[2 * i + 1] = std.math.lossyCast(info.data_type, (samples2[i] * info.scale) + info.offset);
+                }
+
+                swapBytes(bytes[0 .. samples1.len * 2 * @sizeOf(info.data_type)]);
+
+                return samples1.len * 2 * @sizeOf(info.data_type);
+            }
         };
 
         converters[e] = .{
@@ -141,6 +174,8 @@ pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Conv
             .complexToBytes = gen.complexToBytes,
             .bytesToReal = gen.bytesToReal,
             .realToBytes = gen.realToBytes,
+            .bytesToInterleavedReal = gen.bytesToInterleavedReal,
+            .interleavedRealToBytes = gen.interleavedRealToBytes,
         };
     }
 
@@ -197,6 +232,42 @@ test "SampleFormat realToBytes" {
 
         var output: [output_vector.len * 2]u8 = undefined;
         try std.testing.expectEqual(output_vector.len, SampleFormat.converter(e).realToBytes(&input_vector, &output));
+        try std.testing.expectEqualSlices(u8, &output_vector, output[0..output_vector.len]);
+    }
+}
+
+test "SampleFormat bytesToInterleavedReal" {
+    inline for (comptime std.enums.values(SampleFormat)) |e| {
+        const input_vector = @field(vectors, "bytes_complex_" ++ @tagName(e));
+        const output_vector = @field(vectors, "samples_complex_" ++ @tagName(e));
+
+        var input: [input_vector.len]u8 = input_vector;
+        var output1: [16]f32 = undefined;
+        var output2: [16]f32 = undefined;
+        try std.testing.expectEqual(output_vector.len, SampleFormat.converter(e).bytesToInterleavedReal(&input, &output1, &output2));
+
+        var output: [16]std.math.Complex(f32) = undefined;
+        for (output1, output2, 0..) |re, im, i| {
+            output[i] = std.math.Complex(f32).init(re, im);
+        }
+        try expectEqualVectors(std.math.Complex(f32), &output_vector, output[0..output_vector.len], 1e-6);
+    }
+}
+
+test "SampleFormat interleavedRealToBytes" {
+    inline for (comptime std.enums.values(SampleFormat)) |e| {
+        const input_vector = vectors.input_complex_samples;
+        const output_vector = @field(vectors, "bytes_complex_" ++ @tagName(e));
+
+        var input1: [input_vector.len]f32 = undefined;
+        var input2: [input_vector.len]f32 = undefined;
+        for (input_vector, 0..) |x, i| {
+            input1[i] = x.re;
+            input2[i] = x.im;
+        }
+
+        var output: [output_vector.len * 2]u8 = undefined;
+        try std.testing.expectEqual(output_vector.len, SampleFormat.converter(e).interleavedRealToBytes(&input1, &input2, &output));
         try std.testing.expectEqualSlices(u8, &output_vector, output[0..output_vector.len]);
     }
 }
