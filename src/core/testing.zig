@@ -264,6 +264,53 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// TemporaryFile
+////////////////////////////////////////////////////////////////////////////////
+
+pub const TemporaryFile = struct {
+    file: std.fs.File,
+
+    pub fn create() !TemporaryFile {
+        // Generate random filename
+        var random_bytes: [12]u8 = undefined;
+        std.crypto.random.bytes(&random_bytes);
+        var random_name: [std.fs.base64_encoder.calcSize(random_bytes.len)]u8 = undefined;
+        _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+
+        // Generate path
+        const random_file_path: []u8 = try std.fs.path.join(std.testing.allocator, &.{ "/tmp", &random_name });
+        defer std.testing.allocator.free(random_file_path);
+
+        // Create the file
+        const file = try std.fs.createFileAbsolute(random_file_path, .{ .read = true });
+        // Unlink the file
+        try std.fs.deleteFileAbsolute(random_file_path);
+
+        return .{ .file = file };
+    }
+
+    pub fn write(self: *TemporaryFile, data: []const u8) !void {
+        // Truncate file
+        try self.file.setEndPos(0);
+
+        // Write file
+        var writer = self.file.writer(&.{});
+        try writer.interface.writeAll(data);
+        try writer.interface.flush();
+    }
+
+    pub fn read(self: *TemporaryFile, buffer: []u8) !usize {
+        // Read file
+        var reader = self.file.reader(&.{});
+        return try reader.interface.readSliceShort(buffer);
+    }
+
+    pub fn close(self: *TemporaryFile) void {
+        self.file.close();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,4 +567,51 @@ test "BlockFixture for Source" {
     for (outputs1[0], 0..) |e, i| try std.testing.expectEqual(@as(f32, @floatFromInt(i + 1)), e);
     const outputs2 = try fixture.process(.{});
     for (outputs2[0], 0..) |e, i| try std.testing.expectEqual(@as(f32, @floatFromInt(i + 1 + outputs1[0].len)), e);
+}
+
+test "TemporaryFile low-level write/read" {
+    // Create temporary file
+    var tmpfile = try TemporaryFile.create();
+    defer tmpfile.close();
+
+    // Write to file
+    var writer = tmpfile.file.writer(&.{});
+    try writer.interface.writeAll("testing");
+    try writer.interface.flush();
+
+    // Read from file
+    var reader = tmpfile.file.reader(&.{});
+    var buf: [16]u8 = undefined;
+    const count = try reader.interface.readSliceShort(&buf);
+
+    try std.testing.expectEqual(7, count);
+    try std.testing.expectEqualStrings("testing", buf[0..count]);
+}
+
+test "TemporaryFile high-level write/read" {
+    // Create temporary file
+    var tmpfile = try TemporaryFile.create();
+    defer tmpfile.close();
+
+    // Write
+    try tmpfile.write("testing");
+
+    // Read
+    {
+        var buf: [16]u8 = undefined;
+        const count = try tmpfile.read(&buf);
+        try std.testing.expectEqual(7, count);
+        try std.testing.expectEqualStrings("testing", buf[0..count]);
+    }
+
+    // Rerwrite
+    try tmpfile.write("foobar");
+
+    // Read from file
+    {
+        var buf: [16]u8 = undefined;
+        const count = try tmpfile.read(&buf);
+        try std.testing.expectEqual(6, count);
+        try std.testing.expectEqualStrings("foobar", buf[0..count]);
+    }
 }
