@@ -6,6 +6,7 @@ pub const IQStreamSource = @import("sources/iqstream.zig").IQStreamSource;
 pub const RealStreamSource = @import("sources/realstream.zig").RealStreamSource;
 pub const RtlSdrSource = @import("sources/rtlsdr.zig").RtlSdrSource;
 pub const AirspyHFSource = @import("sources/airspyhf.zig").AirspyHFSource;
+pub const WAVFileSource = @import("sources/wavfile.zig").WAVFileSource;
 
 // Signal
 pub const AddBlock = @import("signal/add.zig").AddBlock;
