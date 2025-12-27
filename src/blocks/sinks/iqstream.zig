@@ -10,7 +10,8 @@
 // var output_file = try std.fs.cwd().createFile("samples.iq", .{});
 // defer output_file.close();
 // ...
-// var snk = radio.blocks.IQStreamSink.init(output_file.writer().any(), .s16le, .{});
+// var writer = output_file.writer(&buffer);
+// var snk = radio.blocks.IQStreamSink.init(&writer.interface, .s16le, .{});
 // try top.connect(&src.block, &snk.block);
 
 const std = @import("std");
