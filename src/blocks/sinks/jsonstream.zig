@@ -10,7 +10,8 @@
 // var output_file = try std.fs.cwd().createFile("samples.json", .{});
 // defer output_file.close();
 // ...
-// var snk = radio.blocks.JSONStreamSink(Foo).init(output_file.writer().any(), .{});
+// var writer = output_file.writer(&buffer);
+// var snk = radio.blocks.JSONStreamSink(Foo).init(&writer.interface, .{});
 // try top.connect(&src.block, &snk.block);
 
 const std = @import("std");
