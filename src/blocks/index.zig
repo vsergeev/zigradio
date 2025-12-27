@@ -50,6 +50,7 @@ pub const IQStreamSink = @import("sinks/iqstream.zig").IQStreamSink;
 pub const RealStreamSink = @import("sinks/realstream.zig").RealStreamSink;
 pub const JSONStreamSink = @import("sinks/jsonstream.zig").JSONStreamSink;
 pub const PulseAudioSink = @import("sinks/pulseaudio.zig").PulseAudioSink;
+pub const WAVFileSink = @import("sinks/wavfile.zig").WAVFileSink;
 
 // Composites
 pub const TunerBlock = @import("composites/tuner.zig").TunerBlock;
