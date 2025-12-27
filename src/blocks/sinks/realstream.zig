@@ -10,7 +10,8 @@
 // var output_file = try std.fs.cwd().createFile("samples.real", .{});
 // defer output_file.close();
 // ...
-// var snk = radio.blocks.RealStreamSink.init(output_file.writer().any(), .u16be, .{});
+// var writer = output_file.writer(&buffer);
+// var snk = radio.blocks.RealStreamSink.init(&writer.interface, .u16be, .{});
 // try top.connect(&src.block, &snk.block);
 
 const std = @import("std");
