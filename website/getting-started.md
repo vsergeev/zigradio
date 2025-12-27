@@ -151,9 +151,10 @@ the explicit connection syntax to connect the `source`'s one output to both of
 the `mixer`'s inputs.
 
 The third and fourth connections demonstrate the linear block connection
-syntax, which is used to connect the first output to the first input of two
-blocks. This syntax is convenient for connecting blocks that only have one
-input and output, which is most blocks.
+syntax. For example, `try top.connect(&mixer.block, &filter.block);`, where
+`mixer`'s first output port is connected to `filter`'s first input port. This
+syntax is convenient for connecting blocks that only have one input and output,
+which is most blocks.
 
 ```zig
 try top.start();
