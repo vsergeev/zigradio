@@ -11,7 +11,8 @@
 // var input_file = try std.fs.cwd().openFile("samples.iq", .{});
 // defer input_file.close();
 // ...
-// var src = radio.blocks.IQStreamSource.init(input_file.reader().any(), .s16le, 1e6, .{});
+// var reader = input_file.reader(&buffer);
+// var src = radio.blocks.IQStreamSource.init(&reader.interface, .s16le, 1e6, .{});
 // try top.connect(&src.block, &snk.block);
 
 const std = @import("std");
