@@ -28,7 +28,7 @@ initialized with `init(rate: f64) Application(T)`. This requires a sample rate,
 as it is a source.
 
 The `wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ BrokenStream,
-Timeout }!void` API waits until a minimum number of samples are available
+Timeout }!void` API waits until a minimum number of samples are available for
 writing, with an optional timeout. The `available(self: *Self)
 error{BrokenStream}!usize` API returns the number of samples that can be
 written, or a `BrokenStream` error if the flow graph collapsed downstream.
