@@ -1,7 +1,33 @@
 // @block ApplicationSink
-// @description Sink a signal to a host application.
+// @description Sink a signal to a host application. Provides a thread-safe
+// interface for applications to consume samples from the flowgraph.
 //
-// Provides an interface for applications to consume samples from the flowgraph.
+// ##### API
+//
+// ###### `wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ EndOfStream, Timeout }!void`
+// Wait until a minimum number of samples are available for reading, with an
+// optional timeout.
+//
+// ###### `available(self: *Self) error{EndOfStream}!usize`
+// Get the number of samples that can be read. Returns the `EndOfStream` error
+// if the flow graph collapsed upstream.
+//
+// ###### `get(self: *Self) []const T`
+// Get direct access to the read buffer.
+//
+// ###### `update(self: *Self, count: usize) void`
+// Advance the read buffer with the number of samples read.
+//
+// ###### `read(self: *Self, samples: []T) usize`
+// Read into a slice of samples and return the number of samples successfully
+// read, which may be zero.
+//
+// ###### `pop(self: *Self) ?T`
+// Read a single sample, or return `null` if none was available.
+//
+// ###### `discard(self: *Self) !void`
+// Discard all available samples.
+//
 // @category Sinks
 // @ctparam T type Complex(f32), f32, u1, etc.
 // @signature in1:T >
