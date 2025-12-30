@@ -1,7 +1,35 @@
 // @block ApplicationSource
-// @description Source a signal from a host application.
+// @description Source a signal from a host application. Provides a thread-safe
+// interface for applications to push samples into the flowgraph.
 //
-// Provides an interface for applications to push samples into the flowgraph.
+// ##### API
+//
+// ###### `wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void`
+// Wait until a minimum number of samples are available for writing, with an
+// optional timeout.
+//
+// ###### `available(self: *Self) error{BrokenStream}!usize`
+// Get the number of samples that can be written. Returns the `BrokenStream`
+// error if the flow graph collapsed downstream.
+//
+// ###### `get(self: *Self) []T`
+// Get direct access to the write buffer.
+//
+// ###### `update(self: *Self, count: usize) void`
+// Advance the write buffer with the number of samples written.
+//
+// ###### `write(self: *Self, samples: []const T) usize`
+// Write a slice of samples and return the number of samples successfully
+// written, which may be zero.
+//
+// ###### `push(self: *Self, value: T) error{Unavailable}!void`
+// Write a single sample, or return the `Unavailable` error if space was not
+// available.
+//
+// ###### `setEOS(self: *Self) void`
+// Set the end-of-stream condition on the source, which will subsequently
+// collapse the flow graph.
+//
 // @category Sources
 // @ctparam T type Complex(f32), f32, u1, etc.
 // @param rate f64 Sample rate in Hz
