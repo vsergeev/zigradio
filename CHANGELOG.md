@@ -1,3 +1,22 @@
+* v0.10.0 - 01/09/2026
+    * Fix pointer alignment build error with armv7l targets.
+    * Add `device_serial` option to RtlSdrSource.
+    * Add `device_serial` option to AirspyHFSource.
+    * Add new blocks:
+        * WAVFileSource
+        * WAVFileSink
+    * Fix I/O usage examples in several block docstrings.
+    * Add API description to ApplicationSource docstring.
+    * Add API description to ApplicationSink docstring.
+    * Improve website:
+        * Fix typos and improve wording in guides.
+        * Fix source code in IQ File Converter Example.
+        * Add build instructions to Examples page.
+        * Add Block, Composite Block, Data Types, Asynchronous Control sections
+          to Reference Manual.
+    * Improve byte-level determinism in testing helpers.
+    * Add `RefCounted(T)` handling to testing helpers.
+
 * v0.9.0 - 11/11/2025
     * Migrate to Zig 0.15.
     * Fix type signature port labels in block docstrings.
