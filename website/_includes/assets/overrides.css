@@ -215,6 +215,11 @@ pre[class*="language-"] {
 
 .refman h5 {
   --pico-typography-spacing-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.refman h5 code {
+  white-space: nowrap;
 }
 
 .refman .block {
