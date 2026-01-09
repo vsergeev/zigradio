@@ -11,7 +11,7 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
@@ -55,7 +55,7 @@ samples from a flow graph.</p>
 <p>The <code>ApplicationSource(T)</code> can be instantiated for any data type and is
 initialized with <code>init(rate: f64) Application(T)</code>. This requires a sample rate,
 as it is a source.</p>
-<p>The <code>wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void</code> API waits until a minimum number of samples are available
+<p>The <code>wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void</code> API waits until a minimum number of samples are available for
 writing, with an optional timeout. The <code>available(self: *Self) error{BrokenStream}!usize</code> API returns the number of samples that can be
 written, or a <code>BrokenStream</code> error if the flow graph collapsed downstream.</p>
 <p>The low-level <code>get(self: *Self) []T</code> API provides direct access to the write

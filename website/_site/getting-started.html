@@ -11,7 +11,7 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
@@ -145,9 +145,10 @@ named <code>in1</code>. In this case, the mixer has two inputs, <code>in1</code>
 the explicit connection syntax to connect the <code>source</code>'s one output to both of
 the <code>mixer</code>'s inputs.</p>
 <p>The third and fourth connections demonstrate the linear block connection
-syntax, which is used to connect the first output to the first input of two
-blocks. This syntax is convenient for connecting blocks that only have one
-input and output, which is most blocks.</p>
+syntax. For example, <code>try top.connect(&amp;mixer.block, &amp;filter.block);</code>, where
+<code>mixer</code>'s first output port is connected to <code>filter</code>'s first input port. This
+syntax is convenient for connecting blocks that only have one input and output,
+which is most blocks.</p>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 radio<span class="token punctuation">.</span>platform<span class="token punctuation">.</span><span class="token function">waitForInterrupt</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 _ <span class="token operator">=</span> <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">stop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>

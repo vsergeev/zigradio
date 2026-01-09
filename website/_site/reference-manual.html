@@ -13,15 +13,24 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.9.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc">
            <ul>
   <li><a href="#example">Example</a></li>
   <li><a href="#building">Building</a></li>
-  <li><a href="#flowgraph">Flowgraph</a></li>
   <li><a href="#running">Running</a></li>
+  <li>
+    <a href="#core">Core</a>
+    <ul>
+      <li><a href="#flowgraph">Flowgraph</a></li>
+      <li><a href="#block">Block</a></li>
+      <li><a href="#composite-block">Composite Block</a></li>
+      <li><a href="#data-types">Data Types</a></li>
+      <li><a href="#asynchronous-control">Asynchronous Control</a></li>
+    </ul>
+  </li>
   <li>
     <a href="#blocks">Blocks</a>
     <ul>
@@ -34,6 +43,7 @@
             </li><li><a href="#realstreamsource">RealStreamSource</a>
             </li><li><a href="#rtlsdrsource">RtlSdrSource</a>
             </li><li><a href="#signalsource">SignalSource</a>
+            </li><li><a href="#wavfilesource">WAVFileSource</a>
             </li><li><a href="#zerosource">ZeroSource</a>
             </li></ul>
         </li>
@@ -47,6 +57,7 @@
             </li><li><a href="#printsink">PrintSink</a>
             </li><li><a href="#pulseaudiosink">PulseAudioSink</a>
             </li><li><a href="#realstreamsink">RealStreamSink</a>
+            </li><li><a href="#wavfilesink">WAVFileSink</a>
             </li></ul>
         </li>
       <li>
@@ -142,7 +153,7 @@
       </div>
       <div class="content">
         <h1 id="zigradio-reference-manual">ZigRadio Reference Manual</h1>
-<p>Generated from ZigRadio <code>v0.9.0-12-g76ce5a7</code>.</p>
+<p>Generated from ZigRadio <code>v0.10.0</code>.</p>
 <h2 id="example">Example</h2>
 <h5 id="wideband-fm-broadcast-stereo-receiver">Wideband FM Broadcast Stereo Receiver</h5>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> std <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"std"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -206,8 +217,9 @@ can be enabled with truthy literals like <code>1</code>, <code>true</code>, or <
 <p>To run a script with no external acceleration libraries:</p>
 <pre><code>$ ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_FFTW3F=1 ./path/to/zigradio-program
 </code></pre>
-<h2 id="flowgraph">Flowgraph</h2>
-<p>The <code>Flowgraph</code> is the top-level container for a ZigRadio flow graph.</p>
+<h2 id="core">Core</h2>
+<h3 id="flowgraph">Flowgraph</h3>
+<p>The <code>Flowgraph</code> type is the top-level container for a ZigRadio flow graph.</p>
 <h5 id="radio-flowgraph-init-allocator-std-mem-allocator-options-options-flowgraph"><code>radio.Flowgraph.init(allocator: std.mem.Allocator, options: Options) Flowgraph</code></h5>
 <p>Instantiate a flow graph with the provided allocator and options (<code>struct { debug: bool = false }</code>).</p>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
@@ -223,7 +235,6 @@ can be enabled with truthy literals like <code>1</code>, <code>true</code>, or <
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>r_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>sink<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 <h5 id="radio-flowgraph-alias-self-flowgraph-composite-compositeblock-port-name-const-u8-aliased-block-anytype-aliased-port-name-const-u8-void"><code>radio.Flowgraph.alias(self: *Flowgraph, composite: *CompositeBlock, port_name: []const u8, aliased_block: anytype, aliased_port_name: []const u8) !void</code></h5>
 <p>Alias the input or output <code>port_name</code> of <code>composite</code> block to the input or output port <code>aliased_port_name</code> of <code>aliased_block</code> block. Only used within the <code>connect()</code> hook of a composite block.</p>
-<p>See the <a href="/creating-blocks.html#composite-blocks">Creating Blocks</a> guide for more information.</p>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">connect</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MyCompositeBlock</span><span class="token punctuation">,</span> flowgraph<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Flowgraph</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
     <span class="token operator">...</span>
     <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -248,6 +259,232 @@ This function blocks.</p>
 <h5 id="radio-flowgraph-call-self-flowgraph-block-anytype-comptime-function-anytype-args-anytype-callreturntype-function"><code>radio.Flowgraph.call(self: *Flowgraph, block: anytype, comptime function: anytype, args: anytype) CallReturnType(function)</code></h5>
 <p>Make a thread-safe call into a block in the flow graph.</p>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>af_filter<span class="token punctuation">.</span>block<span class="token punctuation">,</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">LowpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">.</span>setCutoff<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token number">5e3</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h3 id="block">Block</h3>
+<p>The <code>Block</code> type is the container for a ZigRadio block, holding its port names and
+types, implemented hooks, and sample rate.</p>
+<p>ZigRadio blocks are implemented by wrapping a nested <code>Block</code> structure, which
+is initialized using introspection with the <code>radio.Block.init(comptime BlockType: type) radio.Block</code> constructor and providing a <code>process()</code> hook.</p>
+<h4 id="example-2">Example</h4>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">const</span> <span class="token class-name">MultiplyBlock</span> <span class="token operator">=</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    block<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>Block</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token class-name">MultiplyBlock</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>block <span class="token operator">=</span> radio<span class="token punctuation">.</span>Block<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token builtin">@This</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">process</span><span class="token punctuation">(</span>_<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyBlock</span><span class="token punctuation">,</span> x<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token keyword">const</span> <span class="token builtin-type keyword">f32</span></span><span class="token punctuation">,</span> y<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token keyword">const</span> <span class="token builtin-type keyword">f32</span></span><span class="token punctuation">,</span> z<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span>radio<span class="token punctuation">.</span>ProcessResult</span> <span class="token punctuation">{</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token number">0</span><span class="token operator">..</span><span class="token punctuation">)</span> <span class="token operator">|</span>_<span class="token punctuation">,</span> i<span class="token operator">|</span> <span class="token punctuation">{</span>
+            z<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">*</span> y<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> radio<span class="token punctuation">.</span>ProcessResult<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span> x<span class="token punctuation">.</span>len<span class="token punctuation">,</span> x<span class="token punctuation">.</span>len <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span>x<span class="token punctuation">.</span>len<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span></code></pre>
+<h4 id="process-hook">Process Hook</h4>
+<h5 id="pub-fn-process-self-blocktype-in1-const-f32-in2-const-f32-out1-std-math-complex-f32-out2-std-math-complex-f32-radio-processresult"><code>pub fn process(self: *BlockType, in1: []const f32, in2: []const f32, ..., out1: []std.math.Complex(f32), out2: []std.math.Complex(f32), ...) !radio.ProcessResult { ... }</code></h5>
+<p>The <code>process()</code> hook is the main function of the block, called by the framework
+repeatedly to convert input samples to output samples.</p>
+<p>The framework deduces the input and output ports and their data types of a
+ZigRadio block from the type signature of the block's <code>process()</code> function.
+Arguments of a constant slice type map to input ports, while those of mutable
+slice type map to output ports. The <code>process()</code> function may access and
+manipulate the block's state through the <code>self</code> argument.</p>
+<p>The ZigRadio framework guarantees that <code>process()</code> is only called when there
+are a non-zero amount of input samples available across all inputs, and at
+least as many output samples available, across all outputs. Blocks that need to
+produce more or less output samples relative to input samples are responsible
+for managing the available samples, which may require buffering them.</p>
+<p>The return value of <code>process()</code> is a <code>ProcessResult</code>, which provides an
+accounting of how many samples were consumed and produced, allowing the
+framework to acknowledge input samples from upstream blocks and make output
+samples available to downstream blocks.</p>
+<p>The <code>process()</code> function may also return an error, which will cause the block
+to terminate and the flow graph to collapse.</p>
+<h5 id="radio-processresult-init-consumed-const-usize-produced-const-usize-processresult"><code>radio.ProcessResult.init(consumed: []const usize, produced: []const usize) ProcessResult</code></h5>
+<p>Construct a <code>ProcessResult</code>, where <code>consumed</code> contains the input samples
+consumed, and <code>produced</code> contains the output samples produced. The order of
+inputs in <code>consumed</code> and outputs in <code>produced</code> follow the order of inputs and
+outputs in the <code>process()</code> type signature, respectively.</p>
+<h4 id="optional-hooks">Optional Hooks</h4>
+<p>Blocks may implement a few optional hooks called by the framework.</p>
+<h5 id="pub-fn-initialize-self-self-allocator-std-mem-allocator-void"><code>pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void { ... }</code></h5>
+<p>The <code>initialize()</code> hook is used for memory allocation, I/O initialization, and
+sample rate dependent initialization. This function is called by the framework
+during flow graph setup, after all blocks are connected and their sample rates
+are determined.</p>
+<p>The <code>allocator</code> passed to <code>initialize()</code> is the same one that the
+<a href="/reference-manual.html#flowgraph"><code>Flowgraph</code></a> was initialized with. Blocks
+may call <code>self.block.getRate(comptime T: type) T</code> in <code>initialize()</code> to get
+their sample rate in terms of their preferred numeric type (e.g. <code>f32</code>,
+<code>usize</code>, etc.).</p>
+<p>Blocks may return an error from <code>initialize()</code>, which will cause flow graph
+initialization to fail.</p>
+<h5 id="pub-fn-deinitialize-self-self-allocator-std-mem-allocator-void"><code>pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void { ... }</code></h5>
+<p>The <code>deinitialize()</code> hook is used for memory deallocation, I/O
+deinitialization, and other deinitialization. The function is called by the
+framework on flow graph teardown. The <code>allocator</code> passed to <code>deinitialize()</code> is
+the same as the one passed to <code>initialize()</code>, for convenience.</p>
+<h5 id="pub-fn-setrate-self-self-upstream-rate-f64-f64"><code>pub fn setRate(self: *Self, upstream_rate: f64) !f64 { ... }</code></h5>
+<p>The <code>setRate()</code> hook is used to override the block's sample rate. By default,
+blocks inherit the sample rate of the upstream block connected to their first
+input port. Blocks that produce samples at a different sample rate from their
+inputs (e.g. downsamplers, upsamplers, etc.), may implement their own
+<code>setRate()</code> which returns the modified sample rate. The upstream rate is passed
+in the <code>upstream_rate</code> argument.</p>
+<p>Blocks may return an error from <code>setRate()</code>, which will cause flow graph
+initialization to fail.</p>
+<h3 id="composite-block">Composite Block</h3>
+<p>The <code>CompositeBlock</code> type is the container for a ZigRadio block composition of
+blocks with internal connectivity and input/output ports at their boundary.</p>
+<p>ZigRadio composite blocks are implemented by wrapping a nested <code>CompositeBlock</code> structure, which
+is initialized the <code>init(comptime CompositeType: type, inputs: []const []const u8, outputs: []const []const u8) radio.CompositeBlock</code> constructor and providing a <code>connect()</code> hook.</p>
+<h4 id="example-3">Example</h4>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">const</span> <span class="token class-name">MultiplyConstantAndSquareBlock</span> <span class="token operator">=</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    block<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>CompositeBlock</span><span class="token punctuation">,</span>
+    b1<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyConstantBlock</span><span class="token punctuation">,</span>
+    b2<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyBlock</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">init</span><span class="token punctuation">(</span>constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name">MultiplyConstantAndSquareBlock</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>
+            <span class="token punctuation">.</span>block <span class="token operator">=</span> radio<span class="token punctuation">.</span>CompositeBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token builtin">@This</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token string">"in1"</span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token string">"out1"</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token punctuation">.</span>b1 <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyConstantBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>constant<span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token punctuation">.</span>b2 <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">connect</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantAndSquareBlock</span><span class="token punctuation">,</span> flowgraph<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>radio<span class="token punctuation">.</span>Flowgraph</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+        <span class="token comment">// Internal connections</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// Alias inputs and outputs</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span></code></pre>
+<h4 id="connect-hook">Connect Hook</h4>
+<h5 id="pub-fn-connect-self-compsitetype-flowgraph-flowgraph-void"><code>pub fn connect(self: *CompsiteType, flowgraph: *Flowgraph) !void</code></h5>
+<p>The <code>connect()</code> hook is responsible for making internal connections and
+defining the boundary ports of the composition, stored in the parent flow graph.</p>
+<p>Within <code>connect()</code>, the ordinary flow graph <a href="#radio-flowgraph-connect-self-flowgraph-src-anytype-dst-anytype-void"><code>connect()</code></a> and <a href="#radio-flowgraph-connectport-self-flowgraph-src-anytype-src-port-name-const-u8-dst-anytype-dst-port-name-const-u8-void"><code>connectPort()</code></a> APIs are used to make internal block connections, while the flow graph <a href="#radio-flowgraph-alias-self-flowgraph-composite-compositeblock-port-name-const-u8-aliased-block-anytype-aliased-port-name-const-u8-void"><code>alias()</code></a> API is used to alias a composite block's input or output port to an internal block's input or output port.</p>
+<p>Composite blocks may return an error from <code>connect()</code>, which will cause flow
+graph initialization to fail.</p>
+<h3 id="data-types">Data Types</h3>
+<p>ZigRadio blocks use native Zig types for their input and output ports. Common
+data types include:</p>
+<ul>
+<li><code>std.math.Complex(f32)</code>, for complex-valued samples</li>
+<li><code>f32</code>, for real-valued samples</li>
+<li><code>u8</code>, for byte samples</li>
+<li><code>u1</code>, for bit samples</li>
+</ul>
+<h4 id="custom-types">Custom Types</h4>
+<p>ZigRadio blocks can also use arbitrary <code>struct</code> and <code>union</code> types for inputs
+and outputs, like any other type. Custom types must implement the <code>typeName() []const u8</code> getter for error reporting and debug logging by the framework.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">const</span> <span class="token class-name">WeatherPacket</span> <span class="token operator">=</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    temperature<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">i8</span></span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    humidity<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">u8</span></span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    wind_speed<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">u8</span></span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    wind_direction<span class="token punctuation">:</span> <span class="token keyword">enum</span> <span class="token punctuation">{</span> N<span class="token punctuation">,</span> E<span class="token punctuation">,</span> S<span class="token punctuation">,</span> W <span class="token punctuation">}</span> <span class="token operator">=</span> <span class="token punctuation">.</span>N<span class="token punctuation">,</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">typeName</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token keyword">const</span> <span class="token builtin-type keyword">u8</span></span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token string">"WeatherPacket"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span></code></pre>
+<h4 id="special-types">Special Types</h4>
+<h5 id="refcounted-t-type-type"><code>RefCounted(T: type) type</code></h5>
+<p>Create a reference-counted type wrapping an underlying type. Underlying type
+must implement <code>init(...) T</code> for element initialization on first reference, and
+<code>deinit(self: *T) void</code> for deinitialization on last unreference.</p>
+<h3 id="asynchronous-control">Asynchronous Control</h3>
+<p>Blocks can provide arbitrary functions to access or modify their state at
+runtime. These are normal functions, which are run exclusively of <code>process()</code>
+by the block runner thread, and thus require no special locking.</p>
+<h4 id="block-example">Block Example</h4>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">const</span> <span class="token class-name">MultiplyConstantBlock</span> <span class="token operator">=</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    block<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>Block</span><span class="token punctuation">,</span>
+    constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">,</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">init</span><span class="token punctuation">(</span>constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name">MultiplyConstantBlock</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>block <span class="token operator">=</span> radio<span class="token punctuation">.</span>Block<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token builtin">@This</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>constant <span class="token operator">=</span> constant <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">process</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantBlock</span><span class="token punctuation">,</span> x<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token keyword">const</span> <span class="token builtin-type keyword">f32</span></span><span class="token punctuation">,</span> z<span class="token punctuation">:</span> <span class="token class-name"><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span>radio<span class="token punctuation">.</span>ProcessResult</span> <span class="token punctuation">{</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>x<span class="token punctuation">,</span> <span class="token number">0</span><span class="token operator">..</span><span class="token punctuation">)</span> <span class="token operator">|</span>_<span class="token punctuation">,</span> i<span class="token operator">|</span> <span class="token punctuation">{</span>
+            z<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> x<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">*</span> self<span class="token punctuation">.</span>constant<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">return</span> radio<span class="token punctuation">.</span>ProcessResult<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span>x<span class="token punctuation">.</span>len<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token class-name"><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token builtin-type keyword">usize</span></span><span class="token punctuation">{</span>x<span class="token punctuation">.</span>len<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">setConstant</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantBlock</span><span class="token punctuation">,</span> constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>constant <span class="token operator">></span> <span class="token number">9000</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token keyword">error</span><span class="token punctuation">.</span>OutOfBounds<span class="token punctuation">;</span>
+        self<span class="token punctuation">.</span>constant <span class="token operator">=</span> constant<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">getConstant</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantBlock</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> self<span class="token punctuation">.</span>constant<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span></code></pre>
+<p>This block exposes a <code>setConstant()</code> function to update its constant, and a
+<code>getConstant()</code> function to return it. These block functions can be called in a
+thread-safe manner through the flow graph <a href="#radio-flowgraph-call-self-flowgraph-block-anytype-comptime-function-anytype-args-anytype-callreturntype-function"><code>call()</code></a> API:</p>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Set Constant</span>
+<span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>multiplyconstant<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantBlock<span class="token punctuation">.</span>setConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token number">123</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Get Constant</span>
+<span class="token keyword">const</span> constant <span class="token operator">=</span> <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>multiplyconstant<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantBlock<span class="token punctuation">.</span>getConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h4 id="composite-block-example">Composite Block Example</h4>
+<p>Composite blocks also support asynchronous calls, but must nest calls into
+child blocks through the passed <code>Flowgraph</code> instance:</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">const</span> <span class="token class-name">MultiplyConstantAndSquareBlock</span> <span class="token operator">=</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    block<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>CompositeBlock</span><span class="token punctuation">,</span>
+    b1<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyConstantBlock</span><span class="token punctuation">,</span>
+    b2<span class="token punctuation">:</span> <span class="token class-name">radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyBlock</span><span class="token punctuation">,</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">init</span><span class="token punctuation">(</span>constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name">MultiplyConstantAndSquareBlock</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>
+            <span class="token punctuation">.</span>block <span class="token operator">=</span> radio<span class="token punctuation">.</span>CompositeBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token builtin">@This</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token string">"in1"</span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token string">"out1"</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token punctuation">.</span>b1 <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyConstantBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>constant<span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token punctuation">.</span>b2 <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">connect</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantAndSquareBlock</span><span class="token punctuation">,</span> flowgraph<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>radio<span class="token punctuation">.</span>Flowgraph</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+        <span class="token comment">// Internal connections</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">// Alias inputs and outputs</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">setConstant</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantAndSquareBlock</span><span class="token punctuation">,</span> flowgraph<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Flowgraph</span><span class="token punctuation">,</span> constant<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f32</span></span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
+        <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantBlock<span class="token punctuation">.</span>setConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span>constant<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">getConstant</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>MultiplyConstantAndSquareBlock</span><span class="token punctuation">,</span> flowgraph<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Flowgraph</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">f32</span></span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>self<span class="token punctuation">.</span>b1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantBlock<span class="token punctuation">.</span>getConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span></code></pre>
+<p>This composite block exposes a <code>setConstant()</code> function to update its constant,
+and a <code>getConstant()</code> function to return it. These block functions can be
+called in a thread-safe manner through the flow graph <a href="#radio-flowgraph-call-self-flowgraph-block-anytype-comptime-function-anytype-args-anytype-callreturntype-function"><code>call()</code></a> API:</p>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Set Constant</span>
+<span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>multiplyconstantandsquare<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantAndSquareBlock<span class="token punctuation">.</span>setConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token number">123</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Get Constant</span>
+<span class="token keyword">const</span> constant <span class="token operator">=</span> <span class="token keyword">try</span> flowgraph<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>multiplyconstantandsquare<span class="token punctuation">.</span>block<span class="token punctuation">,</span> MultiplyConstantAndSquareBlock<span class="token punctuation">.</span>getConstant<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>Note that nested asynchronous calls in a composite block will be executed
+sequentially, but not simultaneously, due to independent locking of each child
+block.</p>
 <h2 id="blocks">Blocks</h2>
 <h3 id="sources">Sources</h3>
 <h4 id="airspyhfsource">AirspyHFSource</h4>
@@ -271,6 +508,7 @@ requires the libairspyhf library.</p>
 <li><code>hf_att</code> (<code>u8</code>, default 0 dB, for manual attenuation when HF AGC is
 disabled, range of 0 to 48 dB, 6 dB step)</li>
 <li><code>hf_lna</code> (<code>bool</code>, default false)</li>
+<li><code>device_serial</code> (<code>?u64</code>, default null)</li>
 <li><code>debug</code> (<code>bool</code>, default false)</li>
 </ul>
 </li>
@@ -279,15 +517,35 @@ disabled, range of 0 to 48 dB, 6 dB step)</li>
 <ul>
 <li>❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-2">Example</h6>
+<h6 id="example-4">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>AirspyHFSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">7.150e6</span><span class="token punctuation">,</span> <span class="token number">192e3</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>hf_lna <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
 <h4 id="applicationsource">ApplicationSource</h4>
 <div class="block">
-<p>Source a signal from a host application.</p>
-<p>Provides an interface for applications to push samples into the flowgraph.</p>
+<p>Source a signal from a host application. Provides a thread-safe
+interface for applications to push samples into the flowgraph.</p>
+<h5 id="api">API</h5>
+<h6 id="wait-self-self-min-count-usize-timeout-ns-u64-error-brokenstream-timeout-void"><code>wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void</code></h6>
+<p>Wait until a minimum number of samples are available for writing, with an
+optional timeout.</p>
+<h6 id="available-self-self-error-brokenstream-usize"><code>available(self: *Self) error{BrokenStream}!usize</code></h6>
+<p>Get the number of samples that can be written. Returns the <code>BrokenStream</code>
+error if the flow graph collapsed downstream.</p>
+<h6 id="get-self-self-t"><code>get(self: *Self) []T</code></h6>
+<p>Get direct access to the write buffer.</p>
+<h6 id="update-self-self-count-usize-void"><code>update(self: *Self, count: usize) void</code></h6>
+<p>Advance the write buffer with the number of samples written.</p>
+<h6 id="write-self-self-samples-const-t-usize"><code>write(self: *Self, samples: []const T) usize</code></h6>
+<p>Write a slice of samples and return the number of samples successfully
+written, which may be zero.</p>
+<h6 id="push-self-self-value-t-error-unavailable-void"><code>push(self: *Self, value: T) error{Unavailable}!void</code></h6>
+<p>Write a single sample, or return the <code>Unavailable</code> error if space was not
+available.</p>
+<h6 id="seteos-self-self-void"><code>setEOS(self: *Self) void</code></h6>
+<p>Set the end-of-stream condition on the source, which will subsequently
+collapse the flow graph.</p>
 <h5 id="radio-blocks-applicationsource-comptime-t-type-init-rate-f64"><code>radio.blocks.ApplicationSource(comptime T: type).init(rate: f64)</code></h5>
 <h6 id="comptime-arguments">Comptime Arguments</h6>
 <ul>
@@ -301,7 +559,7 @@ disabled, range of 0 to 48 dB, 6 dB step)</li>
 <ul>
 <li>❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-3">Example</h6>
+<h6 id="example-5">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ApplicationSource</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">1e6</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
@@ -332,11 +590,12 @@ specified sample format.</p>
 <ul>
 <li>❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-4">Example</h6>
+<h6 id="example-6">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> input_file <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fs<span class="token punctuation">.</span><span class="token function">cwd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">openFile</span><span class="token punctuation">(</span><span class="token string">"samples.iq"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> input_file<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
-<span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>IQStreamSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>input_file<span class="token punctuation">.</span><span class="token function">reader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">any</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token number">1e6</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> reader <span class="token operator">=</span> input_file<span class="token punctuation">.</span><span class="token function">reader</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>IQStreamSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>reader<span class="token punctuation">.</span>interface<span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token number">1e6</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -364,11 +623,12 @@ specified sample format.</p>
 <ul>
 <li>❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-5">Example</h6>
+<h6 id="example-7">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> input_file <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fs<span class="token punctuation">.</span><span class="token function">cwd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">openFile</span><span class="token punctuation">(</span><span class="token string">"samples.real"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> input_file<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
-<span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RealStreamSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>input_file<span class="token punctuation">.</span><span class="token function">reader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">any</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token number">1e6</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> reader <span class="token operator">=</span> input_file<span class="token punctuation">.</span><span class="token function">reader</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RealStreamSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>reader<span class="token punctuation">.</span>interface<span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token number">1e6</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -394,6 +654,7 @@ source requires the librtlsdr library.</p>
 <li><code>rf_gain</code> (<code>?f32</code>, number in dB for manual gain, default null for auto-gain)</li>
 <li><code>freq_correction</code> (<code>isize</code>, in PPM, default 0)</li>
 <li><code>device_index</code> (<code>isize</code>, default 0)</li>
+<li><code>device_serial</code> (<code>?[]const u8</code>, default null)</li>
 <li><code>debug</code> (<code>bool</code>, default false)</li>
 </ul>
 </li>
@@ -402,7 +663,7 @@ source requires the librtlsdr library.</p>
 <ul>
 <li>❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-6">Example</h6>
+<h6 id="example-8">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RtlSdrSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">162.400e6</span><span class="token punctuation">,</span> <span class="token number">1e6</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>autogain <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
@@ -436,9 +697,44 @@ frequency, amplitude, and phase.</p>
 <ul>
 <li>❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-7">Example</h6>
+<h6 id="example-9">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>SignalSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span>Sine<span class="token punctuation">,</span> <span class="token number">1000</span><span class="token punctuation">,</span> <span class="token number">48000</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>amplitude <span class="token operator">=</span> <span class="token number">0.5</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="wavfilesource">WAVFileSource</h4>
+<div class="block">
+<p>Source one or more real-valued signals from a WAV file. The
+supported sample formats are 8-bit unsigned integer, 16-bit signed integer,
+and 32-bit signed integer.</p>
+<h5 id="radio-blocks-wavfilesource-init-file-std-fs-file-options-options"><code>radio.blocks.WAVFileSource.init(file: *std.fs.File, options: Options)</code></h5>
+<h6 id="arguments-7">Arguments</h6>
+<ul>
+<li>
+<p><code>file</code> (<em>*std.fs.File</em>): File</p>
+</li>
+<li>
+<p><code>options</code> (<em>Options</em>): Additional options:</p>
+<ul>
+<li><code>repeat_on_eof</code> (<code>bool</code>, repeat on EOF, default false)</li>
+</ul>
+</li>
+</ul>
+<h6 id="type-signature-7">Type Signature</h6>
+<ul>
+<li>❑➔ <code>out1</code> <em>f32</em>, <code>[out2</code> <em>f32]</em></li>
+</ul>
+<h6 id="example-10">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Source one channel WAV file</span>
+local src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">WAVFileSource</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>input_file<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span><span class="token punctuation">.</span>top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Source two channel WAV file</span>
+local src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">WAVFileSource</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>input_file<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment">// Compose the two channels into a complex-valued signal</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>floattocomplex<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out2"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>floattocomplex<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span><span class="token punctuation">.</span>top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>floattocomplex<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
 <h4 id="zerosource">ZeroSource</h4>
@@ -449,15 +745,15 @@ frequency, amplitude, and phase.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, u1, etc.</li>
 </ul>
-<h6 id="arguments-7">Arguments</h6>
+<h6 id="arguments-8">Arguments</h6>
 <ul>
 <li><code>rate</code> (<em>f64</em>): Sample rate in Hz</li>
 </ul>
-<h6 id="type-signature-7">Type Signature</h6>
+<h6 id="type-signature-8">Type Signature</h6>
 <ul>
 <li>❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-8">Example</h6>
+<h6 id="example-11">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> src <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ZeroSource</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">1e6</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
@@ -465,18 +761,36 @@ frequency, amplitude, and phase.</p>
 <h3 id="sinks">Sinks</h3>
 <h4 id="applicationsink">ApplicationSink</h4>
 <div class="block">
-<p>Sink a signal to a host application.</p>
-<p>Provides an interface for applications to consume samples from the flowgraph.</p>
+<p>Sink a signal to a host application. Provides a thread-safe
+interface for applications to consume samples from the flowgraph.</p>
+<h5 id="api-2">API</h5>
+<h6 id="wait-self-self-min-count-usize-timeout-ns-u64-error-endofstream-timeout-void"><code>wait(self: *Self, min_count: usize, timeout_ns: ?u64) error{ EndOfStream, Timeout }!void</code></h6>
+<p>Wait until a minimum number of samples are available for reading, with an
+optional timeout.</p>
+<h6 id="available-self-self-error-endofstream-usize"><code>available(self: *Self) error{EndOfStream}!usize</code></h6>
+<p>Get the number of samples that can be read. Returns the <code>EndOfStream</code> error
+if the flow graph collapsed upstream.</p>
+<h6 id="get-self-self-const-t"><code>get(self: *Self) []const T</code></h6>
+<p>Get direct access to the read buffer.</p>
+<h6 id="update-self-self-count-usize-void-2"><code>update(self: *Self, count: usize) void</code></h6>
+<p>Advance the read buffer with the number of samples read.</p>
+<h6 id="read-self-self-samples-t-usize"><code>read(self: *Self, samples: []T) usize</code></h6>
+<p>Read into a slice of samples and return the number of samples successfully
+read, which may be zero.</p>
+<h6 id="pop-self-self-t"><code>pop(self: *Self) ?T</code></h6>
+<p>Read a single sample, or return <code>null</code> if none was available.</p>
+<h6 id="discard-self-self-void"><code>discard(self: *Self) !void</code></h6>
+<p>Discard all available samples.</p>
 <h5 id="radio-blocks-applicationsink-comptime-t-type-init"><code>radio.blocks.ApplicationSink(comptime T: type).init()</code></h5>
 <h6 id="comptime-arguments-3">Comptime Arguments</h6>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, u1, etc.</li>
 </ul>
-<h6 id="type-signature-8">Type Signature</h6>
+<h6 id="type-signature-9">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑</li>
 </ul>
-<h6 id="example-9">Example</h6>
+<h6 id="example-12">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ApplicationSink</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
@@ -492,7 +806,7 @@ frequency, amplitude, and phase.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, u1, etc.</li>
 </ul>
-<h6 id="arguments-8">Arguments</h6>
+<h6 id="arguments-9">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -501,11 +815,11 @@ frequency, amplitude, and phase.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-9">Type Signature</h6>
+<h6 id="type-signature-10">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑</li>
 </ul>
-<h6 id="example-10">Example</h6>
+<h6 id="example-13">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">BenchmarkSink</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
@@ -515,7 +829,7 @@ frequency, amplitude, and phase.</p>
 <p>Sink a complex-valued signal to a binary stream, using the
 specified sample format.</p>
 <h5 id="radio-blocks-iqstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.IQStreamSink.init(writer: *std.io.Writer, format: SampleFormat, options: Options)</code></h5>
-<h6 id="arguments-9">Arguments</h6>
+<h6 id="arguments-10">Arguments</h6>
 <ul>
 <li>
 <p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
@@ -527,15 +841,16 @@ specified sample format.</p>
 <p><code>options</code> (<em>Options</em>): Additional options</p>
 </li>
 </ul>
-<h6 id="type-signature-10">Type Signature</h6>
+<h6 id="type-signature-11">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑</li>
 </ul>
-<h6 id="example-11">Example</h6>
+<h6 id="example-14">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> output_file <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fs<span class="token punctuation">.</span><span class="token function">cwd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">createFile</span><span class="token punctuation">(</span><span class="token string">"samples.iq"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> output_file<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
-<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>IQStreamSink<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">any</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> writer <span class="token operator">=</span> output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>IQStreamSink<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>writer<span class="token punctuation">.</span>interface<span class="token punctuation">,</span> <span class="token punctuation">.</span>s16le<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -548,7 +863,7 @@ are serialized individually and newline delimited.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Any type serializable by <code>std.json.stringify()</code></li>
 </ul>
-<h6 id="arguments-10">Arguments</h6>
+<h6 id="arguments-11">Arguments</h6>
 <ul>
 <li>
 <p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
@@ -557,15 +872,16 @@ are serialized individually and newline delimited.</p>
 <p><code>options</code> (<em>Options</em>): Additional options</p>
 </li>
 </ul>
-<h6 id="type-signature-11">Type Signature</h6>
+<h6 id="type-signature-12">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑</li>
 </ul>
-<h6 id="example-12">Example</h6>
+<h6 id="example-15">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> output_file <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fs<span class="token punctuation">.</span><span class="token function">cwd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">createFile</span><span class="token punctuation">(</span><span class="token string">"samples.json"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> output_file<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
-<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">JSONStreamSink</span><span class="token punctuation">(</span>Foo<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">any</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> writer <span class="token operator">=</span> output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">JSONStreamSink</span><span class="token punctuation">(</span>Foo<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>writer<span class="token punctuation">.</span>interface<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -577,11 +893,11 @@ are serialized individually and newline delimited.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Any type formattable by <code>std.debug.print()</code></li>
 </ul>
-<h6 id="type-signature-12">Type Signature</h6>
+<h6 id="type-signature-13">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑</li>
 </ul>
-<h6 id="example-13">Example</h6>
+<h6 id="example-16">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PrintSink</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
@@ -591,11 +907,11 @@ are serialized individually and newline delimited.</p>
 <p>Sink a mono or stereo real-valued signal to the PulseAudio
 sound server. This sink requires the libpulse-simple library.</p>
 <h5 id="radio-blocks-pulseaudiosink-init"><code>radio.blocks.PulseAudioSink.init()</code></h5>
-<h6 id="type-signature-13">Type Signature</h6>
+<h6 id="type-signature-14">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>f32</em>, <code>in2</code> <em>f32</em> ➔❑</li>
 </ul>
-<h6 id="example-14">Example</h6>
+<h6 id="example-17">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PulseAudioSink</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src_left<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src_right<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -606,7 +922,7 @@ sound server. This sink requires the libpulse-simple library.</p>
 <p>Sink a real-valued signal to a binary stream, using the
 specified sample format.</p>
 <h5 id="radio-blocks-realstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.RealStreamSink.init(writer: *std.io.Writer, format: SampleFormat, options: Options)</code></h5>
-<h6 id="arguments-11">Arguments</h6>
+<h6 id="arguments-12">Arguments</h6>
 <ul>
 <li>
 <p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
@@ -618,16 +934,50 @@ specified sample format.</p>
 <p><code>options</code> (<em>Options</em>): Additional options</p>
 </li>
 </ul>
-<h6 id="type-signature-14">Type Signature</h6>
+<h6 id="type-signature-15">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>f32</em> ➔❑</li>
 </ul>
-<h6 id="example-15">Example</h6>
+<h6 id="example-18">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> output_file <span class="token operator">=</span> <span class="token keyword">try</span> std<span class="token punctuation">.</span>fs<span class="token punctuation">.</span><span class="token function">cwd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">createFile</span><span class="token punctuation">(</span><span class="token string">"samples.real"</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> output_file<span class="token punctuation">.</span><span class="token function">close</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token operator">...</span>
-<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RealStreamSink<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">any</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>u16be<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> writer <span class="token operator">=</span> output_file<span class="token punctuation">.</span><span class="token function">writer</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RealStreamSink<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>writer<span class="token punctuation">.</span>interface<span class="token punctuation">,</span> <span class="token punctuation">.</span>u16be<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="wavfilesink">WAVFileSink</h4>
+<div class="block">
+<p>Sink one or more real-valued signals to a WAV file. The
+supported sample formats are 8-bit unsigned integer, 16-bit signed integer,
+and 32-bit signed integer.</p>
+<h5 id="radio-blocks-wavfilesink-init-file-std-fs-file-options-options"><code>radio.blocks.WAVFileSink.init(file: *std.fs.File, options: Options)</code></h5>
+<h6 id="arguments-13">Arguments</h6>
+<ul>
+<li>
+<p><code>file</code> (<em>*std.fs.File</em>): File</p>
+</li>
+<li>
+<p><code>options</code> (<em>Options</em>): Additional options</p>
+<ul>
+<li><code>format</code> (<code>Format</code>, choice of <code>.u8</code>, <code>.s16</code>, <code>.s32</code>, default <code>.s16</code>)</li>
+</ul>
+</li>
+</ul>
+<h6 id="type-signature-16">Type Signature</h6>
+<ul>
+<li><code>in1</code> <em>f32</em>, <code>[in2</code> <em>f32]</em> ➔❑</li>
+</ul>
+<h6 id="example-19">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token comment">// Sink to a one channel WAV file</span>
+<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">WAVFileSink</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>output_file<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Sink to a two channel WAV file</span>
+<span class="token keyword">var</span> snk <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">WAVFileSink</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>output_file<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src_left<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src_right<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
 <h3 id="filtering">Filtering</h3>
@@ -646,7 +996,7 @@ band-pass filter generated by the window design method.</p>
 <p><code>N</code> (<em>comptime_int</em>): Number of taps</p>
 </li>
 </ul>
-<h6 id="arguments-12">Arguments</h6>
+<h6 id="arguments-14">Arguments</h6>
 <ul>
 <li>
 <p><code>cutoffs</code> (<em>struct{f32,f32}</em>): Lower and upper cutoff frequencies in Hz</p>
@@ -659,11 +1009,11 @@ band-pass filter generated by the window design method.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-15">Type Signature</h6>
+<h6 id="type-signature-17">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-16">Example</h6>
+<h6 id="example-20">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">BandpassFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -682,70 +1032,6 @@ band-stop filter generated by the window design method.</p>
 <p><code>N</code> (<em>comptime_int</em>): Number of taps</p>
 </li>
 </ul>
-<h6 id="arguments-13">Arguments</h6>
-<ul>
-<li>
-<p><code>cutoffs</code> (<em>struct{f32,f32}</em>): Lower and upper cutoff frequencies in Hz</p>
-</li>
-<li>
-<p><code>options</code> (<em>Options</em>): Additional options:</p>
-<ul>
-<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
-<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
-</ul>
-</li>
-</ul>
-<h6 id="type-signature-16">Type Signature</h6>
-<ul>
-<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
-</ul>
-<h6 id="example-17">Example</h6>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">BandstopFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
-</div>
-<hr>
-<h4 id="complexbandpassfilterblock">ComplexBandpassFilterBlock</h4>
-<div class="block">
-<p>Filter a complex-valued signal with a complex-valued FIR
-band-pass filter generated by the window design method. This filter is
-asymmetric in the frequency domain.</p>
-<p>$$ y[n] = (x * h_{bpf})[n] $$</p>
-<h5 id="radio-blocks-complexbandpassfilterblock-comptime-n-comptime-int-init-cutoffs-struct-f32-f32-options-options"><code>radio.blocks.ComplexBandpassFilterBlock(comptime N: comptime_int).init(cutoffs: struct{f32,f32}, options: Options)</code></h5>
-<h6 id="comptime-arguments-9">Comptime Arguments</h6>
-<ul>
-<li><code>N</code> (<em>comptime_int</em>): Number of taps</li>
-</ul>
-<h6 id="arguments-14">Arguments</h6>
-<ul>
-<li>
-<p><code>cutoffs</code> (<em>struct{f32,f32}</em>): Lower and upper cutoff frequencies in Hz</p>
-</li>
-<li>
-<p><code>options</code> (<em>Options</em>): Additional options:</p>
-<ul>
-<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
-<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
-</ul>
-</li>
-</ul>
-<h6 id="type-signature-17">Type Signature</h6>
-<ul>
-<li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
-</ul>
-<h6 id="example-18">Example</h6>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ComplexBandpassFilterBlock</span><span class="token punctuation">(</span><span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
-</div>
-<hr>
-<h4 id="complexbandstopfilterblock">ComplexBandstopFilterBlock</h4>
-<div class="block">
-<p>Filter a complex-valued signal with a complex-valued FIR
-band-stop filter generated by the window design method. This filter is
-asymmetric in the frequency domain.</p>
-<p>$$ y[n] = (x * h_{bsf})[n] $$</p>
-<h5 id="radio-blocks-complexbandstopfilterblock-comptime-n-comptime-int-init-cutoffs-struct-f32-f32-options-options"><code>radio.blocks.ComplexBandstopFilterBlock(comptime N: comptime_int).init(cutoffs: struct{f32,f32}, options: Options)</code></h5>
-<h6 id="comptime-arguments-10">Comptime Arguments</h6>
-<ul>
-<li><code>N</code> (<em>comptime_int</em>): Number of taps</li>
-</ul>
 <h6 id="arguments-15">Arguments</h6>
 <ul>
 <li>
@@ -761,9 +1047,73 @@ asymmetric in the frequency domain.</p>
 </ul>
 <h6 id="type-signature-18">Type Signature</h6>
 <ul>
+<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
+</ul>
+<h6 id="example-21">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">BandstopFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="complexbandpassfilterblock">ComplexBandpassFilterBlock</h4>
+<div class="block">
+<p>Filter a complex-valued signal with a complex-valued FIR
+band-pass filter generated by the window design method. This filter is
+asymmetric in the frequency domain.</p>
+<p>$$ y[n] = (x * h_{bpf})[n] $$</p>
+<h5 id="radio-blocks-complexbandpassfilterblock-comptime-n-comptime-int-init-cutoffs-struct-f32-f32-options-options"><code>radio.blocks.ComplexBandpassFilterBlock(comptime N: comptime_int).init(cutoffs: struct{f32,f32}, options: Options)</code></h5>
+<h6 id="comptime-arguments-9">Comptime Arguments</h6>
+<ul>
+<li><code>N</code> (<em>comptime_int</em>): Number of taps</li>
+</ul>
+<h6 id="arguments-16">Arguments</h6>
+<ul>
+<li>
+<p><code>cutoffs</code> (<em>struct{f32,f32}</em>): Lower and upper cutoff frequencies in Hz</p>
+</li>
+<li>
+<p><code>options</code> (<em>Options</em>): Additional options:</p>
+<ul>
+<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
+<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
+</ul>
+</li>
+</ul>
+<h6 id="type-signature-19">Type Signature</h6>
+<ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-19">Example</h6>
+<h6 id="example-22">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ComplexBandpassFilterBlock</span><span class="token punctuation">(</span><span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="complexbandstopfilterblock">ComplexBandstopFilterBlock</h4>
+<div class="block">
+<p>Filter a complex-valued signal with a complex-valued FIR
+band-stop filter generated by the window design method. This filter is
+asymmetric in the frequency domain.</p>
+<p>$$ y[n] = (x * h_{bsf})[n] $$</p>
+<h5 id="radio-blocks-complexbandstopfilterblock-comptime-n-comptime-int-init-cutoffs-struct-f32-f32-options-options"><code>radio.blocks.ComplexBandstopFilterBlock(comptime N: comptime_int).init(cutoffs: struct{f32,f32}, options: Options)</code></h5>
+<h6 id="comptime-arguments-10">Comptime Arguments</h6>
+<ul>
+<li><code>N</code> (<em>comptime_int</em>): Number of taps</li>
+</ul>
+<h6 id="arguments-17">Arguments</h6>
+<ul>
+<li>
+<p><code>cutoffs</code> (<em>struct{f32,f32}</em>): Lower and upper cutoff frequencies in Hz</p>
+</li>
+<li>
+<p><code>options</code> (<em>Options</em>): Additional options:</p>
+<ul>
+<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
+<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
+</ul>
+</li>
+</ul>
+<h6 id="type-signature-20">Type Signature</h6>
+<ul>
+<li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
+</ul>
+<h6 id="example-23">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">ComplexBandstopFilterBlock</span><span class="token punctuation">(</span><span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">20e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -785,15 +1135,15 @@ asymmetric in the frequency domain.</p>
 <p><code>N</code> (<em>comptime_int</em>): Number of taps</p>
 </li>
 </ul>
-<h6 id="arguments-16">Arguments</h6>
+<h6 id="arguments-18">Arguments</h6>
 <ul>
 <li><code>taps</code> (<em>[N]U</em>): Taps</li>
 </ul>
-<h6 id="type-signature-19">Type Signature</h6>
+<h6 id="type-signature-21">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-20">Example</h6>
+<h6 id="example-24">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">FIRFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token builtin-type keyword">f32</span><span class="token punctuation">,</span> <span class="token number">64</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>taps<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -803,15 +1153,15 @@ asymmetric in the frequency domain.</p>
 filter, a single-pole low-pass IIR filter.</p>
 <p>$$ y[n] = (x * h_{fmdeemph})[n] $$</p>
 <h5 id="radio-blocks-fmdeemphasisfilterblock-init-tau-de-emphasis"><code>radio.blocks.FMDeemphasisFilterBlock.init(tau: De-emphasis)</code></h5>
-<h6 id="arguments-17">Arguments</h6>
+<h6 id="arguments-19">Arguments</h6>
 <ul>
 <li><code>tau</code> (<em>De-emphasis</em>): time constant</li>
 </ul>
-<h6 id="type-signature-20">Type Signature</h6>
+<h6 id="type-signature-22">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>f32</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-21">Example</h6>
+<h6 id="example-25">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> deemphasis <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>FMDeemphasisFilterBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">75e-6</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -822,77 +1172,6 @@ high-pass filter generated by the window design method.</p>
 <p>$$ y[n] = (x * h_{hpf})[n] $$</p>
 <h5 id="radio-blocks-highpassfilterblock-comptime-t-type-comptime-n-comptime-int-init-cutoff-f32-options-options"><code>radio.blocks.HighpassFilterBlock(comptime T: type, comptime N: comptime_int).init(cutoff: f32, options: Options)</code></h5>
 <h6 id="comptime-arguments-12">Comptime Arguments</h6>
-<ul>
-<li>
-<p><code>T</code> (<em>type</em>): Complex(f32), f32</p>
-</li>
-<li>
-<p><code>N</code> (<em>comptime_int</em>): Number of taps (filter length)</p>
-</li>
-</ul>
-<h6 id="arguments-18">Arguments</h6>
-<ul>
-<li>
-<p><code>cutoff</code> (<em>f32</em>): Cutoff frequency in Hz</p>
-</li>
-<li>
-<p><code>options</code> (<em>Options</em>): Additional options:</p>
-<ul>
-<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
-<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
-</ul>
-</li>
-</ul>
-<h6 id="type-signature-21">Type Signature</h6>
-<ul>
-<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
-</ul>
-<h6 id="example-22">Example</h6>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">HighpassFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
-</div>
-<hr>
-<h4 id="iirfilterblock">IIRFilterBlock</h4>
-<div class="block">
-<p>Filter a complex or real valued signal with an IIR filter.</p>
-<p>$$ y[n] = (x * h)[n] $$</p>
-<p>$$ \begin{align} y[n] = &amp;\frac{1}{a_0}(b_0 x[n] + b_1 x[n-1] + ... + b_N x[n-N] \\ - &amp;a_1 y[n-1] - a_2 y[n-2] - ... - a_M x[n-M])\end{align} $$</p>
-<h5 id="radio-blocks-iirfilterblock-comptime-t-type-comptime-n-comptime-int-comptime-m-comptime-int-init-b-taps-n-f32-a-taps-m-f32"><code>radio.blocks.IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int).init(b_taps: [N]f32, a_taps: [M]f32)</code></h5>
-<h6 id="comptime-arguments-13">Comptime Arguments</h6>
-<ul>
-<li>
-<p><code>T</code> (<em>type</em>): Complex(f32), f32</p>
-</li>
-<li>
-<p><code>N</code> (<em>comptime_int</em>): Number of feedforward taps</p>
-</li>
-<li>
-<p><code>M</code> (<em>comptime_int</em>): Number of feedback taps</p>
-</li>
-</ul>
-<h6 id="arguments-19">Arguments</h6>
-<ul>
-<li>
-<p><code>b_taps</code> (<em>[N]f32</em>): Feedforward taps</p>
-</li>
-<li>
-<p><code>a_taps</code> (<em>[M]f32</em>): Feedback taps</p>
-</li>
-</ul>
-<h6 id="type-signature-22">Type Signature</h6>
-<ul>
-<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
-</ul>
-<h6 id="example-23">Example</h6>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">IIRFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>b_taps<span class="token punctuation">,</span> a_taps<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
-</div>
-<hr>
-<h4 id="lowpassfilterblock">LowpassFilterBlock</h4>
-<div class="block">
-<p>Filter a complex or real valued signal with a real-valued FIR
-low-pass filter generated by the window design method.</p>
-<p>$$ y[n] = (x * h_{lpf})[n] $$</p>
-<h5 id="radio-blocks-lowpassfilterblock-comptime-t-type-comptime-n-comptime-int-init-cutoff-f32-options-options"><code>radio.blocks.LowpassFilterBlock(comptime T: type, comptime N: comptime_int).init(cutoff: f32, options: Options)</code></h5>
-<h6 id="comptime-arguments-14">Comptime Arguments</h6>
 <ul>
 <li>
 <p><code>T</code> (<em>type</em>): Complex(f32), f32</p>
@@ -918,7 +1197,78 @@ low-pass filter generated by the window design method.</p>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-24">Example</h6>
+<h6 id="example-26">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">HighpassFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">129</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="iirfilterblock">IIRFilterBlock</h4>
+<div class="block">
+<p>Filter a complex or real valued signal with an IIR filter.</p>
+<p>$$ y[n] = (x * h)[n] $$</p>
+<p>$$ \begin{align} y[n] = &amp;\frac{1}{a_0}(b_0 x[n] + b_1 x[n-1] + ... + b_N x[n-N] \\ - &amp;a_1 y[n-1] - a_2 y[n-2] - ... - a_M x[n-M])\end{align} $$</p>
+<h5 id="radio-blocks-iirfilterblock-comptime-t-type-comptime-n-comptime-int-comptime-m-comptime-int-init-b-taps-n-f32-a-taps-m-f32"><code>radio.blocks.IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: comptime_int).init(b_taps: [N]f32, a_taps: [M]f32)</code></h5>
+<h6 id="comptime-arguments-13">Comptime Arguments</h6>
+<ul>
+<li>
+<p><code>T</code> (<em>type</em>): Complex(f32), f32</p>
+</li>
+<li>
+<p><code>N</code> (<em>comptime_int</em>): Number of feedforward taps</p>
+</li>
+<li>
+<p><code>M</code> (<em>comptime_int</em>): Number of feedback taps</p>
+</li>
+</ul>
+<h6 id="arguments-21">Arguments</h6>
+<ul>
+<li>
+<p><code>b_taps</code> (<em>[N]f32</em>): Feedforward taps</p>
+</li>
+<li>
+<p><code>a_taps</code> (<em>[M]f32</em>): Feedback taps</p>
+</li>
+</ul>
+<h6 id="type-signature-24">Type Signature</h6>
+<ul>
+<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
+</ul>
+<h6 id="example-27">Example</h6>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">IIRFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>b_taps<span class="token punctuation">,</span> a_taps<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+</div>
+<hr>
+<h4 id="lowpassfilterblock">LowpassFilterBlock</h4>
+<div class="block">
+<p>Filter a complex or real valued signal with a real-valued FIR
+low-pass filter generated by the window design method.</p>
+<p>$$ y[n] = (x * h_{lpf})[n] $$</p>
+<h5 id="radio-blocks-lowpassfilterblock-comptime-t-type-comptime-n-comptime-int-init-cutoff-f32-options-options"><code>radio.blocks.LowpassFilterBlock(comptime T: type, comptime N: comptime_int).init(cutoff: f32, options: Options)</code></h5>
+<h6 id="comptime-arguments-14">Comptime Arguments</h6>
+<ul>
+<li>
+<p><code>T</code> (<em>type</em>): Complex(f32), f32</p>
+</li>
+<li>
+<p><code>N</code> (<em>comptime_int</em>): Number of taps (filter length)</p>
+</li>
+</ul>
+<h6 id="arguments-22">Arguments</h6>
+<ul>
+<li>
+<p><code>cutoff</code> (<em>f32</em>): Cutoff frequency in Hz</p>
+</li>
+<li>
+<p><code>options</code> (<em>Options</em>): Additional options:</p>
+<ul>
+<li><code>nyquist</code> (<code>?f32</code>, alternate Nyquist frequency in Hz)</li>
+<li><code>window</code> (<code>WindowFunction</code>, window function, default Hamming)</li>
+</ul>
+</li>
+</ul>
+<h6 id="type-signature-25">Type Signature</h6>
+<ul>
+<li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
+</ul>
+<h6 id="example-28">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">LowpassFilterBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -927,15 +1277,15 @@ low-pass filter generated by the window design method.</p>
 <p>Correlate a real-valued signal with a rectangular matched
 filter.</p>
 <h5 id="radio-blocks-rectangularmatchedfilterblock-init-baudrate-baudrate"><code>radio.blocks.RectangularMatchedFilterBlock.init(baudrate: Baudrate)</code></h5>
-<h6 id="arguments-21">Arguments</h6>
+<h6 id="arguments-23">Arguments</h6>
 <ul>
 <li><code>baudrate</code> (<em>Baudrate</em>):</li>
 </ul>
-<h6 id="type-signature-24">Type Signature</h6>
+<h6 id="type-signature-26">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>f32</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-25">Example</h6>
+<h6 id="example-29">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> matched_filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RectangularMatchedFilterBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">2400</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -951,15 +1301,15 @@ high-pass IIR filter.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32</li>
 </ul>
-<h6 id="arguments-22">Arguments</h6>
+<h6 id="arguments-24">Arguments</h6>
 <ul>
 <li><code>cutoff</code> (<em>f32</em>): Cutoff frequency in Hz</li>
 </ul>
-<h6 id="type-signature-25">Type Signature</h6>
+<h6 id="type-signature-27">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-26">Example</h6>
+<h6 id="example-30">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SinglepoleHighpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -975,15 +1325,15 @@ low-pass IIR filter.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32</li>
 </ul>
-<h6 id="arguments-23">Arguments</h6>
+<h6 id="arguments-25">Arguments</h6>
 <ul>
 <li><code>cutoff</code> (<em>f32</em>): Cutoff frequency in Hz</li>
 </ul>
-<h6 id="type-signature-26">Type Signature</h6>
+<h6 id="type-signature-28">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-27">Example</h6>
+<h6 id="example-31">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> filter <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SinglepoleLowpassFilterBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">1e3</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -997,11 +1347,11 @@ low-pass IIR filter.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, etc.</li>
 </ul>
-<h6 id="type-signature-27">Type Signature</h6>
+<h6 id="type-signature-29">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em>, <code>in2</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-28">Example</h6>
+<h6 id="example-32">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> summer <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">AddBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>summer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>summer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1014,11 +1364,11 @@ low-pass IIR filter.</p>
 <p>$$ y[n] = |x[n]| $$</p>
 <p>$$ y[n] = \sqrt{\text{Re}(x[n])^2 + \text{Im}(x[n])^2} $$</p>
 <h5 id="radio-blocks-complexmagnitudeblock-init"><code>radio.blocks.ComplexMagnitudeBlock.init()</code></h5>
-<h6 id="type-signature-28">Type Signature</h6>
+<h6 id="type-signature-30">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-29">Example</h6>
+<h6 id="example-33">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> mag <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>ComplexMagnitudeBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1031,11 +1381,11 @@ low-pass IIR filter.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, etc.</li>
 </ul>
-<h6 id="type-signature-29">Type Signature</h6>
+<h6 id="type-signature-31">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em>, <code>in2</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-30">Example</h6>
+<h6 id="example-34">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> multiplier <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">MultiplyBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>multiplier<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>multiplier<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1048,11 +1398,11 @@ low-pass IIR filter.</p>
 another complex-valued signal.</p>
 <p>$$ y[n] = x_{1}[n] \; x_{2}^*[n] $$</p>
 <h5 id="radio-blocks-multiplyconjugateblock-init"><code>radio.blocks.MultiplyConjugateBlock.init()</code></h5>
-<h6 id="type-signature-30">Type Signature</h6>
+<h6 id="type-signature-32">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em>, <code>in2</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-31">Example</h6>
+<h6 id="example-35">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> mixer <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>MultiplyConjugateBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src2<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>mixer<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1068,11 +1418,11 @@ another complex-valued signal.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, etc.</li>
 </ul>
-<h6 id="type-signature-31">Type Signature</h6>
+<h6 id="type-signature-33">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em>, <code>in2</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-32">Example</h6>
+<h6 id="example-36">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> subtractor <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SubtractBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>subtractor<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src1<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>subtractor<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1094,7 +1444,7 @@ symmetric attack and decay dynamics.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32</li>
 </ul>
-<h6 id="arguments-24">Arguments</h6>
+<h6 id="arguments-26">Arguments</h6>
 <ul>
 <li>
 <p><code>mode</code> (<em>Mode</em>): AGC mode, either preset of .Slow, .Medium, .Fast or a custom time constant</p>
@@ -1108,11 +1458,11 @@ symmetric attack and decay dynamics.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-32">Type Signature</h6>
+<h6 id="type-signature-34">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-33">Example</h6>
+<h6 id="example-37">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> agc <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">AGCBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>preset <span class="token operator">=</span> <span class="token punctuation">.</span>Fast <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>target_dbfs <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">30</span><span class="token punctuation">,</span> <span class="token punctuation">.</span>threshold_dbfs <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">75</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1128,15 +1478,15 @@ the sample rate for downstream blocks in the flow graph by a factor of M.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, etc.</li>
 </ul>
-<h6 id="arguments-25">Arguments</h6>
+<h6 id="arguments-27">Arguments</h6>
 <ul>
 <li><code>factor</code> (<em>usize</em>): Downsampling factor</li>
 </ul>
-<h6 id="type-signature-33">Type Signature</h6>
+<h6 id="type-signature-35">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-34">Example</h6>
+<h6 id="example-38">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> downsampler <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">DownsamplerBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1148,7 +1498,7 @@ complex-valued signal.</p>
 <p>$$ y[n] = (\text{FrequencyTranslate}(x[n], f_{offset}) * h_{lpf})[nM] $$</p>
 <p>This block is convenient for translating signals to baseband.</p>
 <h5 id="radio-blocks-tunerblock-init-offset-f32-bandwidth-f32-factor-usize"><code>radio.blocks.TunerBlock.init(offset: f32, bandwidth: f32, factor: usize)</code></h5>
-<h6 id="arguments-26">Arguments</h6>
+<h6 id="arguments-28">Arguments</h6>
 <ul>
 <li>
 <p><code>offset</code> (<em>f32</em>): Translation offset in Hz</p>
@@ -1160,11 +1510,11 @@ complex-valued signal.</p>
 <p><code>factor</code> (<em>usize</em>): Downsampling factor M</p>
 </li>
 </ul>
-<h6 id="type-signature-34">Type Signature</h6>
+<h6 id="type-signature-36">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-35">Example</h6>
+<h6 id="example-39">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> tuner <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>TunerBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">50e3</span><span class="token punctuation">,</span> <span class="token number">10e3</span><span class="token punctuation">,</span> <span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -1176,15 +1526,15 @@ complex-valued signal.</p>
 \( e^{j \omega_0 n} \), where \( \omega_0 = 2 \pi f_o / f_s \).</p>
 <p>$$ y[n] = x[n] \; e^{j\omega_0 n} $$</p>
 <h5 id="radio-blocks-frequencytranslatorblock-init-offset-translation"><code>radio.blocks.FrequencyTranslatorBlock.init(offset: Translation)</code></h5>
-<h6 id="arguments-27">Arguments</h6>
+<h6 id="arguments-29">Arguments</h6>
 <ul>
 <li><code>offset</code> (<em>Translation</em>): offset in Hz</li>
 </ul>
-<h6 id="type-signature-35">Type Signature</h6>
+<h6 id="type-signature-37">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-36">Example</h6>
+<h6 id="example-40">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> translator <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>FrequencyTranslatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">50e3</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1195,7 +1545,7 @@ complex-valued signal.</p>
 signal.</p>
 <p>$$ y[n] = \text{PLL}(x[n], f_{BW}, f_{min}, f_{max}, M) $$</p>
 <h5 id="radio-blocks-complexpllblock-init-loop-bandwidth-f32-frequency-range-struct-f32-f32-options-options"><code>radio.blocks.ComplexPLLBlock.init(loop_bandwidth: f32, frequency_range: struct{f32,f32}, options: Options)</code></h5>
-<h6 id="arguments-28">Arguments</h6>
+<h6 id="arguments-30">Arguments</h6>
 <ul>
 <li>
 <p><code>loop_bandwidth</code> (<em>f32</em>): Loop bandwidth in Hz</p>
@@ -1210,11 +1560,11 @@ signal.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-36">Type Signature</h6>
+<h6 id="type-signature-38">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em>, <code>out2</code> <em>f32</em></li>
 </ul>
-<h6 id="example-37">Example</h6>
+<h6 id="example-41">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> pll <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>ComplexPLLBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">500</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token number">8e3</span><span class="token punctuation">,</span> <span class="token number">12e3</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pll<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pll<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1226,11 +1576,11 @@ signal.</p>
 <div class="block">
 <p>Decode a differentially encoded bit stream.</p>
 <h5 id="radio-blocks-differentialdecoderblock-init"><code>radio.blocks.DifferentialDecoderBlock.init()</code></h5>
-<h6 id="type-signature-37">Type Signature</h6>
+<h6 id="type-signature-39">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>u1</em> ➔❑➔ <code>out1</code> <em>u1</em></li>
 </ul>
-<h6 id="example-38">Example</h6>
+<h6 id="example-42">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> diffdecoder <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">DifferentialDecoderBlock</span><span class="token punctuation">(</span><span class="token boolean">false</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1238,11 +1588,11 @@ signal.</p>
 <div class="block">
 <p>Slice a signal into symbols using the specified slicer.</p>
 <h5 id="radio-blocks-slicerblock-init"><code>radio.blocks.SlicerBlock.init()</code></h5>
-<h6 id="type-signature-38">Type Signature</h6>
+<h6 id="type-signature-40">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>U</em></li>
 </ul>
-<h6 id="example-39">Example</h6>
+<h6 id="example-43">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> slicer <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">SlicerBlock</span><span class="token punctuation">(</span>radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>BinarySlicer<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1252,11 +1602,11 @@ signal.</p>
 <p>Decompose the imaginary part of a complex-valued signal.</p>
 <p>$$ y[n] = \text{Im}(x[n]) $$</p>
 <h5 id="radio-blocks-complextoimagblock-init"><code>radio.blocks.ComplexToImagBlock.init()</code></h5>
-<h6 id="type-signature-39">Type Signature</h6>
+<h6 id="type-signature-41">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-40">Example</h6>
+<h6 id="example-44">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> complextoimag <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>ComplexToImagBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1265,11 +1615,11 @@ signal.</p>
 <p>Decompose the real part of a complex-valued signal.</p>
 <p>$$ y[n] = \text{Re}(x[n]) $$</p>
 <h5 id="radio-blocks-complextorealblock-init"><code>radio.blocks.ComplexToRealBlock.init()</code></h5>
-<h6 id="type-signature-40">Type Signature</h6>
+<h6 id="type-signature-42">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-41">Example</h6>
+<h6 id="example-45">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> complextoreal <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>ComplexToRealBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1279,11 +1629,11 @@ signal.</p>
 zero-valued imaginary part.</p>
 <p>$$ y[n] = x[n] + 0 \, j $$</p>
 <h5 id="radio-blocks-realtocomplexblock-init"><code>radio.blocks.RealToComplexBlock.init()</code></h5>
-<h6 id="type-signature-41">Type Signature</h6>
+<h6 id="type-signature-43">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>f32</em> ➔❑➔ <code>out1</code> <em>Complex(f32)</em></li>
 </ul>
-<h6 id="example-42">Example</h6>
+<h6 id="example-46">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> realtocomplex <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RealToComplexBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1297,15 +1647,15 @@ zero-valued imaginary part.</p>
 <ul>
 <li><code>T</code> (<em>type</em>): Complex(f32), f32, etc.</li>
 </ul>
-<h6 id="arguments-29">Arguments</h6>
+<h6 id="arguments-31">Arguments</h6>
 <ul>
 <li><code>delay</code> (<em>usize</em>): Number of samples to delay</li>
 </ul>
-<h6 id="type-signature-42">Type Signature</h6>
+<h6 id="type-signature-44">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>T</em> ➔❑➔ <code>out1</code> <em>T</em></li>
 </ul>
-<h6 id="example-43">Example</h6>
+<h6 id="example-47">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> delay <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">DelayBlock</span><span class="token punctuation">(</span>std<span class="token punctuation">.</span>math<span class="token punctuation">.</span><span class="token function">Complex</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
@@ -1316,7 +1666,7 @@ zero-valued imaginary part.</p>
 <p>$$ y[n] = \text{AMDemodulate}(x[n], \text{bandwidth}) $$</p>
 <p>complex-valued signal with an envelope detector.</p>
 <h5 id="radio-blocks-amenvelopedemodulatorblock-init-options-options"><code>radio.blocks.AMEnvelopeDemodulatorBlock.init(options: Options)</code></h5>
-<h6 id="arguments-30">Arguments</h6>
+<h6 id="arguments-32">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -1324,11 +1674,11 @@ zero-valued imaginary part.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-43">Type Signature</h6>
+<h6 id="type-signature-45">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-44">Example</h6>
+<h6 id="example-48">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>AMEnvelopeDemodulatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -1340,7 +1690,7 @@ zero-valued imaginary part.</p>
 complex-valued signal with a synchronous detector.</p>
 <p>$$ y[n] = \text{AMDemodulate}(x[n], \text{bandwidth}) $$</p>
 <h5 id="radio-blocks-amsynchronousdemodulatorblock-init-options-options"><code>radio.blocks.AMSynchronousDemodulatorBlock.init(options: Options)</code></h5>
-<h6 id="arguments-31">Arguments</h6>
+<h6 id="arguments-33">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -1348,11 +1698,11 @@ complex-valued signal with a synchronous detector.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-44">Type Signature</h6>
+<h6 id="type-signature-46">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-45">Example</h6>
+<h6 id="example-49">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>AMSynchronousDemodulatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -1363,7 +1713,7 @@ complex-valued signal with a synchronous detector.</p>
 <p>Demodulate a baseband, narrowband FM modulated complex-valued signal.</p>
 <p>$$ y[n] = \text{NBFMDemodulate}(x[n], \text{deviation}, \text{bandwidth}) $$</p>
 <h5 id="radio-blocks-nbfmdemodulatorblock-init-options-options"><code>radio.blocks.NBFMDemodulatorBlock.init(options: Options)</code></h5>
-<h6 id="arguments-32">Arguments</h6>
+<h6 id="arguments-34">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -1372,11 +1722,11 @@ complex-valued signal with a synchronous detector.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-45">Type Signature</h6>
+<h6 id="type-signature-47">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-46">Example</h6>
+<h6 id="example-50">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>NBFMDemodulatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -1388,7 +1738,7 @@ complex-valued signal with a synchronous detector.</p>
 signal into the real-valued mono channel (L+R) signal.</p>
 <p>$$ y[n] = \text{WBFMMonoDemodulate}(x[n], \text{deviation}, \text{bandwidth}, \tau) $$</p>
 <h5 id="radio-blocks-wbfmmonodemodulatorblock-init-options-options"><code>radio.blocks.WBFMMonoDemodulatorBlock.init(options: Options)</code></h5>
-<h6 id="arguments-33">Arguments</h6>
+<h6 id="arguments-35">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -1398,11 +1748,11 @@ signal into the real-valued mono channel (L+R) signal.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-46">Type Signature</h6>
+<h6 id="type-signature-48">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-47">Example</h6>
+<h6 id="example-51">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>WBFMMonoDemodulatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>snk<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
@@ -1414,7 +1764,7 @@ signal into the real-valued mono channel (L+R) signal.</p>
 complex-valued signal into the real-valued stereo channel (L and R) signals.</p>
 <p>$$ y_{left}[n], y_{right}[n] = \text{WBFMStereoDemodulate}(x[n], \text{deviation}, \text{bandwidth}, \tau) $$</p>
 <h5 id="radio-blocks-wbfmstereodemodulatorblock-init-options-options"><code>radio.blocks.WBFMStereoDemodulatorBlock.init(options: Options)</code></h5>
-<h6 id="arguments-34">Arguments</h6>
+<h6 id="arguments-36">Arguments</h6>
 <ul>
 <li><code>options</code> (<em>Options</em>): Additional options:
 <ul>
@@ -1424,11 +1774,11 @@ complex-valued signal into the real-valued stereo channel (L and R) signals.</p>
 </ul>
 </li>
 </ul>
-<h6 id="type-signature-47">Type Signature</h6>
+<h6 id="type-signature-49">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em>, <code>out2</code> <em>f32</em></li>
 </ul>
-<h6 id="example-48">Example</h6>
+<h6 id="example-52">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>WBFMStereoDemodulatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>src<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connectPort</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>demod<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"out1"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>left_snk<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token string">"in1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -1441,15 +1791,15 @@ complex-valued signal into the real-valued stereo channel (L and R) signals.</p>
 signal. This is a method of frequency demodulation.</p>
 <p>$$ y[n] = \frac{\text{arg}(x[n] \; x^*[n-1])}{2 \pi k} $$</p>
 <h5 id="radio-blocks-frequencydiscriminatorblock-init-deviation-f32"><code>radio.blocks.FrequencyDiscriminatorBlock.init(deviation: f32)</code></h5>
-<h6 id="arguments-35">Arguments</h6>
+<h6 id="arguments-37">Arguments</h6>
 <ul>
 <li><code>deviation</code> (<em>f32</em>): Frequency deviation in Hz</li>
 </ul>
-<h6 id="type-signature-48">Type Signature</h6>
+<h6 id="type-signature-50">Type Signature</h6>
 <ul>
 <li><code>in1</code> <em>Complex(f32)</em> ➔❑➔ <code>out1</code> <em>f32</em></li>
 </ul>
-<h6 id="example-49">Example</h6>
+<h6 id="example-53">Example</h6>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> demod <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>FrequencyDiscriminatorBlock<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">5e3</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 </div>
 <hr>
