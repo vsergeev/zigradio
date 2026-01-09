@@ -570,7 +570,7 @@ pub const Flowgraph = struct {
             }
         } else {
             // Call composite directly, passing in flowgraph for downstream block calls
-            const composite = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @fieldParentPtr("block", block));
+            const composite = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @alignCast(@fieldParentPtr("block", block)));
             return @call(.auto, function, .{ composite, self } ++ args);
         }
     }

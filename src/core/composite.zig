@@ -11,7 +11,7 @@ const extractBlockName = @import("block.zig").extractBlockName;
 fn wrapConnectFunction(comptime CompositeType: anytype, comptime connectFn: fn (self: *CompositeType, flowgraph: *Flowgraph) anyerror!void) fn (self: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
     const gen = struct {
         fn connect(block: *CompositeBlock, flowgraph: *Flowgraph) anyerror!void {
-            const self: *CompositeType = @fieldParentPtr("block", block);
+            const self: *CompositeType = @alignCast(@fieldParentPtr("block", block));
             try connectFn(self, flowgraph);
         }
     };

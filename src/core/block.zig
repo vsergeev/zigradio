@@ -30,7 +30,7 @@ pub const ProcessResult = struct {
 fn wrapInitializeFunction(comptime BlockType: type, comptime initializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) anyerror!void) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
     const gen = struct {
         fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
             try initializeFn(self, allocator);
         }
     };
@@ -40,7 +40,7 @@ fn wrapInitializeFunction(comptime BlockType: type, comptime initializeFn: fn (s
 fn wrapDeinitializeFunction(comptime BlockType: type, comptime deinitializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) void) fn (self: *Block, allocator: std.mem.Allocator) void {
     const gen = struct {
         fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
             deinitializeFn(self, allocator);
         }
     };
@@ -50,7 +50,7 @@ fn wrapDeinitializeFunction(comptime BlockType: type, comptime deinitializeFn: f
 fn wrapSetRateFunction(comptime BlockType: type, comptime setRateFn: fn (self: *BlockType, upstream_rate: f64) anyerror!f64) fn (self: *Block, upstream_rate: f64) anyerror!f64 {
     const gen = struct {
         fn setRate(block: *Block, upstream_rate: f64) anyerror!f64 {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
             return try setRateFn(self, upstream_rate);
         }
     };
@@ -60,7 +60,7 @@ fn wrapSetRateFunction(comptime BlockType: type, comptime setRateFn: fn (self: *
 fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: ComptimeTypeSignature, comptime processFn: anytype) fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
     const gen = struct {
         fn process(block: *Block, sample_mux: SampleMux) anyerror!ProcessResult {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
 
             // Get sample buffers
             const buffers = try sample_mux.get(type_signature);
@@ -81,7 +81,7 @@ fn wrapProcessFunction(comptime BlockType: type, comptime type_signature: Compti
 fn wrapStartFunction(comptime BlockType: type, comptime startFn: fn (self: *BlockType, sample_mux: SampleMux) anyerror!void) fn (self: *Block, sample_mux: SampleMux) anyerror!void {
     const gen = struct {
         fn start(block: *Block, sample_mux: SampleMux) anyerror!void {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
             return try startFn(self, sample_mux);
         }
     };
@@ -91,7 +91,7 @@ fn wrapStartFunction(comptime BlockType: type, comptime startFn: fn (self: *Bloc
 fn wrapStopFunction(comptime BlockType: type, comptime stopFn: fn (self: *BlockType) void) fn (self: *Block) void {
     const gen = struct {
         fn stop(block: *Block) void {
-            const self: *BlockType = @fieldParentPtr("block", block);
+            const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
             stopFn(self);
         }
     };
