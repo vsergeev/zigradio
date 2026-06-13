@@ -1,4 +1,5 @@
 const std = @import("std");
+const sync = @import("sync.zig");
 
 const util = @import("util.zig");
 
@@ -1033,7 +1034,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
+        fn run(sm: *SampleMux, done: *sync.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
             _buffers.* = try sm.get(ts);
             // Signal done
@@ -1043,7 +1044,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 
     // Spawn a thread that blocks until sample buffers are available
     var buffers: SampleMux.SampleBuffers(ts) = undefined;
-    var done_event = std.Thread.ResetEvent{};
+    var done_event = sync.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
     // Check thread is blocking
@@ -1126,7 +1127,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
+        fn run(sm: *SampleMux, done: *sync.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
             _buffers.* = try sm.get(ts);
             // Signal done
@@ -1136,7 +1137,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
 
     // Spawn a thread that blocks until sample buffers are available
     var buffers: SampleMux.SampleBuffers(ts) = undefined;
-    var done_event = std.Thread.ResetEvent{};
+    var done_event = sync.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
     // Check thread is blocking

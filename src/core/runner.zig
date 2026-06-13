@@ -1,4 +1,5 @@
 const std = @import("std");
+const sync = @import("sync.zig");
 
 const Block = @import("block.zig").Block;
 const SampleMux = @import("sample_mux.zig").SampleMux;
@@ -62,9 +63,9 @@ pub const ThreadedBlockRunner = struct {
     process_error: ?anyerror = null,
 
     thread: std.Thread = undefined,
-    mutex: std.Thread.Mutex = .{},
-    call_event: std.Thread.ResetEvent = .{},
-    stop_event: std.Thread.ResetEvent = .{},
+    mutex: sync.Mutex = .{},
+    call_event: sync.ResetEvent = .{},
+    stop_event: sync.ResetEvent = .{},
 
     pub fn init(_: std.mem.Allocator, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
         return .{
@@ -88,7 +89,7 @@ pub const ThreadedBlockRunner = struct {
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
-                        std.Thread.sleep(std.time.ns_per_us);
+                        sync.sleep(std.time.ns_per_us);
                     }
 
                     runner.mutex.lock();
@@ -445,7 +446,7 @@ test "ThreadedBlockRunner infinite run" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    std.Thread.sleep(std.time.ns_per_ms);
+    sync.sleep(std.time.ns_per_ms);
 
     // Stop source runner
     test_source_runner.stop();
@@ -497,7 +498,7 @@ test "ThreadedBlockRunner block errors" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    std.Thread.sleep(std.time.ns_per_ms);
+    sync.sleep(std.time.ns_per_ms);
 
     // Join block runners
     test_source_runner.join();

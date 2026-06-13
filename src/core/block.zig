@@ -143,7 +143,7 @@ pub const Block = struct {
         }
 
         // Derive type signature from process method
-        const type_signature = ComptimeTypeSignature.init(BlockType.process);
+        const type_signature = comptime ComptimeTypeSignature.init(BlockType.process);
         if (type_signature.inputs.len == 0 and !@hasDecl(BlockType, "setRate")) {
             @compileError("Source block " ++ @typeName(BlockType) ++ " is missing the setRate() method.");
         }

@@ -2,7 +2,7 @@
 // @description Sink a real-valued signal to a binary stream, using the
 // specified sample format.
 // @category Sinks
-// @param writer *std.io.Writer Writer
+// @param writer *std.Io.Writer Writer
 // @param format SampleFormat Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be
 // @param options Options Additional options
 // @signature in1:f32 >
@@ -31,13 +31,13 @@ pub const RealStreamSink = struct {
     pub const Options = struct {};
 
     block: Block,
-    writer: *std.io.Writer,
+    writer: *std.Io.Writer,
     options: Options,
 
     converter: SampleFormat.Converter,
     buffer: [16384]u8 = undefined,
 
-    pub fn init(writer: *std.io.Writer, format: SampleFormat, options: Options) Self {
+    pub fn init(writer: *std.Io.Writer, format: SampleFormat, options: Options) Self {
         return .{ .block = Block.init(@This()), .writer = writer, .options = options, .converter = format.converter() };
     }
 
@@ -67,7 +67,7 @@ const vectors = @import("../../vectors/utils/sample_format.zig");
 
 test "RealStreamSink" {
     var buf: [64]u8 = undefined;
-    var writer = std.io.Writer.fixed(&buf);
+    var writer = std.Io.Writer.fixed(&buf);
 
     // Basic test
     var block = RealStreamSink.init(&writer, .u16be, .{});
@@ -79,7 +79,7 @@ test "RealStreamSink" {
 
     try std.testing.expectEqualSlices(u8, &vectors.bytes_real_u16be, writer.buffered());
 
-    writer = std.io.Writer.fixed(&buf);
+    writer = std.Io.Writer.fixed(&buf);
 
     // Test sample by sample
     for (vectors.input_real_samples) |sample| {

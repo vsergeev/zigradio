@@ -11,10 +11,10 @@ pub const ComptimeTypeSignature = struct {
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
         const process_args = @typeInfo(@TypeOf(process_fn)).@"fn".params[1..];
 
-        var _comptime_inputs: [process_args.len]type = undefined;
-        var _comptime_outputs: [process_args.len]type = undefined;
-        var num_inputs: usize = 0;
-        var num_outputs: usize = 0;
+        comptime var _comptime_inputs: [process_args.len]type = undefined;
+        comptime var _comptime_outputs: [process_args.len]type = undefined;
+        comptime var num_inputs: usize = 0;
+        comptime var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
             const arg_is_input = @typeInfo(arg.type orelse unreachable).pointer.is_const;

@@ -1,4 +1,5 @@
 const std = @import("std");
+const sync = @import("sync.zig");
 
 ////////////////////////////////////////////////////////////////////////////////
 // RingBuffer Memory Implementations
@@ -40,17 +41,17 @@ const MappedMemoryImpl = struct {
     pub fn init(_: std.mem.Allocator, capacity: usize) !MappedMemoryImpl {
         // Create memfd
         const fd = try std.posix.memfd_create("ring_buffer_mem", 0);
-        errdefer std.posix.close(fd);
+        errdefer _ = std.c.close(fd);
 
         // Size memory
-        try std.posix.ftruncate(fd, capacity);
+        if (std.c.ftruncate(fd, @intCast(capacity)) != 0) return error.Ftruncate;
 
         // Map the file with two regions of capacity
-        const mapping1 = try std.posix.mmap(null, 2 * capacity, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .TYPE = .SHARED }, fd, 0);
+        const mapping1 = try std.posix.mmap(null, 2 * capacity, .{ .READ = true, .WRITE = true }, .{ .TYPE = .SHARED }, fd, 0);
         errdefer std.posix.munmap(mapping1);
 
         // Remap second region to first
-        const mapping2 = try std.posix.mmap(@alignCast(mapping1.ptr + capacity), capacity, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .TYPE = .SHARED, .FIXED = true }, fd, 0);
+        const mapping2 = try std.posix.mmap(@alignCast(mapping1.ptr + capacity), capacity, .{ .READ = true, .WRITE = true }, .{ .TYPE = .SHARED, .FIXED = true }, fd, 0);
         errdefer std.posix.munmap(mapping2);
 
         // Validate mapping is adjacent
@@ -63,7 +64,7 @@ const MappedMemoryImpl = struct {
 
     pub fn deinit(self: *MappedMemoryImpl) void {
         std.posix.munmap(self.buf);
-        std.posix.close(self.fd);
+        _ = std.c.close(self.fd);
     }
 
     pub fn alias(_: *MappedMemoryImpl, _: usize, _: usize, _: usize) void {
@@ -262,9 +263,9 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
         impl: RingBufferImpl,
 
         // Lock and Condition Variables
-        mutex: std.Thread.Mutex = .{},
-        cond_read_available: std.Thread.Condition = .{},
-        cond_write_available: std.Thread.Condition = .{},
+        mutex: sync.Mutex = .{},
+        cond_read_available: sync.Condition = .{},
+        cond_write_available: sync.Condition = .{},
 
         ////////////////////////////////////////////////////////////////////////
         // Constructor and Destructor
@@ -702,7 +703,7 @@ test "ThreadSafeRingBuffer write wait" {
         try std.testing.expectError(error.Timeout, writer.waitAvailable(5, std.time.ns_per_ms));
 
         const WriteWaiter = struct {
-            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
+            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *sync.ResetEvent) !void {
                 // Blocking wait for 7
                 _ = try wr.waitAvailable(7, null);
                 // Signal done
@@ -711,7 +712,7 @@ test "ThreadSafeRingBuffer write wait" {
         };
 
         // Spawn a thread that waits until writer has 7 available
-        var done_event = std.Thread.ResetEvent{};
+        var done_event = sync.ResetEvent{};
         var thread = try std.Thread.spawn(.{}, WriteWaiter.run, .{ &writer, &done_event });
 
         // Reader 1 read 1
@@ -762,7 +763,7 @@ test "ThreadSafeRingBuffer read wait" {
         try std.testing.expectError(error.Timeout, reader2.waitAvailable(8, std.time.ns_per_ms));
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
                 // Wait for 5
                 _ = try rd.waitAvailable(5, null);
                 // Signal done
@@ -771,7 +772,7 @@ test "ThreadSafeRingBuffer read wait" {
         };
 
         // Spawn a thread that waits until reader has 7 available
-        var done_event = std.Thread.ResetEvent{};
+        var done_event = sync.ResetEvent{};
         var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader1, &done_event });
 
         // Reader 2 read 2
@@ -888,7 +889,7 @@ test "ThreadSafeRingBuffer read wait eos" {
         var reader = ring_buffer.reader();
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
                 // Wait for 5
                 _ = rd.waitAvailable(5, null) catch 0;
                 // Signal done
@@ -897,7 +898,7 @@ test "ThreadSafeRingBuffer read wait eos" {
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = std.Thread.ResetEvent{};
+        var done_event = sync.ResetEvent{};
         var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
 
         // Done event should not be set
@@ -932,7 +933,7 @@ test "ThreadSafeRingBuffer read wait eos with partial read" {
         var reader = ring_buffer.reader();
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *std.Thread.ResetEvent) !void {
+            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
                 // Wait for 5
                 _ = rd.waitAvailable(5, null) catch 0;
                 // Signal done
@@ -941,7 +942,7 @@ test "ThreadSafeRingBuffer read wait eos with partial read" {
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = std.Thread.ResetEvent{};
+        var done_event = sync.ResetEvent{};
         var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
 
         // Done event should not be set
@@ -988,7 +989,7 @@ test "ThreadSafeRingBuffer write wait eos" {
         writer.update(7);
 
         const ReadWaiter = struct {
-            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *std.Thread.ResetEvent) !void {
+            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *sync.ResetEvent) !void {
                 // Wait for 1
                 _ = wr.waitAvailable(1, null) catch 0;
                 // Signal done
@@ -997,7 +998,7 @@ test "ThreadSafeRingBuffer write wait eos" {
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = std.Thread.ResetEvent{};
+        var done_event = sync.ResetEvent{};
         var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &writer, &done_event });
 
         // Done event should not be set

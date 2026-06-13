@@ -1,4 +1,5 @@
 const std = @import("std");
+const sync = @import("sync.zig");
 
 const util = @import("util.zig");
 const platform = @import("platform.zig");
@@ -11,6 +12,56 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 const ThreadSafeRingBufferSampleMux = @import("sample_mux.zig").ThreadSafeRingBufferSampleMux;
 const RawBlockRunner = @import("runner.zig").RawBlockRunner;
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
+
+////////////////////////////////////////////////////////////////////////////////
+// Managed AutoArrayHashMap (Zig 0.16 removed the managed variant from std)
+////////////////////////////////////////////////////////////////////////////////
+
+fn AutoArrayHashMap(comptime K: type, comptime V: type) type {
+    return struct {
+        const Self = @This();
+        const Unmanaged = std.AutoArrayHashMapUnmanaged(K, V);
+
+        unmanaged: Unmanaged = .{},
+        allocator: std.mem.Allocator,
+
+        pub fn init(allocator: std.mem.Allocator) Self {
+            return .{ .allocator = allocator };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.unmanaged.deinit(self.allocator);
+        }
+
+        pub fn put(self: *Self, key: K, value: V) !void {
+            return self.unmanaged.put(self.allocator, key, value);
+        }
+
+        pub fn get(self: Self, key: K) ?V {
+            return self.unmanaged.get(key);
+        }
+
+        pub fn getPtr(self: Self, key: K) ?*V {
+            return self.unmanaged.getPtr(key);
+        }
+
+        pub fn contains(self: Self, key: K) bool {
+            return self.unmanaged.contains(key);
+        }
+
+        pub fn count(self: Self) usize {
+            return self.unmanaged.count();
+        }
+
+        pub fn keys(self: Self) []K {
+            return self.unmanaged.keys();
+        }
+
+        pub fn values(self: Self) []V {
+            return self.unmanaged.values();
+        }
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Flowgraph Errors
@@ -67,11 +118,11 @@ const BlockOutputPort = struct {
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !std.AutoArrayHashMap(*Block, void) {
+fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !AutoArrayHashMap(*Block, void) {
     var block_set_copy = try block_set.cloneWithAllocator(allocator);
     defer block_set_copy.deinit();
 
-    var evaluation_order = std.AutoArrayHashMap(*Block, void).init(allocator);
+    var evaluation_order = AutoArrayHashMap(*Block, void).init(allocator);
     errdefer evaluation_order.deinit();
 
     const num_blocks = block_set_copy.count();
@@ -111,8 +162,8 @@ const FlowgraphRunState = struct {
     const BlockRunner = union(enum) { raw: RawBlockRunner, threaded: ThreadedBlockRunner };
 
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
-    sample_muxes: std.AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux),
-    block_runners: std.AutoArrayHashMap(*Block, BlockRunner),
+    sample_muxes: AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux),
+    block_runners: AutoArrayHashMap(*Block, BlockRunner),
 
     const RING_BUFFER_SIZE = 8 * 1048576;
 
@@ -126,14 +177,14 @@ const FlowgraphRunState = struct {
         }
 
         // Allocate sample mux map
-        var sample_muxes = std.AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux).init(allocator);
+        var sample_muxes = AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux).init(allocator);
         errdefer {
             for (sample_muxes.values()) |*sample_mux| sample_mux.deinit();
             sample_muxes.deinit();
         }
 
         // Allocate block runner map
-        var block_runners = std.AutoArrayHashMap(*Block, BlockRunner).init(allocator);
+        var block_runners = AutoArrayHashMap(*Block, BlockRunner).init(allocator);
         errdefer {
             for (block_runners.values()) |*block_runner| switch (block_runner.*) {
                 inline else => |*r| r.deinit(),
@@ -382,7 +433,7 @@ pub const Flowgraph = struct {
         }
     }
 
-    pub fn _propagateRates(self: *Flowgraph, evaluation_order: *const std.AutoArrayHashMap(*Block, void)) !void {
+    pub fn _propagateRates(self: *Flowgraph, evaluation_order: *const AutoArrayHashMap(*Block, void)) !void {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Get upstream rate
@@ -431,7 +482,7 @@ pub const Flowgraph = struct {
         }
     }
 
-    fn _dump(self: *Flowgraph, evaluation_order: *std.AutoArrayHashMap(*Block, void)) void {
+    fn _dump(self: *Flowgraph, evaluation_order: *AutoArrayHashMap(*Block, void)) void {
         std.debug.print("[Flowgraph] Flowgraph:\n", .{});
 
         // For each block in the evaluation order
@@ -1581,7 +1632,7 @@ test "Flowgraph start, stop" {
     try top.start();
 
     // Run for 1 ms
-    std.Thread.sleep(std.time.ns_per_ms);
+    sync.sleep(std.time.ns_per_ms);
 
     // Stop flow graph and check for success
     try std.testing.expectEqual(true, try top.stop());

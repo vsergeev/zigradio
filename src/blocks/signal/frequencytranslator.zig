@@ -184,7 +184,7 @@ pub const _FrequencyTranslatorBlockZigImpl = struct {
         }
 
         while (@abs(self.phase) > 2 * std.math.pi) {
-            self.phase -= std.math.sign(self.omega) * 2 * std.math.pi;
+            self.phase -= std.math.copysign(@as(@TypeOf(self.phase), 2 * std.math.pi), self.omega);
         }
 
         return ProcessResult.init(&[1]usize{x.len}, &[1]usize{x.len});

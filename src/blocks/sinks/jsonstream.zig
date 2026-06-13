@@ -3,7 +3,7 @@
 // are serialized individually and newline delimited.
 // @category Sinks
 // @ctparam T type Any type serializable by `std.json.stringify()`
-// @param writer *std.io.Writer Writer
+// @param writer *std.Io.Writer Writer
 // @param options Options Additional options
 // @signature in1:T >
 // @usage
@@ -30,10 +30,10 @@ pub fn JSONStreamSink(comptime T: type) type {
         pub const Options = struct {};
 
         block: Block,
-        writer: *std.io.Writer,
+        writer: *std.Io.Writer,
         options: Options,
 
-        pub fn init(writer: *std.io.Writer, options: Options) Self {
+        pub fn init(writer: *std.Io.Writer, options: Options) Self {
             return .{ .block = Block.init(@This()), .writer = writer, .options = options };
         }
 
@@ -56,7 +56,7 @@ const BlockFixture = @import("../../radio.zig").testing.BlockFixture;
 
 test "JSONStreamSink" {
     var buf: [128]u8 = undefined;
-    var writer = std.io.Writer.fixed(&buf);
+    var writer = std.Io.Writer.fixed(&buf);
 
     const Foo = struct {
         a: u32,
@@ -81,7 +81,7 @@ test "JSONStreamSink" {
 
     try std.testing.expectEqualSlices(u8, output_json, writer.buffered());
 
-    writer = std.io.Writer.fixed(&buf);
+    writer = std.Io.Writer.fixed(&buf);
 
     // Test sample by sample
     for (input_samples) |sample| {

@@ -298,7 +298,7 @@ const BenchmarkSuite: []const BenchmarkSpec = &[_]BenchmarkSpec{
 ////////////////////////////////////////////////////////////////////////////////
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     const allocator = gpa.allocator();
 
     const args = try std.process.argsAlloc(allocator);

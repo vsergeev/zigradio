@@ -2,19 +2,18 @@ const std = @import("std");
 
 const radio = @import("radio");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
-    const args = try std.process.argsAlloc(gpa.allocator());
-    defer std.process.argsFree(gpa.allocator(), args);
-
-    if (args.len < 3) {
-        std.debug.print("Usage: {s} <frequency> <sideband>\n", .{args[0]});
-        std.posix.exit(1);
+pub fn main(init: std.process.Init) !void {
+    var args_it = std.process.Args.Iterator.init(init.minimal.args);
+    const prog = args_it.next() orelse "example";
+    const frequency_arg = args_it.next();
+    const sideband_arg = args_it.next();
+    if (sideband_arg == null) {
+        std.debug.print("Usage: {s} <frequency> <sideband>\n", .{prog});
+        std.process.exit(1);
     }
 
-    const frequency = try std.fmt.parseFloat(f64, args[1]);
-    const sideband: enum { LSB, USB } = if (std.mem.eql(u8, args[2], "lsb")) .LSB else .USB;
+    const frequency = try std.fmt.parseFloat(f64, frequency_arg.?);
+    const sideband: enum { LSB, USB } = if (std.mem.eql(u8, sideband_arg.?, "lsb")) .LSB else .USB;
     const tune_offset = -50e3;
     const bandwidth = 3e3;
 
@@ -27,7 +26,7 @@ pub fn main() !void {
     var af_downsampler = radio.blocks.DownsamplerBlock(f32).init(2);
     var sink = radio.blocks.PulseAudioSink(1).init();
 
-    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &tuner.block);
     try top.connect(&tuner.block, &sb_filter.block);
