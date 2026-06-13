@@ -17,6 +17,15 @@ const std = @import("std");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
+// Zig 0.16 removed std.time.milliTimestamp; use libC clock_gettime.
+extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
+
+fn milliTimestamp() u64 {
+    var ts: std.c.timespec = undefined;
+    _ = clock_gettime(std.c.CLOCK.REALTIME, &ts);
+    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Benchmark Sink
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,11 +50,11 @@ pub fn BenchmarkSink(comptime T: type) type {
 
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
             self.count = 0;
-            self.tic_ms = @as(u64, @intCast(std.time.milliTimestamp()));
+            self.tic_ms = milliTimestamp();
         }
 
         pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
-            const toc_ms = @as(u64, @intCast(std.time.milliTimestamp()));
+            const toc_ms = milliTimestamp();
             self.report(toc_ms);
         }
 
@@ -81,7 +90,7 @@ pub fn BenchmarkSink(comptime T: type) type {
         pub fn process(self: *Self, x: []const T) !ProcessResult {
             self.count += x.len;
 
-            const toc_ms = @as(u64, @intCast(std.time.milliTimestamp()));
+            const toc_ms = milliTimestamp();
             if (toc_ms - self.tic_ms > self.options.report_period_ms) {
                 self.report(toc_ms);
             }

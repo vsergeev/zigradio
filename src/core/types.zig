@@ -11,10 +11,10 @@ pub const ComptimeTypeSignature = struct {
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
         const process_args = @typeInfo(@TypeOf(process_fn)).@"fn".params[1..];
 
-        var _comptime_inputs: [process_args.len]type = undefined;
-        var _comptime_outputs: [process_args.len]type = undefined;
-        var num_inputs: usize = 0;
-        var num_outputs: usize = 0;
+        comptime var _comptime_inputs: [process_args.len]type = undefined;
+        comptime var _comptime_outputs: [process_args.len]type = undefined;
+        comptime var num_inputs: usize = 0;
+        comptime var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
             const arg_is_input = @typeInfo(arg.type orelse unreachable).pointer.is_const;
@@ -142,7 +142,7 @@ test "ComptimeTypeSignature.init" {
     const TestProcess00 = struct {
         fn process(_: *@This()) void {}
     };
-    const ts00 = ComptimeTypeSignature.init(TestProcess00.process);
+    const ts00 = comptime ComptimeTypeSignature.init(TestProcess00.process);
     try std.testing.expectEqual(0, ts00.inputs.len);
     try std.testing.expectEqual(0, ts00.outputs.len);
 
@@ -150,7 +150,7 @@ test "ComptimeTypeSignature.init" {
     const TestProcess10 = struct {
         fn process(_: *@This(), _: []const u32) void {}
     };
-    const ts10 = ComptimeTypeSignature.init(TestProcess10.process);
+    const ts10 = comptime ComptimeTypeSignature.init(TestProcess10.process);
     try std.testing.expectEqual(1, ts10.inputs.len);
     try std.testing.expectEqual(u32, ts10.inputs[0]);
     try std.testing.expectEqual(0, ts10.outputs.len);
@@ -159,7 +159,7 @@ test "ComptimeTypeSignature.init" {
     const TestProcess01 = struct {
         fn process(_: *@This(), _: []u32) void {}
     };
-    const ts01 = ComptimeTypeSignature.init(TestProcess01.process);
+    const ts01 = comptime ComptimeTypeSignature.init(TestProcess01.process);
     try std.testing.expectEqual(0, ts01.inputs.len);
     try std.testing.expectEqual(1, ts01.outputs.len);
     try std.testing.expectEqual(u32, ts01.outputs[0]);
@@ -168,7 +168,7 @@ test "ComptimeTypeSignature.init" {
     const TestProcess11 = struct {
         fn process(_: *@This(), _: []const u16, _: []u8) void {}
     };
-    const ts11 = ComptimeTypeSignature.init(TestProcess11.process);
+    const ts11 = comptime ComptimeTypeSignature.init(TestProcess11.process);
     try std.testing.expectEqual(1, ts11.inputs.len);
     try std.testing.expectEqual(u16, ts11.inputs[0]);
     try std.testing.expectEqual(1, ts11.outputs.len);
@@ -178,7 +178,7 @@ test "ComptimeTypeSignature.init" {
     const TestProcess22 = struct {
         fn process(_: *@This(), _: []const u16, _: []const u32, _: []u8, _: []bool) void {}
     };
-    const ts22 = ComptimeTypeSignature.init(TestProcess22.process);
+    const ts22 = comptime ComptimeTypeSignature.init(TestProcess22.process);
     try std.testing.expectEqual(2, ts22.inputs.len);
     try std.testing.expectEqual(u16, ts22.inputs[0]);
     try std.testing.expectEqual(u32, ts22.inputs[1]);
@@ -188,7 +188,7 @@ test "ComptimeTypeSignature.init" {
 }
 
 test "ComptimeTypeSignature.fromTypes" {
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ f32, u16 }, &[1]type{u8});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ f32, u16 }, &[1]type{u8});
     try std.testing.expectEqual(2, ts.inputs.len);
     try std.testing.expectEqual(f32, ts.inputs[0]);
     try std.testing.expectEqual(u16, ts.inputs[1]);

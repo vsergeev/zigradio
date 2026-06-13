@@ -1,5 +1,7 @@
 const std = @import("std");
 
+extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
+
 const util = @import("util.zig");
 const platform = @import("platform.zig");
 
@@ -268,12 +270,16 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const TemporaryFile = struct {
-    file: std.fs.File,
+    io: std.Io,
+    file: std.Io.File,
 
-    pub fn create() !TemporaryFile {
+    pub fn create(io: std.Io) !TemporaryFile {
         // Generate random filename
         var random_bytes: [12]u8 = undefined;
-        std.crypto.random.bytes(&random_bytes);
+        var ts: std.c.timespec = undefined;
+        _ = clock_gettime(std.c.CLOCK.REALTIME, &ts);
+        var prng = std.Random.DefaultPrng.init(@bitCast(@as(i64, ts.nsec) *% 1_000_000_007 +% @as(i64, ts.sec)));
+        prng.random().bytes(&random_bytes);
         var random_name: [std.fs.base64_encoder.calcSize(random_bytes.len)]u8 = undefined;
         _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
@@ -282,31 +288,31 @@ pub const TemporaryFile = struct {
         defer std.testing.allocator.free(random_file_path);
 
         // Create the file
-        const file = try std.fs.createFileAbsolute(random_file_path, .{ .read = true });
+        const file = try std.Io.Dir.createFileAbsolute(io, random_file_path, .{ .read = true });
         // Unlink the file
-        try std.fs.deleteFileAbsolute(random_file_path);
+        try std.Io.Dir.deleteFileAbsolute(io, random_file_path);
 
-        return .{ .file = file };
+        return .{ .io = io, .file = file };
     }
 
     pub fn write(self: *TemporaryFile, data: []const u8) !void {
         // Truncate file
-        try self.file.setEndPos(0);
+        try self.file.setLength(self.io, 0);
 
         // Write file
-        var writer = self.file.writer(&.{});
+        var writer = self.file.writer(self.io, &.{});
         try writer.interface.writeAll(data);
         try writer.interface.flush();
     }
 
     pub fn read(self: *TemporaryFile, buffer: []u8) !usize {
         // Read file
-        var reader = self.file.reader(&.{});
+        var reader = self.file.reader(self.io, &.{});
         return try reader.interface.readSliceShort(buffer);
     }
 
     pub fn close(self: *TemporaryFile) void {
-        self.file.close();
+        self.file.close(self.io);
     }
 };
 
@@ -570,17 +576,21 @@ test "BlockFixture for Source" {
 }
 
 test "TemporaryFile low-level write/read" {
+    var threaded: std.Io.Threaded = .init(std.testing.allocator, .{});
+    defer threaded.deinit();
+    const io = threaded.io();
+
     // Create temporary file
-    var tmpfile = try TemporaryFile.create();
+    var tmpfile = try TemporaryFile.create(io);
     defer tmpfile.close();
 
     // Write to file
-    var writer = tmpfile.file.writer(&.{});
+    var writer = tmpfile.file.writer(io, &.{});
     try writer.interface.writeAll("testing");
     try writer.interface.flush();
 
     // Read from file
-    var reader = tmpfile.file.reader(&.{});
+    var reader = tmpfile.file.reader(io, &.{});
     var buf: [16]u8 = undefined;
     const count = try reader.interface.readSliceShort(&buf);
 
@@ -589,8 +599,12 @@ test "TemporaryFile low-level write/read" {
 }
 
 test "TemporaryFile high-level write/read" {
+    var threaded: std.Io.Threaded = .init(std.testing.allocator, .{});
+    defer threaded.deinit();
+    const io = threaded.io();
+
     // Create temporary file
-    var tmpfile = try TemporaryFile.create();
+    var tmpfile = try TemporaryFile.create(io);
     defer tmpfile.close();
 
     // Write

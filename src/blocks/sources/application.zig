@@ -41,6 +41,7 @@
 // try src.push(std.math.Complex(f32).init(2, 3));
 
 const std = @import("std");
+const sync = @import("../../core/sync.zig");
 
 const Block = @import("../../radio.zig").Block;
 const SampleMux = @import("../../core/sample_mux.zig").SampleMux;
@@ -253,7 +254,7 @@ test "ApplicationSource blocking wait" {
     try std.testing.expectError(error.Timeout, application_source.wait(2, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(source: *ApplicationSource(u32), done: *std.Thread.ResetEvent) !void {
+        fn run(source: *ApplicationSource(u32), done: *sync.ResetEvent) !void {
             // Wait for two samples availability
             try source.wait(2, null);
             // Signal done
@@ -262,7 +263,7 @@ test "ApplicationSource blocking wait" {
     };
 
     // Spawn a thread that blocks until two samples are available
-    var done_event = std.Thread.ResetEvent{};
+    var done_event = sync.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &application_source, &done_event });
 
     // Check thread is blocking

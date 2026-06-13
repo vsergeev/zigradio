@@ -1,4 +1,5 @@
 const std = @import("std");
+const sync = @import("sync.zig");
 
 const util = @import("util.zig");
 
@@ -401,7 +402,7 @@ test "TestSampleMux multiple input, single output" {
     const ibuf1: [8]u8 align(4) = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
     const ibuf2: [8]u8 align(4) = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{});
     defer test_sample_mux.deinit();
@@ -448,10 +449,10 @@ test "TestSampleMux multiple input, single output" {
 }
 
 test "TestSampleMux single input samples" {
-    const ibuf1: [8]u8 = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
-    const ibuf2: [8]u8 = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
+    const ibuf1: [8]u8 align(4) = .{ 0xaa, 0xbb, 0xcc, 0xdd, 0xab, 0xcd, 0xee, 0xff };
+    const ibuf2: [8]u8 align(4) = .{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
 
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u32, u32 }, &[1]type{u16});
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ &ibuf1, &ibuf2 }, .{ .single_input_samples = true });
     defer test_sample_mux.deinit();
@@ -488,7 +489,7 @@ test "TestSampleMux single input samples" {
 }
 
 test "TestSampleMux single output samples" {
-    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{u32});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{u32});
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([0][]const u8{}, .{ .single_output_samples = true });
     defer test_sample_mux.deinit();
@@ -511,7 +512,7 @@ test "TestSampleMux single output samples" {
 }
 
 test "ThreadSafeRingBufferSampleMux single input, single output" {
-    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -617,7 +618,7 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
 }
 
 test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -697,7 +698,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
 }
 
 test "ThreadSafeRingBufferSampleMux only inputs" {
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[0]type{});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[0]type{});
 
     // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -763,7 +764,7 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
 }
 
 test "ThreadSafeRingBufferSampleMux only outputs" {
-    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[2]type{ u32, u8 });
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[2]type{ u32, u8 });
 
     // Create ring buffers
     var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -816,7 +817,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
 }
 
 test "ThreadSafeRingBufferSampleMux read eos" {
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[1]type{u32});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[1]type{u32});
 
     // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -907,7 +908,7 @@ test "ThreadSafeRingBufferSampleMux read eos" {
 }
 
 test "ThreadSafeRingBufferSampleMux write eos" {
-    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -966,7 +967,7 @@ test "ThreadSafeRingBufferSampleMux write eos" {
 }
 
 test "ThreadSafeRingBufferSampleMux broken stream" {
-    const ts = ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -998,7 +999,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
         return error.SkipZigTest;
     }
 
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -1033,7 +1034,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
+        fn run(sm: *SampleMux, done: *sync.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
             _buffers.* = try sm.get(ts);
             // Signal done
@@ -1043,7 +1044,7 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
 
     // Spawn a thread that blocks until sample buffers are available
     var buffers: SampleMux.SampleBuffers(ts) = undefined;
-    var done_event = std.Thread.ResetEvent{};
+    var done_event = sync.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
     // Check thread is blocking
@@ -1083,7 +1084,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
         return error.SkipZigTest;
     }
 
-    const ts = ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -1126,7 +1127,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     try std.testing.expectError(error.Timeout, sample_mux.wait(ts, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(sm: *SampleMux, done: *std.Thread.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
+        fn run(sm: *SampleMux, done: *sync.ResetEvent, _buffers: *SampleMux.SampleBuffers(ts)) !void {
             // Wait for update buffers
             _buffers.* = try sm.get(ts);
             // Signal done
@@ -1136,7 +1137,7 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
 
     // Spawn a thread that blocks until sample buffers are available
     var buffers: SampleMux.SampleBuffers(ts) = undefined;
-    var done_event = std.Thread.ResetEvent{};
+    var done_event = sync.ResetEvent{};
     var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &sample_mux, &done_event, &buffers });
 
     // Check thread is blocking
@@ -1189,7 +1190,7 @@ const Foo = struct {
 };
 
 test "RefCounted output with no readers" {
-    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -1224,7 +1225,7 @@ test "RefCounted output with no readers" {
 }
 
 test "RefCounted output with one reader" {
-    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -1256,7 +1257,7 @@ test "RefCounted output with one reader" {
 }
 
 test "RefCounted output with two readers" {
-    const ts = ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
@@ -1289,7 +1290,7 @@ test "RefCounted output with two readers" {
 }
 
 test "RefCounted input" {
-    const ts = ComptimeTypeSignature.fromTypes(&[1]type{RefCounted(Foo)}, &[0]type{});
+    const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{RefCounted(Foo)}, &[0]type{});
 
     // Create ring buffers
     var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);

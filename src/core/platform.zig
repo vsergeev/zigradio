@@ -28,13 +28,9 @@ fn isTruthy(value: []const u8) bool {
     return false;
 }
 
-fn lookupEnvFlag(allocator: std.mem.Allocator, key: []const u8) !bool {
-    if (std.process.getEnvVarOwned(allocator, key)) |env_var| {
-        defer allocator.free(env_var);
-        return isTruthy(env_var);
-    } else |_| {
-        return false;
-    }
+fn lookupEnvFlag(_: std.mem.Allocator, key: [:0]const u8) !bool {
+    const env_var = std.c.getenv(key.ptr) orelse return false;
+    return isTruthy(std.mem.span(env_var));
 }
 
 pub fn initialize(allocator: std.mem.Allocator) !void {

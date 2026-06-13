@@ -143,7 +143,7 @@ pub const Block = struct {
         }
 
         // Derive type signature from process method
-        const type_signature = ComptimeTypeSignature.init(BlockType.process);
+        const type_signature = comptime ComptimeTypeSignature.init(BlockType.process);
         if (type_signature.inputs.len == 0 and !@hasDecl(BlockType, "setRate")) {
             @compileError("Source block " ++ @typeName(BlockType) ++ " is missing the setRate() method.");
         }
@@ -196,14 +196,14 @@ pub const Block = struct {
     // Raw Block Constructor
     ////////////////////////////////////////////////////////////////////////////
 
-    pub fn initRaw(comptime BlockType: type, input_data_types: []const type, output_data_types: []const type) Block {
+    pub fn initRaw(comptime BlockType: type, comptime input_data_types: []const type, comptime output_data_types: []const type) Block {
         // Raw block needs to have a start method
         if (!@hasDecl(BlockType, "start")) {
             @compileError("Block " ++ @typeName(BlockType) ++ " is missing the start() method.");
         }
 
         // Construct type signature
-        const type_signature = ComptimeTypeSignature.fromTypes(input_data_types, output_data_types);
+        const type_signature = comptime ComptimeTypeSignature.fromTypes(input_data_types, output_data_types);
         if (type_signature.inputs.len == 0 and !@hasDecl(BlockType, "setRate")) {
             @compileError("Source block " ++ @typeName(BlockType) ++ " is missing the setRate() method.");
         }
@@ -409,7 +409,7 @@ test "Block.process" {
 
     var test_block = TestAddBlock.init();
 
-    const ts = ComptimeTypeSignature.init(TestAddBlock.process);
+    const ts = comptime ComptimeTypeSignature.init(TestAddBlock.process);
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([2][]const u8{ ibuf1[0..], ibuf2[0..] }, .{});
     defer test_sample_mux.deinit();
@@ -427,7 +427,7 @@ test "Block.process" {
 test "Block.process eos" {
     var test_source = TestSource.init();
 
-    const ts = ComptimeTypeSignature.init(TestSource.process);
+    const ts = comptime ComptimeTypeSignature.init(TestSource.process);
 
     var test_sample_mux = try TestSampleMux(ts.inputs, ts.outputs).init([0][]const u8{}, .{});
     defer test_sample_mux.deinit();
