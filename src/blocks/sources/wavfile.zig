@@ -67,20 +67,21 @@ pub fn WAVFileSource(comptime N: comptime_int) type {
         };
 
         block: Block,
-        file: *std.fs.File,
+        io: std.Io,
+        file: *std.Io.File,
         options: Options,
 
         rate: u32 = 0,
-        reader: std.fs.File.Reader = undefined,
+        reader: std.Io.File.Reader = undefined,
         reader_buffer: [16384]u8 = undefined,
         converter: SampleFormat.Converter = undefined,
 
-        pub fn init(file: *std.fs.File, options: Options) Self {
-            return .{ .block = Block.init(@This()), .file = file, .options = options };
+        pub fn init(io: std.Io, file: *std.Io.File, options: Options) Self {
+            return .{ .block = Block.init(@This()), .io = io, .file = file, .options = options };
         }
 
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
-            self.reader = self.file.reader(&self.reader_buffer);
+            self.reader = self.file.reader(self.io, &self.reader_buffer);
 
             // Read headers
             const riff_header = try self.reader.interface.takeStruct(RiffHeader, .little);
@@ -179,14 +180,18 @@ const expectEqualVectors = @import("../../radio.zig").testing.expectEqualVectors
 const vectors = @import("../../vectors/blocks/sources/wavfile.zig");
 
 test "WAVFileSource" {
+    var threaded: std.Io.Threaded = .init(std.testing.allocator, .{});
+    defer threaded.deinit();
+    const io = threaded.io();
+
     // Create temporary file
-    var tmpfile = try TemporaryFile.create();
+    var tmpfile = try TemporaryFile.create(io);
     defer tmpfile.close();
 
     // u8, 1 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_u8_1ch);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
         try tester.checkSource(.{&vectors.samples_u8_ch0}, .{});
     }
@@ -194,7 +199,7 @@ test "WAVFileSource" {
     // s16, 1 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_s16_1ch);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
         try tester.checkSource(.{&vectors.samples_s16_ch0}, .{});
     }
@@ -202,7 +207,7 @@ test "WAVFileSource" {
     // s32, 1 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_s32_1ch);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[1]type{f32}).init(&block.block, 1e-6);
         try tester.checkSource(.{&vectors.samples_s32_ch0}, .{});
     }
@@ -210,7 +215,7 @@ test "WAVFileSource" {
     // u8, 2 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_u8_2ch);
-        var block = WAVFileSource(2).init(&tmpfile.file, .{});
+        var block = WAVFileSource(2).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[2]type{ f32, f32 }).init(&block.block, 1e-6);
         try tester.checkSource(.{ &vectors.samples_u8_ch0, &vectors.samples_u8_ch1 }, .{});
     }
@@ -218,7 +223,7 @@ test "WAVFileSource" {
     // s16, 2 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_s16_2ch);
-        var block = WAVFileSource(2).init(&tmpfile.file, .{});
+        var block = WAVFileSource(2).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[2]type{ f32, f32 }).init(&block.block, 1e-6);
         try tester.checkSource(.{ &vectors.samples_s16_ch0, &vectors.samples_s16_ch1 }, .{});
     }
@@ -226,7 +231,7 @@ test "WAVFileSource" {
     // s32, 2 channel
     {
         try tmpfile.write(&vectors.bytes_wavfile_s32_2ch);
-        var block = WAVFileSource(2).init(&tmpfile.file, .{});
+        var block = WAVFileSource(2).init(io, &tmpfile.file, .{});
         var tester = try BlockTester(&[0]type{}, &[2]type{ f32, f32 }).init(&block.block, 1e-6);
         try tester.checkSource(.{ &vectors.samples_s32_ch0, &vectors.samples_s32_ch1 }, .{});
     }
@@ -234,7 +239,7 @@ test "WAVFileSource" {
     // s16, 1 channel, repeat on eof
     {
         try tmpfile.write(&vectors.bytes_wavfile_s16_1ch);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{ .repeat_on_eof = true });
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{ .repeat_on_eof = true });
         var fixture = try BlockFixture(&[0]type{}, &[1]type{f32}).init(&block.block, 0);
         defer fixture.deinit();
 
@@ -248,7 +253,7 @@ test "WAVFileSource" {
     // s16, 2 channel, repeat on eof
     {
         try tmpfile.write(&vectors.bytes_wavfile_s16_2ch);
-        var block = WAVFileSource(2).init(&tmpfile.file, .{ .repeat_on_eof = true });
+        var block = WAVFileSource(2).init(io, &tmpfile.file, .{ .repeat_on_eof = true });
         var fixture = try BlockFixture(&[0]type{}, &[2]type{ f32, f32 }).init(&block.block, 0);
         defer fixture.deinit();
 
@@ -266,7 +271,7 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[0] = 'A';
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
     }
 
@@ -275,7 +280,7 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[8] = 'A';
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
     }
 
@@ -284,7 +289,7 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[@sizeOf(RiffHeader)] = 'A';
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
     }
 
@@ -293,7 +298,7 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[@sizeOf(RiffHeader) + @sizeOf(WaveSubchunk1Header)] = 'A';
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
     }
 
@@ -302,7 +307,7 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[@sizeOf(RiffHeader) + 8] = 2;
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.UnsupportedAudioFormat, block.initialize(std.testing.allocator));
     }
 
@@ -311,14 +316,14 @@ test "WAVFileSource" {
         var buf = vectors.bytes_wavfile_u8_1ch;
         buf[@sizeOf(RiffHeader) + 22] = 64;
         try tmpfile.write(&buf);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.UnsupportedBitsPerSample, block.initialize(std.testing.allocator));
     }
 
     // Num channels mismatch
     {
         try tmpfile.write(&vectors.bytes_wavfile_u8_2ch);
-        var block = WAVFileSource(1).init(&tmpfile.file, .{});
+        var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
         try std.testing.expectError(error.NumChannelsMismatch, block.initialize(std.testing.allocator));
     }
 }

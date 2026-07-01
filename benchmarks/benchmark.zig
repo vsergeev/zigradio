@@ -12,9 +12,18 @@ const BENCHMARK_TRIAL_DURATION_MS = 5000;
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 
+// Zig 0.16 removed std.Thread.sleep; use libC nanosleep.
+fn sleepMs(milliseconds: u64) void {
+    const ts: std.c.timespec = .{
+        .sec = @intCast(milliseconds / 1000),
+        .nsec = @intCast((milliseconds % 1000) * 1_000_000),
+    };
+    _ = std.c.nanosleep(&ts, null);
+}
+
 fn benchmark_run(flowgraph: *radio.Flowgraph) !void {
     try flowgraph.start();
-    std.Thread.sleep(BENCHMARK_TRIAL_DURATION_MS * 1e6);
+    sleepMs(BENCHMARK_TRIAL_DURATION_MS);
     _ = try flowgraph.stop();
 }
 
@@ -297,14 +306,12 @@ const BenchmarkSuite: []const BenchmarkSpec = &[_]BenchmarkSpec{
 // Entry Point
 ////////////////////////////////////////////////////////////////////////////////
 
-pub fn main() !void {
-    var gpa = std.heap.DebugAllocator(.{}){};
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-
-    const benchmark_filter: ?[]const u8 = if (args.len > 1) args[1] else null;
+    var args_it = std.process.Args.Iterator.init(init.minimal.args);
+    _ = args_it.next(); // skip program name
+    const benchmark_filter: ?[]const u8 = args_it.next();
 
     for (BenchmarkSuite) |benchmark| {
         if (benchmark_filter != null and std.ascii.indexOfIgnoreCase(benchmark.name, benchmark_filter.?) == null) continue;

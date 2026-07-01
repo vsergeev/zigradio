@@ -45,6 +45,10 @@ fn AutoArrayHashMap(comptime K: type, comptime V: type) type {
             return self.unmanaged.getPtr(key);
         }
 
+        pub fn getIndex(self: Self, key: K) ?usize {
+            return self.unmanaged.getIndex(key);
+        }
+
         pub fn contains(self: Self, key: K) bool {
             return self.unmanaged.contains(key);
         }
