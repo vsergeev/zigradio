@@ -14,60 +14,6 @@ const RawBlockRunner = @import("runner.zig").RawBlockRunner;
 const ThreadedBlockRunner = @import("runner.zig").ThreadedBlockRunner;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Managed AutoArrayHashMap (Zig 0.16 removed the managed variant from std)
-////////////////////////////////////////////////////////////////////////////////
-
-fn AutoArrayHashMap(comptime K: type, comptime V: type) type {
-    return struct {
-        const Self = @This();
-        const Unmanaged = std.AutoArrayHashMapUnmanaged(K, V);
-
-        unmanaged: Unmanaged = .{},
-        allocator: std.mem.Allocator,
-
-        pub fn init(allocator: std.mem.Allocator) Self {
-            return .{ .allocator = allocator };
-        }
-
-        pub fn deinit(self: *Self) void {
-            self.unmanaged.deinit(self.allocator);
-        }
-
-        pub fn put(self: *Self, key: K, value: V) !void {
-            return self.unmanaged.put(self.allocator, key, value);
-        }
-
-        pub fn get(self: Self, key: K) ?V {
-            return self.unmanaged.get(key);
-        }
-
-        pub fn getPtr(self: Self, key: K) ?*V {
-            return self.unmanaged.getPtr(key);
-        }
-
-        pub fn getIndex(self: Self, key: K) ?usize {
-            return self.unmanaged.getIndex(key);
-        }
-
-        pub fn contains(self: Self, key: K) bool {
-            return self.unmanaged.contains(key);
-        }
-
-        pub fn count(self: Self) usize {
-            return self.unmanaged.count();
-        }
-
-        pub fn keys(self: Self) []K {
-            return self.unmanaged.keys();
-        }
-
-        pub fn values(self: Self) []V {
-            return self.unmanaged.values();
-        }
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Flowgraph Errors
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,12 +68,12 @@ const BlockOutputPort = struct {
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !AutoArrayHashMap(*Block, void) {
+fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !std.array_hash_map.Auto(*Block, void) {
     var block_set_copy = try block_set.cloneWithAllocator(allocator);
     defer block_set_copy.deinit();
 
-    var evaluation_order = AutoArrayHashMap(*Block, void).init(allocator);
-    errdefer evaluation_order.deinit();
+    var evaluation_order: std.array_hash_map.Auto(*Block, void) = .empty;
+    errdefer evaluation_order.deinit(allocator);
 
     const num_blocks = block_set_copy.count();
     while (evaluation_order.count() < num_blocks) {
@@ -152,7 +98,7 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
 
         // Move the block from our set to our evaluation order
         _ = block_set_copy.remove(next_block.?);
-        try evaluation_order.put(next_block.?, {});
+        try evaluation_order.put(allocator, next_block.?, {});
     }
 
     return evaluation_order;
@@ -165,9 +111,10 @@ fn buildEvaluationOrder(allocator: std.mem.Allocator, flattened_connections: *co
 const FlowgraphRunState = struct {
     const BlockRunner = union(enum) { raw: RawBlockRunner, threaded: ThreadedBlockRunner };
 
+    allocator: std.mem.Allocator,
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
-    sample_muxes: AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux),
-    block_runners: AutoArrayHashMap(*Block, BlockRunner),
+    sample_muxes: std.array_hash_map.Auto(*Block, ThreadSafeRingBufferSampleMux),
+    block_runners: std.array_hash_map.Auto(*Block, BlockRunner),
 
     const RING_BUFFER_SIZE = 8 * 1048576;
 
@@ -181,19 +128,19 @@ const FlowgraphRunState = struct {
         }
 
         // Allocate sample mux map
-        var sample_muxes = AutoArrayHashMap(*Block, ThreadSafeRingBufferSampleMux).init(allocator);
+        var sample_muxes: std.array_hash_map.Auto(*Block, ThreadSafeRingBufferSampleMux) = .empty;
         errdefer {
             for (sample_muxes.values()) |*sample_mux| sample_mux.deinit();
-            sample_muxes.deinit();
+            sample_muxes.deinit(allocator);
         }
 
         // Allocate block runner map
-        var block_runners = AutoArrayHashMap(*Block, BlockRunner).init(allocator);
+        var block_runners: std.array_hash_map.Auto(*Block, BlockRunner) = .empty;
         errdefer {
             for (block_runners.values()) |*block_runner| switch (block_runner.*) {
                 inline else => |*r| r.deinit(),
             };
-            block_runners.deinit();
+            block_runners.deinit(allocator);
         }
 
         // For each block output, create an output ring buffer
@@ -231,7 +178,7 @@ const FlowgraphRunState = struct {
             }
 
             // Create sample mux
-            try sample_muxes.put(block.*, try ThreadSafeRingBufferSampleMux.init(allocator, input_ring_buffers.items, output_ring_buffers.items));
+            try sample_muxes.put(allocator, block.*, try ThreadSafeRingBufferSampleMux.init(allocator, input_ring_buffers.items, output_ring_buffers.items));
         }
 
         // For each block, create a block runner
@@ -239,13 +186,14 @@ const FlowgraphRunState = struct {
         while (block_it.next()) |block| {
             // Create block runner
             if (block.*.raw) {
-                try block_runners.put(block.*, .{ .raw = try RawBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+                try block_runners.put(allocator, block.*, .{ .raw = try RawBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
             } else {
-                try block_runners.put(block.*, .{ .threaded = try ThreadedBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+                try block_runners.put(allocator, block.*, .{ .threaded = try ThreadedBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
             }
         }
 
         return .{
+            .allocator = allocator,
             .ring_buffers = ring_buffers,
             .sample_muxes = sample_muxes,
             .block_runners = block_runners,
@@ -256,10 +204,10 @@ const FlowgraphRunState = struct {
         for (self.block_runners.values()) |*block_runner| switch (block_runner.*) {
             inline else => |*r| r.deinit(),
         };
-        self.block_runners.deinit();
+        self.block_runners.deinit(self.allocator);
 
         for (self.sample_muxes.values()) |*sample_mux| sample_mux.deinit();
-        self.sample_muxes.deinit();
+        self.sample_muxes.deinit(self.allocator);
 
         var ring_buffers_it = self.ring_buffers.valueIterator();
         while (ring_buffers_it.next()) |ring_buffer| ring_buffer.deinit();
@@ -437,7 +385,7 @@ pub const Flowgraph = struct {
         }
     }
 
-    pub fn _propagateRates(self: *Flowgraph, evaluation_order: *const AutoArrayHashMap(*Block, void)) !void {
+    pub fn _propagateRates(self: *Flowgraph, evaluation_order: *const std.array_hash_map.Auto(*Block, void)) !void {
         // For each block in the evaluation order
         for (evaluation_order.keys()) |block| {
             // Get upstream rate
@@ -461,7 +409,7 @@ pub const Flowgraph = struct {
 
         // Build the evaluation order
         var evaluation_order = try buildEvaluationOrder(self.allocator, &self.flattened_connections, &self.block_set);
-        defer evaluation_order.deinit();
+        defer evaluation_order.deinit(self.allocator);
 
         // Propagate rates through flowgraph
         try self._propagateRates(&evaluation_order);
@@ -486,7 +434,7 @@ pub const Flowgraph = struct {
         }
     }
 
-    fn _dump(self: *Flowgraph, evaluation_order: *AutoArrayHashMap(*Block, void)) void {
+    fn _dump(self: *Flowgraph, evaluation_order: *std.array_hash_map.Auto(*Block, void)) void {
         std.debug.print("[Flowgraph] Flowgraph:\n", .{});
 
         // For each block in the evaluation order
@@ -943,7 +891,7 @@ test "buildEvaluationOrder" {
     try top.connect(&b8.block, &b9.block);
 
     var evaluation_order = try buildEvaluationOrder(top.allocator, &top.flattened_connections, &top.block_set);
-    defer evaluation_order.deinit();
+    defer evaluation_order.deinit(top.allocator);
 
     try std.testing.expectEqual(@as(usize, 9), evaluation_order.count());
     try std.testing.expect(evaluation_order.contains(&b1.block));
