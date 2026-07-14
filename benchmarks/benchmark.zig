@@ -12,18 +12,9 @@ const BENCHMARK_TRIAL_DURATION_MS = 5000;
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 
-// Zig 0.16 removed std.Thread.sleep; use libC nanosleep.
-fn sleepMs(milliseconds: u64) void {
-    const ts: std.c.timespec = .{
-        .sec = @intCast(milliseconds / 1000),
-        .nsec = @intCast((milliseconds % 1000) * 1_000_000),
-    };
-    _ = std.c.nanosleep(&ts, null);
-}
-
 fn benchmark_run(flowgraph: *radio.Flowgraph) !void {
     try flowgraph.start();
-    sleepMs(BENCHMARK_TRIAL_DURATION_MS);
+    try flowgraph.io.sleep(.fromMilliseconds(BENCHMARK_TRIAL_DURATION_MS), .awake);
     _ = try flowgraph.stop();
 }
 
