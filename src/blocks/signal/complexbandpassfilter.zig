@@ -47,7 +47,7 @@ pub fn ComplexBandpassFilterBlock(comptime N: comptime_int) type {
             return .{ .block = Block.init(@This()), .cutoffs = cutoffs, .options = options, .filter = FIRFilter(std.math.Complex(f32), std.math.Complex(f32)).init() };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             // Compute Nyquist frequency
             const nyquist = self.options.nyquist orelse (self.block.getRate(f32) / 2);
 
@@ -58,7 +58,7 @@ pub fn ComplexBandpassFilterBlock(comptime N: comptime_int) type {
             return self.filter.initialize(allocator, taps[0..]);
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             self.filter.deinitialize(allocator);
         }
 

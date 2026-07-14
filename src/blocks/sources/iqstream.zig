@@ -44,7 +44,7 @@ pub const IQStreamSource = struct {
         return .{ .block = Block.init(@This()), .reader = reader, .rate = rate, .options = options, .converter = format.converter() };
     }
 
-    pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
         self.offset = 0;
     }
 

@@ -139,7 +139,7 @@ pub const AirspyHFSource = struct {
         return self.rate;
     }
 
-    pub fn initialize(self: *AirspyHFSource, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *AirspyHFSource, _: std.mem.Allocator, _: std.Io) !void {
         // Open libairspyhf library
         if (!airspyhf_loaded) {
             var lib = try std.DynLib.open("libairspyhf.so");
@@ -267,7 +267,7 @@ pub const AirspyHFSource = struct {
         }
     }
 
-    pub fn deinitialize(self: *AirspyHFSource, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *AirspyHFSource, _: std.mem.Allocator, _: std.Io) void {
         // Close device
         if (self.dev != null) {
             const ret = airspyhf_close(self.dev);

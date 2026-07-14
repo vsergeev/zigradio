@@ -35,7 +35,7 @@ pub const FrequencyTranslatorBlock = struct {
         return .{ .block = Block.init(@This()), .offset = offset };
     }
 
-    pub fn initialize(self: *FrequencyTranslatorBlock, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *FrequencyTranslatorBlock, allocator: std.mem.Allocator, _: std.Io) !void {
         if (platform.libs.volk != null) {
             self.impl = .{ .volk = .{ .parent = self } };
         } else if (platform.libs.liquid != null) {
@@ -50,7 +50,7 @@ pub const FrequencyTranslatorBlock = struct {
         }
     }
 
-    pub fn deinitialize(self: *FrequencyTranslatorBlock, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *FrequencyTranslatorBlock, allocator: std.mem.Allocator, _: std.Io) void {
         switch (self.impl) {
             .none => unreachable,
             inline else => |*impl| impl.deinitialize(allocator),

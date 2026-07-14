@@ -35,7 +35,7 @@ pub const MultiplyConjugateBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(self: *MultiplyConjugateBlock, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *MultiplyConjugateBlock, allocator: std.mem.Allocator, _: std.Io) !void {
         if (platform.libs.volk != null) {
             self.impl = .{ .volk = .{} };
         } else {
@@ -48,7 +48,7 @@ pub const MultiplyConjugateBlock = struct {
         }
     }
 
-    pub fn deinitialize(self: *MultiplyConjugateBlock, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *MultiplyConjugateBlock, allocator: std.mem.Allocator, _: std.Io) void {
         switch (self.impl) {
             .none => unreachable,
             inline else => |*impl| impl.deinitialize(allocator),

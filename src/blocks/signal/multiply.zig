@@ -41,7 +41,7 @@ pub fn MultiplyBlock(comptime T: type) type {
             return .{ .block = Block.init(@This()) };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             if (platform.libs.volk != null) {
                 self.impl = .{ .volk = .{} };
             } else if (platform.libs.liquid != null) {
@@ -56,7 +56,7 @@ pub fn MultiplyBlock(comptime T: type) type {
             }
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             switch (self.impl) {
                 .none => unreachable,
                 inline else => |*impl| impl.deinitialize(allocator),

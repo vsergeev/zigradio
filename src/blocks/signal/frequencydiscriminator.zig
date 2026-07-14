@@ -35,7 +35,7 @@ pub const FrequencyDiscriminatorBlock = struct {
         return .{ .block = Block.init(@This()), .deviation = deviation };
     }
 
-    pub fn initialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator, _: std.Io) !void {
         if (platform.libs.volk != null) {
             self.impl = .{ .volk = .{ .parent = self } };
         } else if (platform.libs.liquid != null) {
@@ -51,7 +51,7 @@ pub const FrequencyDiscriminatorBlock = struct {
         }
     }
 
-    pub fn deinitialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *FrequencyDiscriminatorBlock, allocator: std.mem.Allocator, _: std.Io) void {
         switch (self.impl) {
             .none => unreachable,
             inline else => |*impl| impl.deinitialize(allocator),

@@ -52,7 +52,7 @@ pub const ComplexPLLBlock = struct {
         return .{ .block = Block.init(@This()), .loop_bandwidth = loop_bandwidth, .frequency_range = frequency_range, .options = options };
     }
 
-    pub fn initialize(self: *ComplexPLLBlock, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *ComplexPLLBlock, _: std.mem.Allocator, _: std.Io) !void {
         // Translate frequencies
         self.omega_min = 2 * std.math.pi * (self.frequency_range[0] / self.block.getRate(f32));
         self.omega_max = 2 * std.math.pi * (self.frequency_range[1] / self.block.getRate(f32));

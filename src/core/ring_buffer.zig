@@ -271,7 +271,7 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
         // Constructor and Destructor
         ////////////////////////////////////////////////////////////////////////
 
-        pub fn init(allocator: std.mem.Allocator, capacity: usize) !Self {
+        pub fn init(allocator: std.mem.Allocator, _: std.Io, capacity: usize) !Self {
             return .{ .impl = try RingBufferImpl.init(allocator, capacity) };
         }
 
@@ -674,7 +674,7 @@ test "ThreadSafeRingBuffer write wait" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -740,7 +740,7 @@ test "ThreadSafeRingBuffer read wait" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -815,7 +815,7 @@ test "ThreadSafeRingBuffer read eos" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -850,7 +850,7 @@ test "ThreadSafeRingBuffer write eos" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -882,7 +882,7 @@ test "ThreadSafeRingBuffer read wait eos" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -926,7 +926,7 @@ test "ThreadSafeRingBuffer read wait eos with partial read" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();
@@ -979,7 +979,7 @@ test "ThreadSafeRingBuffer write wait eos" {
     inline for ([_]type{CopiedMemoryImpl}) |MemoryImpl| {
         const ThreadSafeRingBufferType = comptime _ThreadSafeRingBuffer(RingBuffer(MemoryImpl));
 
-        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, 8);
+        var ring_buffer = try ThreadSafeRingBufferType.init(std.testing.allocator, std.testing.io, 8);
         defer ring_buffer.deinit();
 
         var writer = ring_buffer.writer();

@@ -27,21 +27,21 @@ pub const ProcessResult = struct {
 // Helper Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-fn wrapInitializeFunction(comptime BlockType: type, comptime initializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) anyerror!void) fn (self: *Block, allocator: std.mem.Allocator) anyerror!void {
+fn wrapInitializeFunction(comptime BlockType: type, comptime initializeFn: fn (self: *BlockType, allocator: std.mem.Allocator, io: std.Io) anyerror!void) fn (self: *Block, allocator: std.mem.Allocator, io: std.Io) anyerror!void {
     const gen = struct {
-        fn initialize(block: *Block, allocator: std.mem.Allocator) anyerror!void {
+        fn initialize(block: *Block, allocator: std.mem.Allocator, io: std.Io) anyerror!void {
             const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
-            try initializeFn(self, allocator);
+            try initializeFn(self, allocator, io);
         }
     };
     return gen.initialize;
 }
 
-fn wrapDeinitializeFunction(comptime BlockType: type, comptime deinitializeFn: fn (self: *BlockType, allocator: std.mem.Allocator) void) fn (self: *Block, allocator: std.mem.Allocator) void {
+fn wrapDeinitializeFunction(comptime BlockType: type, comptime deinitializeFn: fn (self: *BlockType, allocator: std.mem.Allocator, io: std.Io) void) fn (self: *Block, allocator: std.mem.Allocator, io: std.Io) void {
     const gen = struct {
-        fn deinitialize(block: *Block, allocator: std.mem.Allocator) void {
+        fn deinitialize(block: *Block, allocator: std.mem.Allocator, io: std.Io) void {
             const self: *BlockType = @alignCast(@fieldParentPtr("block", block));
-            deinitializeFn(self, allocator);
+            deinitializeFn(self, allocator, io);
         }
     };
     return gen.deinitialize;
@@ -121,8 +121,8 @@ pub const Block = struct {
     outputs: []const []const u8,
     type_signature: RuntimeTypeSignature,
     set_rate_fn: ?*const fn (self: *Block, upstream_rate: f64) anyerror!f64,
-    initialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) anyerror!void,
-    deinitialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator) void,
+    initialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator, io: std.Io) anyerror!void,
+    deinitialize_fn: ?*const fn (self: *Block, allocator: std.mem.Allocator, io: std.Io) void,
     process_fn: ?*const fn (self: *Block, sample_mux: SampleMux) anyerror!ProcessResult,
 
     // Raw mode
@@ -176,12 +176,12 @@ pub const Block = struct {
         self.rate = if (self.set_rate_fn) |set_rate_fn| try set_rate_fn(self, rate) else rate;
     }
 
-    pub fn initialize(self: *Block, allocator: std.mem.Allocator) !void {
-        if (self.initialize_fn) |initialize_fn| try initialize_fn(self, allocator);
+    pub fn initialize(self: *Block, allocator: std.mem.Allocator, io: std.Io) !void {
+        if (self.initialize_fn) |initialize_fn| try initialize_fn(self, allocator, io);
     }
 
-    pub fn deinitialize(self: *Block, allocator: std.mem.Allocator) void {
-        if (self.deinitialize_fn) |deinitialize_fn| deinitialize_fn(self, allocator);
+    pub fn deinitialize(self: *Block, allocator: std.mem.Allocator, io: std.Io) void {
+        if (self.deinitialize_fn) |deinitialize_fn| deinitialize_fn(self, allocator, io);
     }
 
     pub fn process(self: *Block, sample_mux: SampleMux) !ProcessResult {
@@ -265,11 +265,11 @@ const TestBlock = struct {
         return upstream_rate / 2;
     }
 
-    pub fn initialize(self: *TestBlock, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestBlock, _: std.mem.Allocator, _: std.Io) !void {
         self.initialize_called = true;
     }
 
-    pub fn deinitialize(self: *TestBlock, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock, _: std.mem.Allocator, _: std.Io) void {
         self.initialize_called = false;
     }
 
@@ -356,9 +356,9 @@ test "Block.initialize and Block.deinitialize" {
     var test_block = TestBlock.init();
 
     try std.testing.expectEqual(false, test_block.initialize_called);
-    try test_block.block.initialize(std.testing.allocator);
+    try test_block.block.initialize(std.testing.allocator, std.testing.io);
     try std.testing.expectEqual(true, test_block.initialize_called);
-    test_block.block.deinitialize(std.testing.allocator);
+    test_block.block.deinitialize(std.testing.allocator, std.testing.io);
     try std.testing.expectEqual(false, test_block.initialize_called);
 }
 
@@ -445,11 +445,11 @@ test "Block.process eos" {
 test "Block.process SampleMux read eos" {
     var b: [4]u8 = .{0x00} ** 4;
 
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer output1_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -502,7 +502,7 @@ test "Block.process SampleMux read eos" {
 test "Block.process SampleMux write eos" {
     var b: [2]u8 = .{0x00} ** 2;
 
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces

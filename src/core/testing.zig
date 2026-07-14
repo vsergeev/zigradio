@@ -119,8 +119,8 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 if (hooks.setup) |setup| try setup(hooks.context);
 
                 // Initialize block
-                try self.instance.initialize(std.testing.allocator);
-                defer self.instance.deinitialize(std.testing.allocator);
+                try self.instance.initialize(std.testing.allocator, std.testing.io);
+                defer self.instance.deinitialize(std.testing.allocator, std.testing.io);
 
                 // Create sample mux
                 var tester_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(input_buffers, .{ .single_input_samples = single_samples });
@@ -162,8 +162,8 @@ pub fn BlockTester(comptime input_data_types: []const type, comptime output_data
                 if (hooks.setup) |setup| try setup(hooks.context);
 
                 // Initialize block
-                try self.instance.initialize(std.testing.allocator);
-                defer self.instance.deinitialize(std.testing.allocator);
+                try self.instance.initialize(std.testing.allocator, std.testing.io);
+                defer self.instance.deinitialize(std.testing.allocator, std.testing.io);
 
                 // Create sample mux
                 var tester_sample_mux = try TestSampleMux(&[0]type{}, output_data_types).init([0][]const u8{}, .{ .single_output_samples = single_samples });
@@ -212,14 +212,14 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             try platform.initialize(std.testing.allocator);
 
             try instance.setRate(rate);
-            try instance.initialize(std.testing.allocator);
+            try instance.initialize(std.testing.allocator, std.testing.io);
 
             return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(.{&[_]u8{}} ** input_data_types.len, .{ .num_readers = 1 }) };
         }
 
         pub fn deinit(self: *Self) void {
             self.test_sample_mux.deinit();
-            self.instance.deinitialize(std.testing.allocator);
+            self.instance.deinitialize(std.testing.allocator, std.testing.io);
         }
 
         pub fn process(self: *Self, input_vectors: util.makeTupleConstSliceTypes(input_data_types)) !util.makeTupleConstSliceTypes(output_data_types) {
@@ -331,11 +331,11 @@ const TestBlock1 = struct {
         return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn initialize(self: *TestBlock1, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestBlock1, _: std.mem.Allocator, _: std.Io) !void {
         self.initialized = 1;
     }
 
-    pub fn deinitialize(self: *TestBlock1, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock1, _: std.mem.Allocator, _: std.Io) void {
         self.initialized += 10;
     }
 
@@ -355,11 +355,11 @@ const TestBlock2 = struct {
         return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn initialize(self: *TestBlock2, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestBlock2, _: std.mem.Allocator, _: std.Io) !void {
         self.initialized = 2;
     }
 
-    pub fn deinitialize(self: *TestBlock2, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock2, _: std.mem.Allocator, _: std.Io) void {
         self.initialized += 20;
     }
 
@@ -379,11 +379,11 @@ const TestBlock3 = struct {
         return .{ .block = Block.init(@This()), .initialized = 0 };
     }
 
-    pub fn initialize(self: *TestBlock3, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestBlock3, _: std.mem.Allocator, _: std.Io) !void {
         self.initialized = 3;
     }
 
-    pub fn deinitialize(self: *TestBlock3, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestBlock3, _: std.mem.Allocator, _: std.Io) void {
         self.initialized += 30;
     }
 
@@ -452,14 +452,14 @@ const TestSource = struct {
         return 8000;
     }
 
-    pub fn initialize(self: *TestSource, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *TestSource, _: std.mem.Allocator, _: std.Io) !void {
         if (self.error_on_initialize) {
             return error.NotImplemented;
         }
         self.counter = 1;
     }
 
-    pub fn deinitialize(self: *TestSource, _: std.mem.Allocator) void {
+    pub fn deinitialize(self: *TestSource, _: std.mem.Allocator, _: std.Io) void {
         self.counter = 123;
     }
 

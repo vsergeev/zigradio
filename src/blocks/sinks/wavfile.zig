@@ -88,7 +88,7 @@ pub fn WAVFileSink(comptime N: comptime_int) type {
             };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.writer = self.file.writer(self.io, &self.writer_buffer);
             self.samples_written = 0;
 
@@ -96,7 +96,7 @@ pub fn WAVFileSink(comptime N: comptime_int) type {
             try self.writer.seekTo(@sizeOf(RiffHeader) + @sizeOf(WaveSubchunk1Header) + @sizeOf(WaveSubchunk2Header));
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             // Lookup bits per sample
             const bits_per_sample: usize = switch (self.options.format) {
                 .u8 => 8,

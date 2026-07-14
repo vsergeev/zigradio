@@ -38,7 +38,7 @@ pub fn DownsamplerBlock(comptime T: type) type {
             return upstream_rate / @as(f64, @floatFromInt(self.factor));
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.index = 0;
         }
 

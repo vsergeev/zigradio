@@ -27,7 +27,7 @@ pub const RectangularMatchedFilterBlock = struct {
         return .{ .block = Block.init(@This()), .baudrate = baudrate, .filter = FIRFilter(f32, f32).init() };
     }
 
-    pub fn initialize(self: *RectangularMatchedFilterBlock, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *RectangularMatchedFilterBlock, allocator: std.mem.Allocator, _: std.Io) !void {
         // Generate taps
         const taps = try allocator.alloc(f32, @intFromFloat(self.block.getRate(f32) / self.baudrate));
         defer allocator.free(taps);
@@ -37,7 +37,7 @@ pub const RectangularMatchedFilterBlock = struct {
         return self.filter.initialize(allocator, taps[0..]);
     }
 
-    pub fn deinitialize(self: *RectangularMatchedFilterBlock, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *RectangularMatchedFilterBlock, allocator: std.mem.Allocator, _: std.Io) void {
         self.filter.deinitialize(allocator);
     }
 

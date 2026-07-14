@@ -66,7 +66,7 @@ pub fn AGCBlock(comptime T: type) type {
             return .{ .block = Block.init(@This()), .mode = mode, .options = options };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             // Linearize logarithmic power target
             self.target = std.math.pow(f32, 10, self.options.target_dbfs / 10);
             // Linearize logarithmic power threshold

@@ -27,7 +27,7 @@ pub fn main(init: std.process.Init) !void {
     var source = radio.blocks.IQStreamSource.init(&input_reader.interface, input_format, 0, .{});
     var sink = radio.blocks.IQStreamSink.init(&output_writer.interface, output_format, .{});
 
-    var top = radio.Flowgraph.init(init.gpa, .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &sink.block);
 

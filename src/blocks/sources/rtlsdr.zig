@@ -99,7 +99,7 @@ pub const RtlSdrSource = struct {
         return self.rate;
     }
 
-    pub fn initialize(self: *RtlSdrSource, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *RtlSdrSource, allocator: std.mem.Allocator, _: std.Io) !void {
         // Open librtlsdr library
         if (!rtlsdr_loaded) {
             var lib = try std.DynLib.open("librtlsdr.so");
@@ -274,7 +274,7 @@ pub const RtlSdrSource = struct {
         self.buf = try allocator.alloc(u8, 16 * 2 * MIN_BLOCK_SIZE);
     }
 
-    pub fn deinitialize(self: *RtlSdrSource, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *RtlSdrSource, allocator: std.mem.Allocator, _: std.Io) void {
         // Turn off bias tee if it was enabled
         if (self.options.bias_tee) {
             // Turn off bias tee

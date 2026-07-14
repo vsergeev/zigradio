@@ -33,7 +33,7 @@ pub const ComplexMagnitudeBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(self: *ComplexMagnitudeBlock, allocator: std.mem.Allocator) !void {
+    pub fn initialize(self: *ComplexMagnitudeBlock, allocator: std.mem.Allocator, _: std.Io) !void {
         if (platform.libs.volk != null) {
             self.impl = .{ .volk = .{ .parent = self } };
         } else {
@@ -46,7 +46,7 @@ pub const ComplexMagnitudeBlock = struct {
         }
     }
 
-    pub fn deinitialize(self: *ComplexMagnitudeBlock, allocator: std.mem.Allocator) void {
+    pub fn deinitialize(self: *ComplexMagnitudeBlock, allocator: std.mem.Allocator, _: std.Io) void {
         switch (self.impl) {
             .none => unreachable,
             inline else => |*impl| impl.deinitialize(allocator),

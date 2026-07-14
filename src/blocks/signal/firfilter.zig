@@ -40,11 +40,11 @@ pub fn FIRFilterBlock(comptime T: type, comptime U: type, comptime N: comptime_i
             return .{ .block = Block.init(@This()), .taps = taps, .filter = FIRFilter(T, U).init() };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             return self.filter.initialize(allocator, self.taps[0..]);
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             return self.filter.deinitialize(allocator);
         }
 

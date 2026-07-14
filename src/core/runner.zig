@@ -14,7 +14,7 @@ pub const RawBlockRunner = struct {
 
     running: bool = false,
 
-    pub fn init(_: std.mem.Allocator, block: *Block, sample_mux: SampleMux) !RawBlockRunner {
+    pub fn init(_: std.mem.Allocator, _: std.Io, block: *Block, sample_mux: SampleMux) !RawBlockRunner {
         return .{
             .block = block,
             .sample_mux = sample_mux,
@@ -67,7 +67,7 @@ pub const ThreadedBlockRunner = struct {
     call_event: sync.ResetEvent = .{},
     stop_event: sync.ResetEvent = .{},
 
-    pub fn init(_: std.mem.Allocator, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
+    pub fn init(_: std.mem.Allocator, _: std.Io, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
         return .{
             .block = block,
             .sample_mux = sample_mux,
@@ -333,7 +333,7 @@ test "TestRawBlock start, stop" {
     try test_block.block.setRate(8000);
 
     // Create block runners
-    var test_block_runner = try RawBlockRunner.init(std.testing.allocator, &test_block.block, test_block_sample_mux.sampleMux());
+    var test_block_runner = try RawBlockRunner.init(std.testing.allocator, std.testing.io, &test_block.block, test_block_sample_mux.sampleMux());
     defer test_block_runner.deinit();
 
     try std.testing.expectEqual(false, test_block.started);
@@ -363,9 +363,9 @@ test "ThreadedBlockRunner finite run" {
     var test_sink = TestSink.init();
 
     // Create ring buffers
-    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer1.deinit();
-    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer2.deinit();
 
     // Create sample muxes
@@ -382,11 +382,11 @@ test "ThreadedBlockRunner finite run" {
     try test_sink.block.setRate(8000);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, test_block_sample_mux.sampleMux());
+    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_block.block, test_block_sample_mux.sampleMux());
     defer test_block_runner.deinit();
-    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_sink.block, test_sink_sample_mux.sampleMux());
     defer test_sink_runner.deinit();
 
     // Spawn block runners
@@ -422,7 +422,7 @@ test "ThreadedBlockRunner infinite run" {
     var test_sink = TestSink2.init();
 
     // Create ring buffer
-    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer.deinit();
 
     // Create sample muxes
@@ -436,9 +436,9 @@ test "ThreadedBlockRunner infinite run" {
     try test_sink.block.setRate(8000);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_sink.block, test_sink_sample_mux.sampleMux());
     defer test_sink_runner.deinit();
 
     // Spawn block runners
@@ -474,7 +474,7 @@ test "ThreadedBlockRunner block errors" {
     var test_sink = TestErrorSink.init();
 
     // Create ring buffer
-    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer.deinit();
 
     // Create sample muxes
@@ -488,9 +488,9 @@ test "ThreadedBlockRunner block errors" {
     try test_sink.block.setRate(8000);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_sink.block, test_sink_sample_mux.sampleMux());
+    var test_sink_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_sink.block, test_sink_sample_mux.sampleMux());
     defer test_sink_runner.deinit();
 
     // Spawn block runners
@@ -522,9 +522,9 @@ test "ThreadedBlockRunner call" {
     var test_block = TestCallableBlock.init();
 
     // Create ring buffer
-    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer1 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer1.deinit();
-    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var ring_buffer2 = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer ring_buffer2.deinit();
 
     // Create sample muxes
@@ -537,9 +537,9 @@ test "ThreadedBlockRunner call" {
     try test_block.block.setRate(800);
 
     // Create block runners
-    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_source.block, test_source_sample_mux.sampleMux());
+    var test_source_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_source.block, test_source_sample_mux.sampleMux());
     defer test_source_runner.deinit();
-    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, &test_block.block, test_sink_sample_mux.sampleMux());
+    var test_block_runner = try ThreadedBlockRunner.init(std.testing.allocator, std.testing.io, &test_block.block, test_sink_sample_mux.sampleMux());
     defer test_block_runner.deinit();
 
     // Spawn block runners

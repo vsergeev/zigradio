@@ -33,11 +33,11 @@ pub fn DelayBlock(comptime T: type) type {
             return .{ .block = Block.init(@This()), .delay = delay };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             self.state = try allocator.alloc(T, self.delay);
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             allocator.free(self.state);
         }
 

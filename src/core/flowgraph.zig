@@ -112,13 +112,14 @@ const FlowgraphRunState = struct {
     const BlockRunner = union(enum) { raw: RawBlockRunner, threaded: ThreadedBlockRunner };
 
     allocator: std.mem.Allocator,
+    io: std.Io,
     ring_buffers: std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer),
     sample_muxes: std.array_hash_map.Auto(*Block, ThreadSafeRingBufferSampleMux),
     block_runners: std.array_hash_map.Auto(*Block, BlockRunner),
 
     const RING_BUFFER_SIZE = 8 * 1048576;
 
-    pub fn init(allocator: std.mem.Allocator, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !FlowgraphRunState {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, flattened_connections: *const std.AutoHashMap(BlockInputPort, BlockOutputPort), block_set: *const std.AutoHashMap(*Block, void)) !FlowgraphRunState {
         // Allocate ring buffer map
         var ring_buffers = std.AutoHashMap(BlockOutputPort, ThreadSafeRingBuffer).init(allocator);
         errdefer {
@@ -148,7 +149,7 @@ const FlowgraphRunState = struct {
         while (block_it.next()) |block| {
             for (0..block.*.outputs.len) |i| {
                 const output = BlockOutputPort{ .block = block.*, .index = i };
-                try ring_buffers.put(output, try ThreadSafeRingBuffer.init(allocator, RING_BUFFER_SIZE));
+                try ring_buffers.put(output, try ThreadSafeRingBuffer.init(allocator, io, RING_BUFFER_SIZE));
             }
         }
 
@@ -186,14 +187,15 @@ const FlowgraphRunState = struct {
         while (block_it.next()) |block| {
             // Create block runner
             if (block.*.raw) {
-                try block_runners.put(allocator, block.*, .{ .raw = try RawBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+                try block_runners.put(allocator, block.*, .{ .raw = try RawBlockRunner.init(allocator, io, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
             } else {
-                try block_runners.put(allocator, block.*, .{ .threaded = try ThreadedBlockRunner.init(allocator, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
+                try block_runners.put(allocator, block.*, .{ .threaded = try ThreadedBlockRunner.init(allocator, io, block.*, sample_muxes.getPtr(block.*).?.sampleMux()) });
             }
         }
 
         return .{
             .allocator = allocator,
+            .io = io,
             .ring_buffers = ring_buffers,
             .sample_muxes = sample_muxes,
             .block_runners = block_runners,
@@ -225,6 +227,7 @@ pub const Flowgraph = struct {
     };
 
     allocator: std.mem.Allocator,
+    io: std.Io,
     options: Options,
 
     input_aliases: std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)),
@@ -237,9 +240,10 @@ pub const Flowgraph = struct {
 
     run_state: ?FlowgraphRunState = null,
 
-    pub fn init(allocator: std.mem.Allocator, options: Options) Flowgraph {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, options: Options) Flowgraph {
         return .{
             .allocator = allocator,
+            .io = io,
             .options = options,
             .input_aliases = std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)).init(allocator),
             .output_aliases = std.AutoHashMap(OutputPort, OutputPort).init(allocator),
@@ -423,14 +427,14 @@ pub const Flowgraph = struct {
         try platform.initialize(self.allocator);
 
         // Initialize blocks
-        for (evaluation_order.keys()) |block| try block.initialize(self.allocator);
+        for (evaluation_order.keys()) |block| try block.initialize(self.allocator, self.io);
     }
 
     pub fn _deinitialize(self: *Flowgraph) void {
         // Deinitialize blocks
         var block_it = self.block_set.keyIterator();
         while (block_it.next()) |block| {
-            block.*.deinitialize(self.allocator);
+            block.*.deinitialize(self.allocator, self.io);
         }
     }
 
@@ -484,7 +488,7 @@ pub const Flowgraph = struct {
         try self._initialize();
 
         // Build run state
-        self.run_state = try FlowgraphRunState.init(self.allocator, &self.flattened_connections, &self.block_set);
+        self.run_state = try FlowgraphRunState.init(self.allocator, self.io, &self.flattened_connections, &self.block_set);
 
         // Spawn block runners
         for (self.run_state.?.block_runners.values()) |*block_runner| switch (block_runner.*) {
@@ -602,11 +606,11 @@ fn TestSource(comptime T: type) type {
             return self.rate;
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.initialized = true;
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             self.initialized = false;
         }
 
@@ -627,11 +631,11 @@ fn TestSink(comptime T: type) type {
             return .{ .block = Block.init(@This()) };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.initialized = true;
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             self.initialized = false;
         }
 
@@ -671,11 +675,11 @@ fn TestAddBlock(comptime T: type, comptime U: type) type {
             return .{ .block = Block.init(@This()) };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.initialized = true;
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             self.initialized = false;
         }
 
@@ -692,7 +696,7 @@ const TestErrorBlock = struct {
         return .{ .block = Block.init(@This()) };
     }
 
-    pub fn initialize(_: *TestErrorBlock, _: std.mem.Allocator) !void {
+    pub fn initialize(_: *TestErrorBlock, _: std.mem.Allocator, _: std.Io) !void {
         return error.NotImplemented;
     }
 
@@ -868,7 +872,7 @@ test "buildEvaluationOrder" {
     //        [6] -- [7] \- [8] -- [9]
     //
 
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -924,7 +928,7 @@ test "Flowgraph connect" {
 
     // Connect by port
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -969,7 +973,7 @@ test "Flowgraph connect" {
 
     // Connect linear
 
-    var top2 = Flowgraph.init(std.testing.allocator, .{});
+    var top2 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top2.deinit();
 
     try top2.connect(&b3.block, &b4.block);
@@ -1004,7 +1008,7 @@ test "Flowgraph connect" {
 
     // Connect errors
 
-    var top3 = Flowgraph.init(std.testing.allocator, .{});
+    var top3 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top3.deinit();
 
     try std.testing.expectError(FlowgraphError.InvalidPortCount, top3.connect(&b7.block, &b4.block));
@@ -1025,7 +1029,7 @@ test "Flowgraph validate" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1046,7 +1050,7 @@ test "Flowgraph validate" {
     //               |
     //               x
 
-    var top2 = Flowgraph.init(std.testing.allocator, .{});
+    var top2 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top2.deinit();
 
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a
@@ -1066,7 +1070,7 @@ test "Flowgraph initialize type signature validation" {
 
     // Connect by port
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1108,7 +1112,7 @@ test "Flowgraph initialize type signature validation" {
     //             [ 2 ]             [ 5 ] -> [ 8 ] -> [ 9 ]
     //
 
-    var top2 = Flowgraph.init(std.testing.allocator, .{});
+    var top2 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top2.deinit();
 
     try top2.connectPort(&b1.block, "out1", &b3.block, "in1"); // a f32
@@ -1131,7 +1135,7 @@ test "Flowgraph initialize rate validation" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1155,7 +1159,7 @@ test "Flowgraph initialize rate validation" {
     //             c |
     //             [ 6 ]
 
-    var top2 = Flowgraph.init(std.testing.allocator, .{});
+    var top2 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top2.deinit();
 
     var b5 = TestSource(f32).init(8000);
@@ -1181,7 +1185,7 @@ test "Flowgraph initialize and deinitialize blocks" {
     //             [ 2 ]
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1218,7 +1222,7 @@ test "Flowgraph initialize and deinitialize blocks" {
     //
     //
 
-    var top2 = Flowgraph.init(std.testing.allocator, .{});
+    var top2 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top2.deinit();
 
     var b5 = TestSource(f32).init(8000);
@@ -1250,7 +1254,7 @@ test "Flowgraph connect composite" {
     //             ------------------
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1310,7 +1314,7 @@ test "Flowgraph connect nested composite" {
     //             ------------------
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1377,7 +1381,7 @@ test "Flowgraph connect composite with unaliased composite input" {
     //             ------------------
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1395,7 +1399,7 @@ test "Flowgraph connect composite with unaliased composite output" {
     //             ------------------
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1420,7 +1424,7 @@ test "Flowgraph validate composite with unconnected input" {
     //             ------------------
     //
 
-    var top1 = Flowgraph.init(std.testing.allocator, .{});
+    var top1 = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top1.deinit();
 
     var b2 = TestCompositeBlock1.init();
@@ -1549,7 +1553,7 @@ test "Flowgraph run to completion" {
     }
 
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var source_block = TestBufferSource.init(&test_vector);
@@ -1569,7 +1573,7 @@ test "Flowgraph run to completion" {
 
 test "Flowgraph start, stop" {
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var source_block = TestRandomSource.init(123);
@@ -1604,7 +1608,7 @@ test "Flowgraph start, stop" {
 
 test "Flowgraph collapses on error" {
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var source_block = TestBufferSource.init(&(.{0x00} ** 8192));
@@ -1658,7 +1662,7 @@ const TestRawSource = struct {
 
 test "Flowgraph with raw and threaded blocks" {
     // Create flow graph
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var source_block = TestRawSource.init();
@@ -1745,7 +1749,7 @@ const TestCallableCompositeBlock = struct {
 };
 
 test "Flowgraph call block" {
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var b1 = TestSource(f32).init(8000);
@@ -1767,7 +1771,7 @@ test "Flowgraph call block" {
 }
 
 test "Flowgraph call composite" {
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     var b1 = TestSource(f32).init(8000);

@@ -80,7 +80,7 @@ pub fn WAVFileSource(comptime N: comptime_int) type {
             return .{ .block = Block.init(@This()), .io = io, .file = file, .options = options };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.reader = self.file.reader(self.io, &self.reader_buffer);
 
             // Read headers
@@ -272,7 +272,7 @@ test "WAVFileSource" {
         buf[0] = 'A';
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Invalid RIFF header format
@@ -281,7 +281,7 @@ test "WAVFileSource" {
         buf[8] = 'A';
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Invalid WAVE subchunk 1 header
@@ -290,7 +290,7 @@ test "WAVFileSource" {
         buf[@sizeOf(RiffHeader)] = 'A';
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Invalid WAVE subchunk 2 header
@@ -299,7 +299,7 @@ test "WAVFileSource" {
         buf[@sizeOf(RiffHeader) + @sizeOf(WaveSubchunk1Header)] = 'A';
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.InvalidHeader, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Unsupported audio format
@@ -308,7 +308,7 @@ test "WAVFileSource" {
         buf[@sizeOf(RiffHeader) + 8] = 2;
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.UnsupportedAudioFormat, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.UnsupportedAudioFormat, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Unsupported bits per sample
@@ -317,13 +317,13 @@ test "WAVFileSource" {
         buf[@sizeOf(RiffHeader) + 22] = 64;
         try tmpfile.write(&buf);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.UnsupportedBitsPerSample, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.UnsupportedBitsPerSample, block.initialize(std.testing.allocator, std.testing.io));
     }
 
     // Num channels mismatch
     {
         try tmpfile.write(&vectors.bytes_wavfile_u8_2ch);
         var block = WAVFileSource(1).init(io, &tmpfile.file, .{});
-        try std.testing.expectError(error.NumChannelsMismatch, block.initialize(std.testing.allocator));
+        try std.testing.expectError(error.NumChannelsMismatch, block.initialize(std.testing.allocator, std.testing.io));
     }
 }

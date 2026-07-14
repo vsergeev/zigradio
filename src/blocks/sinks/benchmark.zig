@@ -48,12 +48,12 @@ pub fn BenchmarkSink(comptime T: type) type {
             return .{ .block = Block.init(@This()), .options = options };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.count = 0;
             self.tic_ms = milliTimestamp();
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             const toc_ms = milliTimestamp();
             self.report(toc_ms);
         }

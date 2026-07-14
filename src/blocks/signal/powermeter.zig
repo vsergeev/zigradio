@@ -46,7 +46,7 @@ pub fn PowerMeterBlock(comptime T: type) type {
             return .{ .block = Block.init(@This()), .report_interval_ms = report_interval_ms, .options = options };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
             self.average_power = 0.0;
             self.report_interval_index = 0;
         }

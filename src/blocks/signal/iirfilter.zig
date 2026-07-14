@@ -45,11 +45,11 @@ pub fn IIRFilterBlock(comptime T: type, comptime N: comptime_int, comptime M: co
             return .{ .block = Block.init(@This()), .filter = filter };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             return self.filter.initialize(allocator);
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             return self.filter.deinitialize(allocator);
         }
 

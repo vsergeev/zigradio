@@ -138,9 +138,9 @@ test "ApplicationSource rate" {
 
 test "ApplicationSource available, get, update, write, push, setEOS" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get output reader
@@ -215,9 +215,9 @@ test "ApplicationSource available, get, update, write, push, setEOS" {
 
 test "ApplicationSource blocking wait" {
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.pageSize());
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer output_ring_buffer.deinit();
 
     // Get output reader

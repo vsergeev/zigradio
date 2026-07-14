@@ -62,7 +62,7 @@ pub const SignalSource = struct {
         return self.rate;
     }
 
-    pub fn initialize(self: *SignalSource, _: std.mem.Allocator) !void {
+    pub fn initialize(self: *SignalSource, _: std.mem.Allocator, _: std.Io) !void {
         self.process_fn = switch (self.waveform) {
             .Cosine => _processCosine,
             .Sine => _processSine,

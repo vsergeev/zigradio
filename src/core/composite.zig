@@ -79,7 +79,7 @@ test "CompositeBlock.init" {
     try std.testing.expectEqualSlices(u8, test_block.block.outputs[0], "out1");
     try std.testing.expectEqualSlices(u8, test_block.block.outputs[1], "out2");
 
-    var top = Flowgraph.init(std.testing.allocator, .{});
+    var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
     try std.testing.expectEqual(false, test_block.connect_called);

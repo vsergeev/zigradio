@@ -38,7 +38,7 @@ pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
             return .{ .block = Block.init(@This()), .cutoff = cutoff, .filter = IIRFilter(T, 2, 2).init() };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             // Compute warped tau
             const rate = self.block.getRate(f32);
             const tau = 1 / (2 * rate * std.math.tan((std.math.pi * self.cutoff) / rate));
@@ -53,7 +53,7 @@ pub fn SinglepoleLowpassFilterBlock(comptime T: type) type {
             return self.filter.initialize(allocator);
         }
 
-        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             self.filter.deinitialize(allocator);
         }
 

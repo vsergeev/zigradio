@@ -515,9 +515,9 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -621,13 +621,13 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output1_ring_buffer.deinit();
-    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output2_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -701,9 +701,9 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[0]type{});
 
     // Create ring buffers
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input2_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -767,9 +767,9 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[2]type{ u32, u8 });
 
     // Create ring buffers
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output1_ring_buffer.deinit();
-    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output2_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -820,11 +820,11 @@ test "ThreadSafeRingBufferSampleMux read eos" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[1]type{u32});
 
     // Create ring buffers
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output1_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -911,9 +911,9 @@ test "ThreadSafeRingBufferSampleMux write eos" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -970,9 +970,9 @@ test "ThreadSafeRingBufferSampleMux broken stream" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{u16}, &[1]type{u32});
 
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input_ring_buffer.deinit();
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -1002,13 +1002,13 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output1_ring_buffer.deinit();
-    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output2_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -1087,13 +1087,13 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[2]type{ u16, u8 }, &[2]type{ u32, u8 });
 
     // Create ring buffers
-    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input1_ring_buffer.deinit();
-    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input2_ring_buffer.deinit();
-    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output1_ring_buffer.deinit();
-    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output2_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output2_ring_buffer.deinit();
 
     // Get ring buffer reader/write interfaces
@@ -1193,7 +1193,7 @@ test "RefCounted output with no readers" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Create ring buffer sample mux
@@ -1228,7 +1228,7 @@ test "RefCounted output with one reader" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Create reader
@@ -1260,7 +1260,7 @@ test "RefCounted output with two readers" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[0]type{}, &[1]type{RefCounted(Foo)});
 
     // Create ring buffers
-    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer output_ring_buffer.deinit();
 
     // Create two readers
@@ -1293,7 +1293,7 @@ test "RefCounted input" {
     const ts = comptime ComptimeTypeSignature.fromTypes(&[1]type{RefCounted(Foo)}, &[0]type{});
 
     // Create ring buffers
-    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.heap.page_size_min);
+    var input_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.page_size_min);
     defer input_ring_buffer.deinit();
 
     // Create one writer

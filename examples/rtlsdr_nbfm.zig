@@ -22,7 +22,7 @@ pub fn main(init: std.process.Init) !void {
     var af_downsampler = radio.blocks.DownsamplerBlock(f32).init(2);
     var sink = radio.blocks.PulseAudioSink(1).init();
 
-    var top = radio.Flowgraph.init(init.gpa, .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &tuner.block);
     try top.connect(&tuner.block, &fm_demod.block);

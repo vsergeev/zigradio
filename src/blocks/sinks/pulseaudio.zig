@@ -85,7 +85,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
             };
         }
 
-        pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
+        pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             // Open PulseAudio library
             if (!pa_simple_loaded) {
                 var lib = try std.DynLib.open("libpulse-simple.so");
@@ -115,7 +115,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
             if (N > 1) self.interleaved = std.array_list.Managed(f32).init(allocator);
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
+        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
             // Free interleaved array
             if (N > 1) self.interleaved.deinit();
 
