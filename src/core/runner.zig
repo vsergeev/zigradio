@@ -56,6 +56,7 @@ pub const RawBlockRunner = struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const ThreadedBlockRunner = struct {
+    io: std.Io,
     block: *Block,
     sample_mux: SampleMux,
 
@@ -67,8 +68,9 @@ pub const ThreadedBlockRunner = struct {
     call_event: sync.ResetEvent = .{},
     stop_event: sync.ResetEvent = .{},
 
-    pub fn init(_: std.mem.Allocator, _: std.Io, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
+    pub fn init(_: std.mem.Allocator, io: std.Io, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
         return .{
+            .io = io,
             .block = block,
             .sample_mux = sample_mux,
         };
@@ -89,7 +91,7 @@ pub const ThreadedBlockRunner = struct {
                         break;
                     } else if (runner.call_event.isSet()) {
                         // Give calling thread a chance to lock the mutex
-                        sync.sleep(std.time.ns_per_us);
+                        runner.io.sleep(.fromMicroseconds(1), .awake) catch {};
                     }
 
                     runner.mutex.lock();
@@ -446,7 +448,7 @@ test "ThreadedBlockRunner infinite run" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    sync.sleep(std.time.ns_per_ms);
+    try std.testing.io.sleep(.fromMilliseconds(1), .awake);
 
     // Stop source runner
     test_source_runner.stop();
@@ -498,7 +500,7 @@ test "ThreadedBlockRunner block errors" {
     try test_sink_runner.spawn();
 
     // Run for 1ms
-    sync.sleep(std.time.ns_per_ms);
+    try std.testing.io.sleep(.fromMilliseconds(1), .awake);
 
     // Join block runners
     test_source_runner.join();

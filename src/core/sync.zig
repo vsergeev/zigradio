@@ -19,14 +19,6 @@ fn deadlineFromNow(timeout_ns: u64) std.c.timespec {
     return ts;
 }
 
-pub fn sleep(nanoseconds: u64) void {
-    const ts: std.c.timespec = .{
-        .sec = @intCast(nanoseconds / std.time.ns_per_s),
-        .nsec = @intCast(nanoseconds % std.time.ns_per_s),
-    };
-    _ = std.c.nanosleep(&ts, null);
-}
-
 pub const Mutex = struct {
     inner: std.c.pthread_mutex_t = .{},
 

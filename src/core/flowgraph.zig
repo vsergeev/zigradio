@@ -1,5 +1,4 @@
 const std = @import("std");
-const sync = @import("sync.zig");
 
 const util = @import("util.zig");
 const platform = @import("platform.zig");
@@ -1588,7 +1587,7 @@ test "Flowgraph start, stop" {
     try top.start();
 
     // Run for 1 ms
-    sync.sleep(std.time.ns_per_ms);
+    try std.testing.io.sleep(.fromMilliseconds(1), .awake);
 
     // Stop flow graph and check for success
     try std.testing.expectEqual(true, try top.stop());
