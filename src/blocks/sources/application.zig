@@ -41,7 +41,6 @@
 // try src.push(std.math.Complex(f32).init(2, 3));
 
 const std = @import("std");
-const sync = @import("../../core/sync.zig");
 
 const Block = @import("../../radio.zig").Block;
 const SampleMux = @import("../../core/sample_mux.zig").SampleMux;
@@ -254,26 +253,26 @@ test "ApplicationSource blocking wait" {
     try std.testing.expectError(error.Timeout, application_source.wait(2, std.time.ns_per_ms));
 
     const BufferWaiter = struct {
-        fn run(source: *ApplicationSource(u32), done: *sync.ResetEvent) !void {
+        fn run(io: std.Io, source: *ApplicationSource(u32), done: *std.Io.Event) !void {
             // Wait for two samples availability
             try source.wait(2, null);
             // Signal done
-            done.set();
+            done.set(io);
         }
     };
 
     // Spawn a thread that blocks until two samples are available
-    var done_event = sync.ResetEvent{};
-    var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ &application_source, &done_event });
+    var done_event: std.Io.Event = .unset;
+    var thread = try std.Thread.spawn(.{}, BufferWaiter.run, .{ std.testing.io, &application_source, &done_event });
 
     // Check thread is blocking
-    try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+    try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
 
     // Consume 1 sample from output ring buffer
     output_reader.update(@sizeOf(u32));
 
     // Check buffer waiter completed
-    try done_event.timedWait(std.time.ns_per_ms);
+    try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
     try std.testing.expectEqual(true, done_event.isSet());
     thread.join();
 }

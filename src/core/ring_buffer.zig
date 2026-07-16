@@ -703,29 +703,29 @@ test "ThreadSafeRingBuffer write wait" {
         try std.testing.expectError(error.Timeout, writer.waitAvailable(5, std.time.ns_per_ms));
 
         const WriteWaiter = struct {
-            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *sync.ResetEvent) !void {
+            fn run(io: std.Io, wr: *ThreadSafeRingBufferType.Writer, done: *std.Io.Event) !void {
                 // Blocking wait for 7
                 _ = try wr.waitAvailable(7, null);
                 // Signal done
-                done.set();
+                done.set(io);
             }
         };
 
         // Spawn a thread that waits until writer has 7 available
-        var done_event = sync.ResetEvent{};
-        var thread = try std.Thread.spawn(.{}, WriteWaiter.run, .{ &writer, &done_event });
+        var done_event: std.Io.Event = .unset;
+        var thread = try std.Thread.spawn(.{}, WriteWaiter.run, .{ std.testing.io, &writer, &done_event });
 
         // Reader 1 read 1
         reader1.update(1);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Reader 2 read 2
         reader2.update(2);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Reader 3 read 3
         reader3.update(3);
 
         // Check write waiter completed
-        try done_event.timedWait(std.time.ns_per_ms);
+        try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
     }
@@ -763,30 +763,30 @@ test "ThreadSafeRingBuffer read wait" {
         try std.testing.expectError(error.Timeout, reader2.waitAvailable(8, std.time.ns_per_ms));
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
+            fn run(io: std.Io, rd: *ThreadSafeRingBufferType.Reader, done: *std.Io.Event) !void {
                 // Wait for 5
                 _ = try rd.waitAvailable(5, null);
                 // Signal done
-                done.set();
+                done.set(io);
             }
         };
 
         // Spawn a thread that waits until reader has 7 available
-        var done_event = sync.ResetEvent{};
-        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader1, &done_event });
+        var done_event: std.Io.Event = .unset;
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ std.testing.io, &reader1, &done_event });
 
         // Reader 2 read 2
         reader2.update(2);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Reader 2 read 2
         reader2.update(2);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Writer write 2
         writer.update(2);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Writer write 2
         writer.update(2);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
 
         // Validate available counts
         try std.testing.expectEqual(@as(usize, 0), writer.getAvailable());
@@ -795,12 +795,12 @@ test "ThreadSafeRingBuffer read wait" {
 
         // Reader 2 read 1
         reader2.update(1);
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
         // Writer write 1
         writer.update(1);
 
         // Check reader waiter completed
-        try done_event.timedWait(std.time.ns_per_ms);
+        try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
     }
@@ -889,26 +889,26 @@ test "ThreadSafeRingBuffer read wait eos" {
         var reader = ring_buffer.reader();
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
+            fn run(io: std.Io, rd: *ThreadSafeRingBufferType.Reader, done: *std.Io.Event) !void {
                 // Wait for 5
                 _ = rd.waitAvailable(5, null) catch 0;
                 // Signal done
-                done.set();
+                done.set(io);
             }
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = sync.ResetEvent{};
-        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
+        var done_event: std.Io.Event = .unset;
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ std.testing.io, &reader, &done_event });
 
         // Done event should not be set
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
 
         // Set EOS on writer
         writer.setEOS();
 
         // Check reader waiter completed
-        try done_event.timedWait(std.time.ns_per_ms);
+        try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
 
@@ -933,20 +933,20 @@ test "ThreadSafeRingBuffer read wait eos with partial read" {
         var reader = ring_buffer.reader();
 
         const ReadWaiter = struct {
-            fn run(rd: *ThreadSafeRingBufferType.Reader, done: *sync.ResetEvent) !void {
+            fn run(io: std.Io, rd: *ThreadSafeRingBufferType.Reader, done: *std.Io.Event) !void {
                 // Wait for 5
                 _ = rd.waitAvailable(5, null) catch 0;
                 // Signal done
-                done.set();
+                done.set(io);
             }
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = sync.ResetEvent{};
-        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &reader, &done_event });
+        var done_event: std.Io.Event = .unset;
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ std.testing.io, &reader, &done_event });
 
         // Done event should not be set
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
 
         // Write 3
         writer.update(3);
@@ -955,7 +955,7 @@ test "ThreadSafeRingBuffer read wait eos with partial read" {
         writer.setEOS();
 
         // Check reader waiter completed
-        try done_event.timedWait(std.time.ns_per_ms);
+        try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
 
@@ -989,26 +989,26 @@ test "ThreadSafeRingBuffer write wait eos" {
         writer.update(7);
 
         const ReadWaiter = struct {
-            fn run(wr: *ThreadSafeRingBufferType.Writer, done: *sync.ResetEvent) !void {
+            fn run(io: std.Io, wr: *ThreadSafeRingBufferType.Writer, done: *std.Io.Event) !void {
                 // Wait for 1
                 _ = wr.waitAvailable(1, null) catch 0;
                 // Signal done
-                done.set();
+                done.set(io);
             }
         };
 
         // Spawn a thread that waits until reader has available
-        var done_event = sync.ResetEvent{};
-        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ &writer, &done_event });
+        var done_event: std.Io.Event = .unset;
+        var thread = try std.Thread.spawn(.{}, ReadWaiter.run, .{ std.testing.io, &writer, &done_event });
 
         // Done event should not be set
-        try std.testing.expectError(error.Timeout, done_event.timedWait(std.time.ns_per_ms));
+        try std.testing.expectError(error.Timeout, done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } }));
 
         // Set EOS on reader
         reader.setEOS();
 
         // Check reader waiter completed
-        try done_event.timedWait(std.time.ns_per_ms);
+        try done_event.waitTimeout(std.testing.io, .{ .duration = .{ .raw = .fromMilliseconds(1), .clock = .awake } });
         try std.testing.expectEqual(true, done_event.isSet());
         thread.join();
 

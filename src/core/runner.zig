@@ -65,8 +65,8 @@ pub const ThreadedBlockRunner = struct {
 
     thread: std.Thread = undefined,
     mutex: sync.Mutex = .{},
-    call_event: sync.ResetEvent = .{},
-    stop_event: sync.ResetEvent = .{},
+    call_event: std.Io.Event = .unset,
+    stop_event: std.Io.Event = .unset,
 
     pub fn init(_: std.mem.Allocator, io: std.Io, block: *Block, sample_mux: SampleMux) !ThreadedBlockRunner {
         return .{
@@ -118,7 +118,7 @@ pub const ThreadedBlockRunner = struct {
     }
 
     pub fn call(self: *ThreadedBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).@"fn".return_type.? {
-        self.call_event.set();
+        self.call_event.set(self.io);
         self.mutex.lock();
         defer self.mutex.unlock();
         defer self.call_event.reset();
@@ -128,7 +128,7 @@ pub const ThreadedBlockRunner = struct {
     }
 
     pub fn stop(self: *ThreadedBlockRunner) void {
-        self.stop_event.set();
+        self.stop_event.set(self.io);
     }
 
     pub fn join(self: *ThreadedBlockRunner) void {

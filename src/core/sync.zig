@@ -2,9 +2,10 @@ const std = @import("std");
 
 // Zig 0.16 removed std.Thread.Mutex / std.Thread.Condition / std.Thread.ResetEvent
 // (and std.Thread.sleep) in favor of the new std.Io-based primitives, which
-// require threading an `io` handle through every call site. To keep the
-// migration minimal, this module provides drop-in replacements backed by
-// pthreads (libC is always linked by this project).
+// require threading an `io` handle through every call site. ResetEvent has been
+// migrated to std.Io.Event (see its usages); this module still provides
+// pthreads-backed drop-in replacements for Mutex and Condition (libC is always
+// linked by this project).
 
 extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
 
@@ -51,49 +52,5 @@ pub const Condition = struct {
 
     pub fn broadcast(self: *Condition) void {
         _ = std.c.pthread_cond_broadcast(&self.inner);
-    }
-};
-
-pub const ResetEvent = struct {
-    mutex: Mutex = .{},
-    cond: Condition = .{},
-    is_set: bool = false,
-
-    pub fn isSet(self: *ResetEvent) bool {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.is_set;
-    }
-
-    pub fn set(self: *ResetEvent) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        self.is_set = true;
-        self.cond.broadcast();
-    }
-
-    pub fn reset(self: *ResetEvent) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        self.is_set = false;
-    }
-
-    pub fn wait(self: *ResetEvent) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        while (!self.is_set) self.cond.wait(&self.mutex);
-    }
-
-    pub fn timedWait(self: *ResetEvent, timeout_ns: u64) error{Timeout}!void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        if (self.is_set) return;
-
-        const deadline = deadlineFromNow(timeout_ns);
-        while (!self.is_set) {
-            if (std.c.pthread_cond_timedwait(&self.cond.inner, &self.mutex.inner, &deadline) == .TIMEDOUT) {
-                if (!self.is_set) return error.Timeout;
-            }
-        }
     }
 };
