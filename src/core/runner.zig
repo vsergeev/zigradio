@@ -1,5 +1,4 @@
 const std = @import("std");
-const sync = @import("sync.zig");
 
 const Block = @import("block.zig").Block;
 const SampleMux = @import("sample_mux.zig").SampleMux;
@@ -64,7 +63,7 @@ pub const ThreadedBlockRunner = struct {
     process_error: ?anyerror = null,
 
     thread: std.Thread = undefined,
-    mutex: sync.Mutex = .{},
+    mutex: std.Io.Mutex = .init,
     call_event: std.Io.Event = .unset,
     stop_event: std.Io.Event = .unset,
 
@@ -94,8 +93,8 @@ pub const ThreadedBlockRunner = struct {
                         runner.io.sleep(.fromMicroseconds(1), .awake) catch {};
                     }
 
-                    runner.mutex.lock();
-                    defer runner.mutex.unlock();
+                    runner.mutex.lockUncancelable(runner.io);
+                    defer runner.mutex.unlock(runner.io);
 
                     const process_result = runner.block.process(runner.sample_mux) catch |err| switch (err) {
                         error.EndOfStream => break,
@@ -119,8 +118,8 @@ pub const ThreadedBlockRunner = struct {
 
     pub fn call(self: *ThreadedBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).@"fn".return_type.? {
         self.call_event.set(self.io);
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
         defer self.call_event.reset();
 
         const block = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @alignCast(@fieldParentPtr("block", self.block)));
