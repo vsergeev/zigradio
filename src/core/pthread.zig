@@ -1,11 +1,11 @@
 const std = @import("std");
 
-// Zig 0.16 removed std.Thread.Mutex / std.Thread.Condition / std.Thread.ResetEvent
-// (and std.Thread.sleep) in favor of the new std.Io-based primitives, which
-// require threading an `io` handle through every call site. ResetEvent has been
-// migrated to std.Io.Event (see its usages); this module still provides
-// pthreads-backed drop-in replacements for Mutex and Condition (libC is always
-// linked by this project).
+// Zig 0.16 is missing the waitTimeout() API in std.Io.Condition, needed by the
+// ThreadSafeRingBuffer in src/core/ring_buffer.zig, so this is a temporary
+// pthread-based implementation of Mutex and Condition used in its place. This
+// will be removed when Zig 0.17 is released and replaced with the standard
+// library std.Io.Mutex and std.Io.Condition, as the rest of the codebase is
+// already using.
 
 extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
 

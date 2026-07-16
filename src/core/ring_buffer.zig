@@ -1,5 +1,5 @@
 const std = @import("std");
-const sync = @import("sync.zig");
+const pthread = @import("pthread.zig");
 
 ////////////////////////////////////////////////////////////////////////////////
 // RingBuffer Memory Implementations
@@ -263,9 +263,9 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
         impl: RingBufferImpl,
 
         // Lock and Condition Variables
-        mutex: sync.Mutex = .{},
-        cond_read_available: sync.Condition = .{},
-        cond_write_available: sync.Condition = .{},
+        mutex: pthread.Mutex = .{},
+        cond_read_available: pthread.Condition = .{},
+        cond_write_available: pthread.Condition = .{},
 
         ////////////////////////////////////////////////////////////////////////
         // Constructor and Destructor
