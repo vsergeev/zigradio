@@ -18,14 +18,12 @@ const std = @import("std");
 
 const radio = @import("radio");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
+pub fn main(init: std.process.Init) !void {
     const frequency: f64 = 91.1e6; // 91.1 MHz
 
     var source = radio.blocks.RtlSdrSource.init(frequency - 250e3, 960000, .{});
     var if_translator = radio.blocks.FrequencyTranslatorBlock.init(-250e3);
-    var if_filter = radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 128).init(200e3, .{});
+    var if_filter = radio.blocks.LowpassFilterBlock(std.math.Complex(f32), 64).init(200e3, .{});
     var if_downsampler = radio.blocks.DownsamplerBlock(std.math.Complex(f32)).init(4);
     var fm_demod = radio.blocks.FrequencyDiscriminatorBlock.init(75e3);
     var af_filter = radio.blocks.LowpassFilterBlock(f32, 128).init(15e3, .{});
@@ -33,7 +31,7 @@ pub fn main() !void {
     var af_downsampler = radio.blocks.DownsamplerBlock(f32).init(5);
     var sink = radio.blocks.PulseAudioSink(1).init();
 
-    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &if_translator.block);
     try top.connect(&if_translator.block, &if_filter.block);
@@ -44,7 +42,9 @@ pub fn main() !void {
     try top.connect(&af_deemphasis.block, &af_downsampler.block);
     try top.connect(&af_downsampler.block, &sink.block);
 
-    _ = try top.run();
+    try top.start();
+    radio.platform.waitForInterrupt();
+    _ = try top.stop();
 }
 ```
 
@@ -52,7 +52,7 @@ Check out some more [examples](examples) of what you can build with ZigRadio.
 
 ## Quickstart
 
-ZigRadio requires Zig version 0.15.
+ZigRadio requires Zig version 0.16.
 
 ```
 $ git clone https://github.com/vsergeev/zigradio.git
