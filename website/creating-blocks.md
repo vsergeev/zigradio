@@ -81,7 +81,7 @@ ZigRadio blocks may implement a few optional hooks that are automatically
 called by the framework.
 
 ```zig
-pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void { ... }
+pub fn initialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) !void { ... }
 ```
 
 The `initialize()` hook is used for memory allocation, I/O initialization, and
@@ -89,7 +89,7 @@ sample rate dependent initialization. This function is called by the framework
 during flow graph setup, after all blocks are connected and their sample rates
 are determined.
 
-The `allocator` passed to `initialize()` is the same one that the
+The `allocator` and `io` passed to `initialize()` are the same ones that the
 [`Flowgraph`](/reference-manual.html#flowgraph) was initialized with. Blocks
 may call `self.block.getRate(comptime T: type) T` in `initialize()` to get
 their sample rate in terms of their preferred numeric type (e.g. `f32`,
@@ -99,13 +99,14 @@ Blocks may return an error from `initialize()`, which will cause flow graph
 initialization to fail.
 
 ```zig
-pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void { ... }
+pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) void { ... }
 ```
 
 The `deinitialize()` hook is used for memory deallocation, I/O
 deinitialization, and other deinitialization. The function is called by the
-framework on flow graph teardown. The `allocator` passed to `deinitialize()` is
-the same as the one passed to `initialize()`, for convenience.
+framework on flow graph teardown. The `allocator` and `io` passed to
+`deinitialize()` are the same as the ones passed to `initialize()`, for
+convenience.
 
 ```zig
 pub fn setRate(self: *Self, upstream_rate: f64) !f64 { ... }

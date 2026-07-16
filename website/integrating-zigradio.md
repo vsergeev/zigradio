@@ -82,15 +82,13 @@ const std = @import("std");
 
 const radio = @import("radio");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
+pub fn main(init: std.process.Init) !void {
     var source = radio.blocks.ApplicationSource(f32).init(10000);
     var adder = radio.blocks.AddBlock(f32).init();
     var multiplier = radio.blocks.MultiplyBlock(f32).init();
     var sink = radio.blocks.ApplicationSink(f32).init();
 
-    var top = radio.Flowgraph.init(gpa.allocator(), .{});
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{});
     defer top.deinit();
 
     try top.connectPort(&source.block, "out1", &adder.block, "in1");
@@ -120,7 +118,7 @@ pub fn main() !void {
     // Set end-of-stream on source
     source.setEOS();
 
-    // Wait for flowgraph collapse
+    // Wait for flow graph collapse
     _ = try top.wait();
 }
 ```

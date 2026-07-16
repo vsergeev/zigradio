@@ -73,15 +73,13 @@ const std = @import("std");
 
 const radio = @import("radio");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
+pub fn main(init: std.process.Init) !void {
     var source = radio.blocks.SignalSource.init(radio.blocks.SignalSource.WaveformFunction.Cosine, 440, 44100, .{});
     var mixer = radio.blocks.MultiplyBlock(f32).init();
     var filter = radio.blocks.SinglepoleHighpassFilterBlock(f32).init(100);
     var sink = radio.blocks.PulseAudioSink(1).init();
 
-    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
     defer top.deinit();
 
     try top.connectPort(&source.block, "out1", &mixer.block, "in1");
@@ -131,7 +129,7 @@ is only required for the source block; all other blocks inherit their sample
 rate through the connections in the flow graph.
 
 ```zig
-var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
 defer top.deinit();
 
 try top.connectPort(&source.block, "out1", &mixer.block, "in1");
@@ -140,8 +138,9 @@ try top.connect(&mixer.block, &filter.block);
 try top.connect(&filter.block, &sink.block);
 ```
 
-The next lines instantiate a flow graph with a default general purpose
-allocator, and connect the blocks within the flow graph.
+The next lines instantiate a flow graph with the allocator and IO instance
+provided by the entry point's `init` argument, and connect the blocks within
+the flow graph.
 
 The first two connections demonstrate the explicit connection syntax. For
 example, `try top.connectPort(&source.block, "out1", &mixer.block, "in1);`,

@@ -31,9 +31,7 @@ const std = @import("std");
 
 const radio = @import("radio");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
+pub fn main(init: std.process.Init) !void {
     const frequency = 91.1e6; // 91.1 MHz
 
     var source = radio.blocks.RtlSdrSource.init(frequency - 250e3, 960000, .{ .debug = true });
@@ -43,7 +41,7 @@ pub fn main() !void {
     var r_af_downsampler = radio.blocks.DownsamplerBlock(f32).init(5);
     var sink = radio.blocks.PulseAudioSink(2).init();
 
-    var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+    var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
     defer top.deinit();
     try top.connect(&source.block, &tuner.block);
     try top.connect(&tuner.block, &demodulator.block);
@@ -115,15 +113,13 @@ $ ZIGRADIO_DISABLE_LIQUID=1 ZIGRADIO_DISABLE_VOLK=1 ZIGRADIO_DISABLE_FFTW3F=1 ./
 
 The `Flowgraph` type is the top-level container for a ZigRadio flow graph.
 
-##### `radio.Flowgraph.init(allocator: std.mem.Allocator, options: Options) Flowgraph`
+##### `radio.Flowgraph.init(allocator: std.mem.Allocator, io: std.Io, options: Options) Flowgraph`
 
-Instantiate a flow graph with the provided allocator and options (`struct {
-debug: bool = false }`).
+Instantiate a flow graph with the provided allocator, IO instance, and options
+(`struct { debug: bool = false }`).
 
 ```zig
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
-var top = radio.Flowgraph.init(gpa.allocator(), .{ .debug = true });
+var top = radio.Flowgraph.init(init.gpa, init.io, .{ .debug = true });
 defer top.deinit();
 ```
 
@@ -269,14 +265,14 @@ outputs in the `process()` type signature, respectively.
 
 Blocks may implement a few optional hooks called by the framework.
 
-##### `pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void { ... }`
+##### `pub fn initialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) !void { ... }`
 
 The `initialize()` hook is used for memory allocation, I/O initialization, and
 sample rate dependent initialization. This function is called by the framework
 during flow graph setup, after all blocks are connected and their sample rates
 are determined.
 
-The `allocator` passed to `initialize()` is the same one that the
+The `allocator` and `io` passed to `initialize()` are the same ones that the
 [`Flowgraph`](/reference-manual.html#flowgraph) was initialized with. Blocks
 may call `self.block.getRate(comptime T: type) T` in `initialize()` to get
 their sample rate in terms of their preferred numeric type (e.g. `f32`,
@@ -285,12 +281,13 @@ their sample rate in terms of their preferred numeric type (e.g. `f32`,
 Blocks may return an error from `initialize()`, which will cause flow graph
 initialization to fail.
 
-##### `pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void { ... }`
+##### `pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) void { ... }`
 
 The `deinitialize()` hook is used for memory deallocation, I/O
 deinitialization, and other deinitialization. The function is called by the
-framework on flow graph teardown. The `allocator` passed to `deinitialize()` is
-the same as the one passed to `initialize()`, for convenience.
+framework on flow graph teardown. The `allocator` and `io` passed to
+`deinitialize()` are the same as the ones passed to `initialize()`, for
+convenience.
 
 ##### `pub fn setRate(self: *Self, upstream_rate: f64) !f64 { ... }`
 

@@ -11,13 +11,12 @@ running the flow graph, and making asynchronous calls into blocks.
 
 ## Instantiation
 
-A `Flowgraph` is instantiated with `init(allocator: std.mem.Allocator, options:
-Options) Flowgraph`, which takes an allocator and additional options.
+A `Flowgraph` is instantiated with `init(allocator: std.mem.Allocator, io:
+std.Io, options: Options) Flowgraph`, which takes an allocator, an IO instance,
+and additional options.
 
 ```zig
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
-var top = radio.Flowgraph.init(gpa.allocator(), .{});
+var top = radio.Flowgraph.init(init.gpa, init.io, .{});
 defer top.deinit();
 ```
 
