@@ -35,6 +35,7 @@ pub fn DelayBlock(comptime T: type) type {
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
             self.state = try allocator.alloc(T, self.delay);
+            @memset(self.state, std.mem.zeroes(T));
         }
 
         pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
