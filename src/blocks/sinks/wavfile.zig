@@ -65,7 +65,6 @@ pub fn WAVFileSink(comptime N: comptime_int) type {
         };
 
         block: Block,
-        io: std.Io,
         file: *std.Io.File,
         options: Options,
         converter: SampleFormat.Converter,
@@ -74,10 +73,9 @@ pub fn WAVFileSink(comptime N: comptime_int) type {
         writer_buffer: [16384]u8 = undefined,
         samples_written: usize = 0,
 
-        pub fn init(io: std.Io, file: *std.Io.File, options: Options) Self {
+        pub fn init(file: *std.Io.File, options: Options) Self {
             return .{
                 .block = Block.init(@This()),
-                .io = io,
                 .file = file,
                 .options = options,
                 .converter = switch (options.format) {
@@ -88,8 +86,8 @@ pub fn WAVFileSink(comptime N: comptime_int) type {
             };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
-            self.writer = self.file.writer(self.io, &self.writer_buffer);
+        pub fn initialize(self: *Self, _: std.mem.Allocator, io: std.Io) !void {
+            self.writer = self.file.writer(io, &self.writer_buffer);
             self.samples_written = 0;
 
             // Seek past WAV headers (populated on cleanup)
@@ -211,7 +209,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(1).init(io, &tmpfile.file, .{ .format = .u8 });
+        var block = WAVFileSink(1).init(&tmpfile.file, .{ .format = .u8 });
         var fixture = try BlockFixture(&[1]type{f32}, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{&vectors.samples_ch0});
         fixture.deinit();
@@ -225,7 +223,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(1).init(io, &tmpfile.file, .{ .format = .s16 });
+        var block = WAVFileSink(1).init(&tmpfile.file, .{ .format = .s16 });
         var fixture = try BlockFixture(&[1]type{f32}, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{&vectors.samples_ch0});
         fixture.deinit();
@@ -239,7 +237,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(1).init(io, &tmpfile.file, .{ .format = .s32 });
+        var block = WAVFileSink(1).init(&tmpfile.file, .{ .format = .s32 });
         var fixture = try BlockFixture(&[1]type{f32}, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{&vectors.samples_ch0});
         fixture.deinit();
@@ -253,7 +251,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(2).init(io, &tmpfile.file, .{ .format = .u8 });
+        var block = WAVFileSink(2).init(&tmpfile.file, .{ .format = .u8 });
         var fixture = try BlockFixture(&[2]type{ f32, f32 }, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{ &vectors.samples_ch0, &vectors.samples_ch1 });
         fixture.deinit();
@@ -267,7 +265,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(2).init(io, &tmpfile.file, .{ .format = .s16 });
+        var block = WAVFileSink(2).init(&tmpfile.file, .{ .format = .s16 });
         var fixture = try BlockFixture(&[2]type{ f32, f32 }, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{ &vectors.samples_ch0, &vectors.samples_ch1 });
         fixture.deinit();
@@ -281,7 +279,7 @@ test "WAVFileSink" {
     {
         try tmpfile.write(&.{});
 
-        var block = WAVFileSink(2).init(io, &tmpfile.file, .{ .format = .s32 });
+        var block = WAVFileSink(2).init(&tmpfile.file, .{ .format = .s32 });
         var fixture = try BlockFixture(&[2]type{ f32, f32 }, &[0]type{}).init(&block.block, 44100);
         _ = try fixture.process(.{ &vectors.samples_ch0, &vectors.samples_ch1 });
         fixture.deinit();
