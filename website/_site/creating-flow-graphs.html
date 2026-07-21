@@ -11,7 +11,7 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.11.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
@@ -42,10 +42,9 @@
 for a ZigRadio flow graph, and provides a simple API for connecting blocks,
 running the flow graph, and making asynchronous calls into blocks.</p>
 <h2 id="instantiation">Instantiation</h2>
-<p>A <code>Flowgraph</code> is instantiated with <code>init(allocator: std.mem.Allocator, options: Options) Flowgraph</code>, which takes an allocator and additional options.</p>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
-
-<span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<p>A <code>Flowgraph</code> is instantiated with <code>init(allocator: std.mem.Allocator, io: std.Io, options: Options) Flowgraph</code>, which takes an allocator, an IO instance,
+and additional options.</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>init<span class="token punctuation">.</span>gpa<span class="token punctuation">,</span> init<span class="token punctuation">.</span>io<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 <h2 id="connecting-blocks">Connecting Blocks</h2>
 <p>Blocks can be connected within a flow graph in one of two ways.</p>

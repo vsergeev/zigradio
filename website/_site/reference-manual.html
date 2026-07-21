@@ -13,7 +13,7 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.11.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc">
@@ -153,16 +153,14 @@
       </div>
       <div class="content">
         <h1 id="zigradio-reference-manual">ZigRadio Reference Manual</h1>
-<p>Generated from ZigRadio <code>v0.10.0</code>.</p>
+<p>Generated from ZigRadio <code>v0.11.0</code>.</p>
 <h2 id="example">Example</h2>
 <h5 id="wideband-fm-broadcast-stereo-receiver">Wideband FM Broadcast Stereo Receiver</h5>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">const</span> std <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"std"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 
 <span class="token keyword">const</span> radio <span class="token operator">=</span> <span class="token builtin">@import</span><span class="token punctuation">(</span><span class="token string">"radio"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-<span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
-    <span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
-
+<span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span>init<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>process<span class="token punctuation">.</span>Init</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span>
     <span class="token keyword">const</span> frequency <span class="token operator">=</span> <span class="token number">91.1e6</span><span class="token punctuation">;</span> <span class="token comment">// 91.1 MHz</span>
 
     <span class="token keyword">var</span> source <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span>RtlSdrSource<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>frequency <span class="token operator">-</span> <span class="token number">250e3</span><span class="token punctuation">,</span> <span class="token number">960000</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -172,7 +170,7 @@
     <span class="token keyword">var</span> r_af_downsampler <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">DownsamplerBlock</span><span class="token punctuation">(</span><span class="token builtin-type keyword">f32</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token keyword">var</span> sink <span class="token operator">=</span> radio<span class="token punctuation">.</span>blocks<span class="token punctuation">.</span><span class="token function">PulseAudioSink</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-    <span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>init<span class="token punctuation">.</span>gpa<span class="token punctuation">,</span> init<span class="token punctuation">.</span>io<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>source<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token keyword">try</span> top<span class="token punctuation">.</span><span class="token function">connect</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tuner<span class="token punctuation">.</span>block<span class="token punctuation">,</span> <span class="token operator">&amp;</span>demodulator<span class="token punctuation">.</span>block<span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -220,11 +218,10 @@ can be enabled with truthy literals like <code>1</code>, <code>true</code>, or <
 <h2 id="core">Core</h2>
 <h3 id="flowgraph">Flowgraph</h3>
 <p>The <code>Flowgraph</code> type is the top-level container for a ZigRadio flow graph.</p>
-<h5 id="radio-flowgraph-init-allocator-std-mem-allocator-options-options-flowgraph"><code>radio.Flowgraph.init(allocator: std.mem.Allocator, options: Options) Flowgraph</code></h5>
-<p>Instantiate a flow graph with the provided allocator and options (<code>struct { debug: bool = false }</code>).</p>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> gpa <span class="token operator">=</span> std<span class="token punctuation">.</span>heap<span class="token punctuation">.</span><span class="token function">GeneralPurposeAllocator</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
-
-<span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>gpa<span class="token punctuation">.</span><span class="token function">allocator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<h5 id="radio-flowgraph-init-allocator-std-mem-allocator-io-std-io-options-options-flowgraph"><code>radio.Flowgraph.init(allocator: std.mem.Allocator, io: std.Io, options: Options) Flowgraph</code></h5>
+<p>Instantiate a flow graph with the provided allocator, IO instance, and options
+(<code>struct { debug: bool = false }</code>).</p>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">var</span> top <span class="token operator">=</span> radio<span class="token punctuation">.</span>Flowgraph<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>init<span class="token punctuation">.</span>gpa<span class="token punctuation">,</span> init<span class="token punctuation">.</span>io<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">{</span> <span class="token punctuation">.</span>debug <span class="token operator">=</span> <span class="token boolean">true</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token keyword">defer</span> top<span class="token punctuation">.</span><span class="token function">deinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
 <h5 id="radio-flowgraph-connect-self-flowgraph-src-anytype-dst-anytype-void"><code>radio.Flowgraph.connect(self: *Flowgraph, src: anytype, dst: anytype) !void</code></h5>
 <p>Connect the first output port of <code>src</code> block to the first input port of <code>dst</code> block.</p>
@@ -309,23 +306,24 @@ inputs in <code>consumed</code> and outputs in <code>produced</code> follow the 
 outputs in the <code>process()</code> type signature, respectively.</p>
 <h4 id="optional-hooks">Optional Hooks</h4>
 <p>Blocks may implement a few optional hooks called by the framework.</p>
-<h5 id="pub-fn-initialize-self-self-allocator-std-mem-allocator-void"><code>pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void { ... }</code></h5>
+<h5 id="pub-fn-initialize-self-self-allocator-std-mem-allocator-io-std-io-void"><code>pub fn initialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) !void { ... }</code></h5>
 <p>The <code>initialize()</code> hook is used for memory allocation, I/O initialization, and
 sample rate dependent initialization. This function is called by the framework
 during flow graph setup, after all blocks are connected and their sample rates
 are determined.</p>
-<p>The <code>allocator</code> passed to <code>initialize()</code> is the same one that the
+<p>The <code>allocator</code> and <code>io</code> passed to <code>initialize()</code> are the same ones that the
 <a href="/reference-manual.html#flowgraph"><code>Flowgraph</code></a> was initialized with. Blocks
 may call <code>self.block.getRate(comptime T: type) T</code> in <code>initialize()</code> to get
 their sample rate in terms of their preferred numeric type (e.g. <code>f32</code>,
 <code>usize</code>, etc.).</p>
 <p>Blocks may return an error from <code>initialize()</code>, which will cause flow graph
 initialization to fail.</p>
-<h5 id="pub-fn-deinitialize-self-self-allocator-std-mem-allocator-void"><code>pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void { ... }</code></h5>
+<h5 id="pub-fn-deinitialize-self-self-allocator-std-mem-allocator-io-std-io-void"><code>pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, io: std.Io) void { ... }</code></h5>
 <p>The <code>deinitialize()</code> hook is used for memory deallocation, I/O
 deinitialization, and other deinitialization. The function is called by the
-framework on flow graph teardown. The <code>allocator</code> passed to <code>deinitialize()</code> is
-the same as the one passed to <code>initialize()</code>, for convenience.</p>
+framework on flow graph teardown. The <code>allocator</code> and <code>io</code> passed to
+<code>deinitialize()</code> are the same as the ones passed to <code>initialize()</code>, for
+convenience.</p>
 <h5 id="pub-fn-setrate-self-self-upstream-rate-f64-f64"><code>pub fn setRate(self: *Self, upstream_rate: f64) !f64 { ... }</code></h5>
 <p>The <code>setRate()</code> hook is used to override the block's sample rate. By default,
 blocks inherit the sample rate of the upstream block connected to their first
@@ -570,11 +568,11 @@ collapse the flow graph.</p>
 <div class="block">
 <p>Source a complex-valued signal from a binary stream, using the
 specified sample format.</p>
-<h5 id="radio-blocks-iqstreamsource-init-reader-std-io-reader-format-sampleformat-rate-f64-options-options"><code>radio.blocks.IQStreamSource.init(reader: *std.io.Reader, format: SampleFormat, rate: f64, options: Options)</code></h5>
+<h5 id="radio-blocks-iqstreamsource-init-reader-std-io-reader-format-sampleformat-rate-f64-options-options"><code>radio.blocks.IQStreamSource.init(reader: *std.Io.Reader, format: SampleFormat, rate: f64, options: Options)</code></h5>
 <h6 id="arguments-3">Arguments</h6>
 <ul>
 <li>
-<p><code>reader</code> (<em>*std.io.Reader</em>): Reader</p>
+<p><code>reader</code> (<em>*std.Io.Reader</em>): Reader</p>
 </li>
 <li>
 <p><code>format</code> (<em>SampleFormat</em>): Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be</p>
@@ -603,11 +601,11 @@ specified sample format.</p>
 <div class="block">
 <p>Source a real-valued signal from a binary stream, using the
 specified sample format.</p>
-<h5 id="radio-blocks-realstreamsource-init-reader-std-io-anyreader-format-sampleformat-rate-f64-options-options"><code>radio.blocks.RealStreamSource.init(reader: std.io.AnyReader, format: SampleFormat, rate: f64, options: Options)</code></h5>
+<h5 id="radio-blocks-realstreamsource-init-reader-std-io-anyreader-format-sampleformat-rate-f64-options-options"><code>radio.blocks.RealStreamSource.init(reader: std.Io.AnyReader, format: SampleFormat, rate: f64, options: Options)</code></h5>
 <h6 id="arguments-4">Arguments</h6>
 <ul>
 <li>
-<p><code>reader</code> (<em>std.io.AnyReader</em>): Reader</p>
+<p><code>reader</code> (<em>std.Io.AnyReader</em>): Reader</p>
 </li>
 <li>
 <p><code>format</code> (<em>SampleFormat</em>): Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be</p>
@@ -828,11 +826,11 @@ read, which may be zero.</p>
 <div class="block">
 <p>Sink a complex-valued signal to a binary stream, using the
 specified sample format.</p>
-<h5 id="radio-blocks-iqstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.IQStreamSink.init(writer: *std.io.Writer, format: SampleFormat, options: Options)</code></h5>
+<h5 id="radio-blocks-iqstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.IQStreamSink.init(writer: *std.Io.Writer, format: SampleFormat, options: Options)</code></h5>
 <h6 id="arguments-10">Arguments</h6>
 <ul>
 <li>
-<p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
+<p><code>writer</code> (<em>*std.Io.Writer</em>): Writer</p>
 </li>
 <li>
 <p><code>format</code> (<em>SampleFormat</em>): Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be</p>
@@ -858,7 +856,7 @@ specified sample format.</p>
 <div class="block">
 <p>Sink a signal to a binary stream, serialized with JSON. Samples
 are serialized individually and newline delimited.</p>
-<h5 id="radio-blocks-jsonstreamsink-comptime-t-type-init-writer-std-io-writer-options-options"><code>radio.blocks.JSONStreamSink(comptime T: type).init(writer: *std.io.Writer, options: Options)</code></h5>
+<h5 id="radio-blocks-jsonstreamsink-comptime-t-type-init-writer-std-io-writer-options-options"><code>radio.blocks.JSONStreamSink(comptime T: type).init(writer: *std.Io.Writer, options: Options)</code></h5>
 <h6 id="comptime-arguments-5">Comptime Arguments</h6>
 <ul>
 <li><code>T</code> (<em>type</em>): Any type serializable by <code>std.json.stringify()</code></li>
@@ -866,7 +864,7 @@ are serialized individually and newline delimited.</p>
 <h6 id="arguments-11">Arguments</h6>
 <ul>
 <li>
-<p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
+<p><code>writer</code> (<em>*std.Io.Writer</em>): Writer</p>
 </li>
 <li>
 <p><code>options</code> (<em>Options</em>): Additional options</p>
@@ -921,11 +919,11 @@ sound server. This sink requires the libpulse-simple library.</p>
 <div class="block">
 <p>Sink a real-valued signal to a binary stream, using the
 specified sample format.</p>
-<h5 id="radio-blocks-realstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.RealStreamSink.init(writer: *std.io.Writer, format: SampleFormat, options: Options)</code></h5>
+<h5 id="radio-blocks-realstreamsink-init-writer-std-io-writer-format-sampleformat-options-options"><code>radio.blocks.RealStreamSink.init(writer: *std.Io.Writer, format: SampleFormat, options: Options)</code></h5>
 <h6 id="arguments-12">Arguments</h6>
 <ul>
 <li>
-<p><code>writer</code> (<em>*std.io.Writer</em>): Writer</p>
+<p><code>writer</code> (<em>*std.Io.Writer</em>): Writer</p>
 </li>
 <li>
 <p><code>format</code> (<em>SampleFormat</em>): Choice of s8, u8, u16le, u16be, s16le, s16be, u32le, u32be, s32le, s32be, f32le, f32be, f64le, f64be</p>

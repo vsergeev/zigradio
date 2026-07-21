@@ -11,7 +11,7 @@
       <div class="sidebar">
         <h1 class="title" id="zigradio"><a href="/">ZigRadio</a></h1>
         <div class="links">
-          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.10.0</code></a><br>
+          <a href="https://github.com/vsergeev/zigradio/blob/master/CHANGELOG.md"><span class="lucide--external-link icon"></span> <code class="version">v0.11.0</code></a><br>
           <a href="https://github.com/vsergeev/zigradio"><span class="mdi--github icon"></span> GitHub</a><br>
         </div>
         <div class="toc"><ul>
@@ -98,23 +98,24 @@ to terminate and the flow graph to collapse.</p>
 <h2 id="block-hooks">Block Hooks</h2>
 <p>ZigRadio blocks may implement a few optional hooks that are automatically
 called by the framework.</p>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">initialize</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Self</span><span class="token punctuation">,</span> allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span> <span class="token operator">...</span> <span class="token punctuation">}</span></code></pre>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">initialize</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Self</span><span class="token punctuation">,</span> allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">,</span> io<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>Io</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span> <span class="token operator">...</span> <span class="token punctuation">}</span></code></pre>
 <p>The <code>initialize()</code> hook is used for memory allocation, I/O initialization, and
 sample rate dependent initialization. This function is called by the framework
 during flow graph setup, after all blocks are connected and their sample rates
 are determined.</p>
-<p>The <code>allocator</code> passed to <code>initialize()</code> is the same one that the
+<p>The <code>allocator</code> and <code>io</code> passed to <code>initialize()</code> are the same ones that the
 <a href="/reference-manual.html#flowgraph"><code>Flowgraph</code></a> was initialized with. Blocks
 may call <code>self.block.getRate(comptime T: type) T</code> in <code>initialize()</code> to get
 their sample rate in terms of their preferred numeric type (e.g. <code>f32</code>,
 <code>usize</code>, etc.).</p>
 <p>Blocks may return an error from <code>initialize()</code>, which will cause flow graph
 initialization to fail.</p>
-<pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">deinitialize</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Self</span><span class="token punctuation">,</span> allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span> <span class="token operator">...</span> <span class="token punctuation">}</span></code></pre>
+<pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">deinitialize</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Self</span><span class="token punctuation">,</span> allocator<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>mem<span class="token punctuation">.</span>Allocator</span><span class="token punctuation">,</span> io<span class="token punctuation">:</span> <span class="token class-name">std<span class="token punctuation">.</span>Io</span><span class="token punctuation">)</span> <span class="token class-name"><span class="token builtin-type keyword">void</span></span> <span class="token punctuation">{</span> <span class="token operator">...</span> <span class="token punctuation">}</span></code></pre>
 <p>The <code>deinitialize()</code> hook is used for memory deallocation, I/O
 deinitialization, and other deinitialization. The function is called by the
-framework on flow graph teardown. The <code>allocator</code> passed to <code>deinitialize()</code> is
-the same as the one passed to <code>initialize()</code>, for convenience.</p>
+framework on flow graph teardown. The <code>allocator</code> and <code>io</code> passed to
+<code>deinitialize()</code> are the same as the ones passed to <code>initialize()</code>, for
+convenience.</p>
 <pre class="language-zig"><code class="language-zig"><span class="token keyword">pub</span> <span class="token keyword">fn</span> <span class="token function">setRate</span><span class="token punctuation">(</span>self<span class="token punctuation">:</span> <span class="token class-name"><span class="token operator">*</span>Self</span><span class="token punctuation">,</span> upstream_rate<span class="token punctuation">:</span> <span class="token class-name"><span class="token builtin-type keyword">f64</span></span><span class="token punctuation">)</span> <span class="token class-name"><span class="token operator">!</span><span class="token builtin-type keyword">f64</span></span> <span class="token punctuation">{</span> <span class="token operator">...</span> <span class="token punctuation">}</span></code></pre>
 <p>The <code>setRate()</code> hook is used to override the block's sample rate. By default,
 blocks inherit the sample rate of the upstream block connected to their first
