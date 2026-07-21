@@ -1,7 +1,8 @@
 .{
     .name = .radio,
     .fingerprint = 0xe0461b0f84327ae8,
-    .version = "0.10.0",
+    .version = "0.11.0",
+    .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",
