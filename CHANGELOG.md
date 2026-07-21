@@ -1,3 +1,9 @@
+* v0.11.0 - 07/21/2026
+    * Migrate to Zig 0.16.
+    * Zero-initialize state in DelayBlock.
+    * Contributors
+        * Aliaksei Chapyzhenka, @drom - 3864ed2
+
 * v0.10.0 - 01/09/2026
     * Fix pointer alignment build error with armv7l targets.
     * Add `device_serial` option to RtlSdrSource.
