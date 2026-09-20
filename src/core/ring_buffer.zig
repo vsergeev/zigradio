@@ -44,7 +44,7 @@ const MappedMemoryImpl = struct {
         errdefer _ = std.c.close(fd);
 
         // Size memory
-        if (std.c.ftruncate(fd, @intCast(capacity)) != 0) return error.Ftruncate;
+        if (std.c.ftruncate64(fd, @intCast(capacity)) != 0) return error.Ftruncate;
 
         // Map the file with two regions of capacity
         const mapping1 = try std.posix.mmap(null, 2 * capacity, .{ .READ = true, .WRITE = true }, .{ .TYPE = .SHARED }, fd, 0);
