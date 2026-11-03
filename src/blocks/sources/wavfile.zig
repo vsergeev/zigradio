@@ -130,7 +130,7 @@ pub fn WAVFileSource(comptime N: comptime_int) type {
             }
 
             // Convert bytes to samples
-            const bytes_consumed = @min(std.mem.alignBackward(usize, self.reader.interface.bufferedLen(), self.converter.ELEMENT_SIZE), x.len * self.converter.ELEMENT_SIZE);
+            const bytes_consumed = @min((self.reader.interface.bufferedLen() / self.converter.ELEMENT_SIZE) * self.converter.ELEMENT_SIZE, x.len * self.converter.ELEMENT_SIZE);
             const samples_produced = self.converter.bytesToReal(try self.reader.interface.take(bytes_consumed), x);
 
             return ProcessResult.init(&[0]usize{}, &[1]usize{samples_produced});
@@ -153,7 +153,7 @@ pub fn WAVFileSource(comptime N: comptime_int) type {
             }
 
             // Convert bytes to samples
-            const bytes_consumed = @min(std.mem.alignBackward(usize, self.reader.interface.bufferedLen(), 2 * self.converter.ELEMENT_SIZE), x.len * 2 * self.converter.ELEMENT_SIZE);
+            const bytes_consumed = @min((self.reader.interface.bufferedLen() / (2 * self.converter.ELEMENT_SIZE)) * (2 * self.converter.ELEMENT_SIZE), x.len * 2 * self.converter.ELEMENT_SIZE);
             const samples_produced = self.converter.bytesToInterleavedReal(try self.reader.interface.take(bytes_consumed), x, y);
 
             return ProcessResult.init(&[0]usize{}, &[2]usize{ samples_produced, samples_produced });
