@@ -17,15 +17,6 @@ const std = @import("std");
 const Block = @import("../../radio.zig").Block;
 const ProcessResult = @import("../../radio.zig").ProcessResult;
 
-// Zig 0.16 removed std.time.milliTimestamp; use libC clock_gettime.
-extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
-
-fn milliTimestamp() u64 {
-    var ts: std.c.timespec = undefined;
-    _ = clock_gettime(std.c.CLOCK.REALTIME, &ts);
-    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Benchmark Sink
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,20 +33,21 @@ pub fn BenchmarkSink(comptime T: type) type {
         block: Block,
         options: Options,
         count: usize = 0,
+        io: std.Io = undefined,
         tic_ms: u64 = 0,
 
         pub fn init(options: Options) Self {
             return .{ .block = Block.init(@This()), .options = options };
         }
 
-        pub fn initialize(self: *Self, _: std.mem.Allocator, _: std.Io) !void {
+        pub fn initialize(self: *Self, _: std.mem.Allocator, io: std.Io) !void {
+            self.io = io;
             self.count = 0;
-            self.tic_ms = milliTimestamp();
+            self.tic_ms = @intCast(std.Io.Timestamp.now(io, .real).toMilliseconds());
         }
 
         pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
-            const toc_ms = milliTimestamp();
-            self.report(toc_ms);
+            self.report(@intCast(std.Io.Timestamp.now(self.io, .real).toMilliseconds()));
         }
 
         fn normalize(amount: f32) struct { f32, []const u8 } {
@@ -90,7 +82,7 @@ pub fn BenchmarkSink(comptime T: type) type {
         pub fn process(self: *Self, x: []const T) !ProcessResult {
             self.count += x.len;
 
-            const toc_ms = milliTimestamp();
+            const toc_ms: u64 = @intCast(std.Io.Timestamp.now(self.io, .real).toMilliseconds());
             if (toc_ms - self.tic_ms > self.options.report_period_ms) {
                 self.report(toc_ms);
             }
