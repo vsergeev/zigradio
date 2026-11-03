@@ -61,7 +61,7 @@ pub const IQStreamSource = struct {
         self.offset += bytes_read;
 
         // Convert bytes to samples
-        const bytes_consumed = @min(std.mem.alignBackward(usize, self.offset, 2 * self.converter.ELEMENT_SIZE), z.len * 2 * self.converter.ELEMENT_SIZE);
+        const bytes_consumed = @min((self.offset / (2 * self.converter.ELEMENT_SIZE)) * (2 * self.converter.ELEMENT_SIZE), z.len * 2 * self.converter.ELEMENT_SIZE);
         const samples_produced = self.converter.bytesToComplex(self.buffer[0..bytes_consumed], z);
 
         // Shift down unused bytes
