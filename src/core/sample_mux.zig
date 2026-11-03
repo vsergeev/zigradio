@@ -91,7 +91,7 @@ pub const SampleMux = struct {
         }
         inline for (type_signature.outputs, 0..) |output_type, i| {
             const buffer = self.vtable.getOutputBuffer(self.ptr, i);
-            sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_type, buffer[0..std.mem.alignBackward(usize, buffer.len, @sizeOf(type_signature.outputs[i]))]));
+            sample_buffers.outputs[i] = @alignCast(std.mem.bytesAsSlice(output_type, buffer[0 .. (buffer.len / @sizeOf(type_signature.outputs[i])) * @sizeOf(type_signature.outputs[i])]));
         }
 
         // Return typed input and output buffers
@@ -1305,7 +1305,7 @@ test "RefCounted input" {
 
     // Write two samples of RefCounted(Foo)
     var buf = writer.getBuffer();
-    var slice: []RefCounted(Foo) = @alignCast(std.mem.bytesAsSlice(RefCounted(Foo), buf[0..std.mem.alignBackward(usize, buf.len, @sizeOf(RefCounted(Foo)))]));
+    var slice: []RefCounted(Foo) = @alignCast(std.mem.bytesAsSlice(RefCounted(Foo), buf[0 .. (buf.len / @sizeOf(RefCounted(Foo))) * @sizeOf(RefCounted(Foo))]));
     slice[0] = RefCounted(Foo).init(.{});
     slice[1] = RefCounted(Foo).init(.{});
     writer.update(2 * @sizeOf(RefCounted(Foo)));
