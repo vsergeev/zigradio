@@ -1,7 +1,5 @@
 const std = @import("std");
 
-extern "c" fn clock_gettime(clk_id: std.c.clockid_t, tp: *std.c.timespec) c_int;
-
 const util = @import("util.zig");
 const platform = @import("platform.zig");
 
@@ -276,10 +274,7 @@ pub const TemporaryFile = struct {
     pub fn create(io: std.Io) !TemporaryFile {
         // Generate random filename
         var random_bytes: [12]u8 = undefined;
-        var ts: std.c.timespec = undefined;
-        _ = clock_gettime(std.c.CLOCK.REALTIME, &ts);
-        var prng = std.Random.DefaultPrng.init(@bitCast(@as(i64, ts.nsec) *% 1_000_000_007 +% @as(i64, ts.sec)));
-        prng.random().bytes(&random_bytes);
+        io.random(&random_bytes);
         var random_name: [std.fs.base64_encoder.calcSize(random_bytes.len)]u8 = undefined;
         _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
