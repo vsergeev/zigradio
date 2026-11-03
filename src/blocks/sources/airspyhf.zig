@@ -302,7 +302,7 @@ pub const AirspyHFSource = struct {
         }
 
         // Copy to sample mux output buffer
-        var samples_buffer: []std.math.Complex(f32) = @alignCast(std.mem.bytesAsSlice(std.math.Complex(f32), buffer[0..std.mem.alignBackward(usize, buffer.len, @sizeOf(std.math.Complex(f32)))]));
+        var samples_buffer: []std.math.Complex(f32) = @alignCast(std.mem.bytesAsSlice(std.math.Complex(f32), buffer[0 .. (buffer.len / @sizeOf(std.math.Complex(f32))) * @sizeOf(std.math.Complex(f32))]));
         @memcpy(samples_buffer[0..samples_count], @as([*]std.math.Complex(f32), @ptrCast(transfer.samples))[0..samples_count]);
 
         // Update sample mux output buffer
