@@ -61,7 +61,7 @@ pub const RealStreamSource = struct {
         self.offset += bytes_read;
 
         // Convert bytes to samples
-        const bytes_consumed = @min(std.mem.alignBackward(usize, self.offset, self.converter.ELEMENT_SIZE), z.len * self.converter.ELEMENT_SIZE);
+        const bytes_consumed = @min((self.offset / self.converter.ELEMENT_SIZE) * self.converter.ELEMENT_SIZE, z.len * self.converter.ELEMENT_SIZE);
         const samples_produced = self.converter.bytesToReal(self.buffer[0..bytes_consumed], z);
 
         // Shift down unused bytes
