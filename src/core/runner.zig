@@ -33,7 +33,7 @@ pub const RawBlockRunner = struct {
     }
 
     pub fn call(self: *RawBlockRunner, comptime function: anytype, args: anytype) @typeInfo(@TypeOf(function)).@"fn".return_type.? {
-        const block = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @alignCast(@fieldParentPtr("block", self.block)));
+        const block = @as(@typeInfo(@TypeOf(function)).@"fn".param_types[0].?, @alignCast(@fieldParentPtr("block", self.block)));
         return @call(.auto, function, .{block} ++ args);
     }
 
@@ -122,7 +122,7 @@ pub const ThreadedBlockRunner = struct {
         defer self.mutex.unlock(self.io);
         defer self.call_event.reset();
 
-        const block = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @alignCast(@fieldParentPtr("block", self.block)));
+        const block = @as(@typeInfo(@TypeOf(function)).@"fn".param_types[0].?, @alignCast(@fieldParentPtr("block", self.block)));
         return @call(.auto, function, .{block} ++ args);
     }
 

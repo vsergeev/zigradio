@@ -32,7 +32,7 @@ pub fn SlicerBlock(comptime slicer: type) type {
         }
 
         fn SlicerInputType() type {
-            return @typeInfo(@TypeOf(slicer.process)).@"fn".params[0].type.?;
+            return @typeInfo(@TypeOf(slicer.process)).@"fn".param_types[0].?;
         }
 
         fn SlicerOutputType() type {

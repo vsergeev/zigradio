@@ -154,7 +154,7 @@ test "ApplicationSource available, get, update, write, push, setEOS" {
     try application_source.start(ring_buffer_sample_mux.sampleMux());
 
     // Wait should not block
-    try std.testing.expectEqual(void{}, application_source.wait(1, std.time.ns_per_ms));
+    try std.testing.expectEqual({}, application_source.wait(1, std.time.ns_per_ms));
 
     // Available should be ring buffer size - 1
     try std.testing.expectEqual((std.heap.pageSize() / @sizeOf(u32)) - 1, application_source.available());
@@ -248,7 +248,7 @@ test "ApplicationSource blocking wait" {
     try std.testing.expectEqual(std.heap.pageSize() - 2 * @sizeOf(u32), try output_reader.getAvailable());
 
     // Application source wait should timeout for more than 1 sample
-    try std.testing.expectEqual(void{}, application_source.wait(1, std.time.ns_per_ms));
+    try std.testing.expectEqual({}, application_source.wait(1, std.time.ns_per_ms));
     try std.testing.expectError(error.Timeout, application_source.wait(2, std.time.ns_per_ms));
     try std.testing.expectError(error.Timeout, application_source.wait(2, std.time.ns_per_ms));
 

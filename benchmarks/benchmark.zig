@@ -305,7 +305,7 @@ pub fn main(init: std.process.Init) !void {
     const benchmark_filter: ?[]const u8 = args_it.next();
 
     for (BenchmarkSuite) |benchmark| {
-        if (benchmark_filter != null and std.ascii.indexOfIgnoreCase(benchmark.name, benchmark_filter.?) == null) continue;
+        if (benchmark_filter != null and std.ascii.findIgnoreCase(benchmark.name, benchmark_filter.?) == null) continue;
 
         std.debug.print("Running {s}...\n", .{benchmark.name});
         try benchmark.func(allocator, init.io);

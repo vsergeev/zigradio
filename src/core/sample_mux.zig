@@ -57,8 +57,8 @@ pub const SampleMux = struct {
             }
 
             // Compute minimum input and output samples available
-            const min_input_samples_index = if (type_signature.inputs.len != 0) std.mem.indexOfMin(usize, input_samples_available[0..type_signature.inputs.len]) else void;
-            const min_output_samples_index = if (type_signature.outputs.len != 0) std.mem.indexOfMin(usize, output_samples_available[0..type_signature.outputs.len]) else void;
+            const min_input_samples_index = if (type_signature.inputs.len != 0) std.mem.findMin(usize, input_samples_available[0..type_signature.inputs.len]) else void;
+            const min_output_samples_index = if (type_signature.outputs.len != 0) std.mem.findMin(usize, output_samples_available[0..type_signature.outputs.len]) else void;
             const min_input_samples = if (type_signature.inputs.len != 0) input_samples_available[min_input_samples_index] else void;
             const min_output_samples = if (type_signature.outputs.len != 0) output_samples_available[min_output_samples_index] else void;
 
@@ -254,9 +254,9 @@ pub fn TestSampleMux(comptime input_data_types: []const type, comptime output_da
         };
 
         input_buffers: [input_data_types.len][]const u8,
-        input_buffer_indices: [input_data_types.len]usize = .{0} ** input_data_types.len,
+        input_buffer_indices: [input_data_types.len]usize = @splat(0),
         output_buffers: [output_data_types.len][]u8,
-        output_buffer_indices: [output_data_types.len]usize = .{0} ** output_data_types.len,
+        output_buffer_indices: [output_data_types.len]usize = @splat(0),
         options: Options,
 
         pub fn init(input_buffers: [input_data_types.len][]const u8, options: Options) !Self {
@@ -529,9 +529,9 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input ring buffer
-    input_writer.write(&[_]u8{0xaa} ** 2);
-    input_writer.write(&[_]u8{0xbb} ** 2);
-    input_writer.write(&[_]u8{0xcc} ** 2);
+    input_writer.write(&@as([2]u8, @splat(0xaa)));
+    input_writer.write(&@as([2]u8, @splat(0xbb)));
+    input_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Verify wait returns lowest common number of samples available
     try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
@@ -560,15 +560,15 @@ test "ThreadSafeRingBufferSampleMux single input, single output" {
     try std.testing.expectEqual(@as(usize, 12), output_ring_buffer.impl.getReadAvailable(0));
 
     // Verify written samples
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb }, output_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xcc, 0xcc, 0xcc, 0xcc }, output_reader.read(b[0..]));
 
     // Load 3 more samples into input ring buffer
-    input_writer.write(&[_]u8{0xdd} ** 2);
-    input_writer.write(&[_]u8{0xee} ** 2);
-    input_writer.write(&[_]u8{0xff} ** 2);
+    input_writer.write(&@as([2]u8, @splat(0xdd)));
+    input_writer.write(&@as([2]u8, @splat(0xee)));
+    input_writer.write(&@as([2]u8, @splat(0xff)));
 
     // Get sample buffers
     buffers = try sample_mux.get(ts);
@@ -641,15 +641,15 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input 1 ring buffer
-    input1_writer.write(&[_]u8{0xaa} ** 2);
-    input1_writer.write(&[_]u8{0xbb} ** 2);
-    input1_writer.write(&[_]u8{0xcc} ** 2);
+    input1_writer.write(&@as([2]u8, @splat(0xaa)));
+    input1_writer.write(&@as([2]u8, @splat(0xbb)));
+    input1_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Load 4 samples into input 2 ring buffer
-    input2_writer.write(&[_]u8{0x11} ** 1);
-    input2_writer.write(&[_]u8{0x22} ** 1);
-    input2_writer.write(&[_]u8{0x33} ** 1);
-    input2_writer.write(&[_]u8{0x44} ** 1);
+    input2_writer.write(&@as([1]u8, @splat(0x11)));
+    input2_writer.write(&@as([1]u8, @splat(0x22)));
+    input2_writer.write(&@as([1]u8, @splat(0x33)));
+    input2_writer.write(&@as([1]u8, @splat(0x44)));
 
     // Verify wait returns lowest common number of samples available
     try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
@@ -688,7 +688,7 @@ test "ThreadSafeRingBufferSampleMux multiple input, multiple output" {
     try std.testing.expectEqual(@as(usize, 3), output2_ring_buffer.impl.getReadAvailable(0));
 
     // Verify written samples
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output1_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb }, output1_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{0xcc}, output2_reader.read(b[0..1]));
@@ -715,15 +715,15 @@ test "ThreadSafeRingBufferSampleMux only inputs" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input 1 ring buffer
-    input1_writer.write(&[_]u8{0xaa} ** 2);
-    input1_writer.write(&[_]u8{0xbb} ** 2);
-    input1_writer.write(&[_]u8{0xcc} ** 2);
+    input1_writer.write(&@as([2]u8, @splat(0xaa)));
+    input1_writer.write(&@as([2]u8, @splat(0xbb)));
+    input1_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Load 4 samples into input 2 ring buffer
-    input2_writer.write(&[_]u8{0x11} ** 1);
-    input2_writer.write(&[_]u8{0x22} ** 1);
-    input2_writer.write(&[_]u8{0x33} ** 1);
-    input2_writer.write(&[_]u8{0x44} ** 1);
+    input2_writer.write(&@as([1]u8, @splat(0x11)));
+    input2_writer.write(&@as([1]u8, @splat(0x22)));
+    input2_writer.write(&@as([1]u8, @splat(0x33)));
+    input2_writer.write(&@as([1]u8, @splat(0x44)));
 
     // Verify wait returns lowest common number of samples available
     try std.testing.expectEqual(@as(usize, 3), try sample_mux.wait(ts, null));
@@ -807,7 +807,7 @@ test "ThreadSafeRingBufferSampleMux only outputs" {
     try std.testing.expectEqual(@as(usize, 3), try output2_reader.getAvailable());
 
     // Verify written samples
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output1_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb }, output1_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{0xcc}, output2_reader.read(b[0..1]));
@@ -837,14 +837,14 @@ test "ThreadSafeRingBufferSampleMux read eos" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input 1 ring buffer
-    input1_writer.write(&[_]u8{0xaa} ** 2);
-    input1_writer.write(&[_]u8{0xbb} ** 2);
-    input1_writer.write(&[_]u8{0xcc} ** 2);
+    input1_writer.write(&@as([2]u8, @splat(0xaa)));
+    input1_writer.write(&@as([2]u8, @splat(0xbb)));
+    input1_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Load 3 samples into input 2 ring buffer
-    input2_writer.write(&[_]u8{0x11} ** 1);
-    input2_writer.write(&[_]u8{0x22} ** 1);
-    input2_writer.write(&[_]u8{0x33} ** 1);
+    input2_writer.write(&@as([1]u8, @splat(0x11)));
+    input2_writer.write(&@as([1]u8, @splat(0x22)));
+    input2_writer.write(&@as([1]u8, @splat(0x33)));
 
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
@@ -873,7 +873,7 @@ test "ThreadSafeRingBufferSampleMux read eos" {
     try std.testing.expectEqual(@as(usize, 4), output1_ring_buffer.impl.getReadAvailable(0));
 
     // Verify written samples
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output1_reader.read(b[0..]));
 
     // Set EOS on input 2
@@ -925,9 +925,9 @@ test "ThreadSafeRingBufferSampleMux write eos" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input ring buffer
-    input_writer.write(&[_]u8{0xaa} ** 2);
-    input_writer.write(&[_]u8{0xbb} ** 2);
-    input_writer.write(&[_]u8{0xcc} ** 2);
+    input_writer.write(&@as([2]u8, @splat(0xaa)));
+    input_writer.write(&@as([2]u8, @splat(0xbb)));
+    input_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Get sample buffers
     var buffers = try sample_mux.get(ts);
@@ -956,7 +956,7 @@ test "ThreadSafeRingBufferSampleMux write eos" {
     try std.testing.expectEqual(@as(usize, 12), output_ring_buffer.impl.getReadAvailable(0));
 
     // Verify written samples
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xaa, 0xaa, 0xaa, 0xaa }, output_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb }, output_reader.read(b[0..]));
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0xcc, 0xcc, 0xcc, 0xcc }, output_reader.read(b[0..]));
@@ -1022,9 +1022,9 @@ test "ThreadSafeRingBufferSampleMux blocking read" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input 1 ring buffer
-    input1_writer.write(&[_]u8{0xaa} ** 2);
-    input1_writer.write(&[_]u8{0xbb} ** 2);
-    input1_writer.write(&[_]u8{0xcc} ** 2);
+    input1_writer.write(&@as([2]u8, @splat(0xaa)));
+    input1_writer.write(&@as([2]u8, @splat(0xbb)));
+    input1_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Leave input 2 ring buffer empty
 
@@ -1108,17 +1108,17 @@ test "ThreadSafeRingBufferSampleMux blocking write" {
     var sample_mux = ring_buffer_sample_mux.sampleMux();
 
     // Load 3 samples into input 1 ring buffer
-    input1_writer.write(&[_]u8{0xaa} ** 2);
-    input1_writer.write(&[_]u8{0xbb} ** 2);
-    input1_writer.write(&[_]u8{0xcc} ** 2);
+    input1_writer.write(&@as([2]u8, @splat(0xaa)));
+    input1_writer.write(&@as([2]u8, @splat(0xbb)));
+    input1_writer.write(&@as([2]u8, @splat(0xcc)));
 
     // Load 3 samples into input 2 ring buffer
-    input2_writer.write(&[_]u8{0xdd} ** 1);
-    input2_writer.write(&[_]u8{0xee} ** 1);
-    input2_writer.write(&[_]u8{0xff} ** 1);
+    input2_writer.write(&@as([1]u8, @splat(0xdd)));
+    input2_writer.write(&@as([1]u8, @splat(0xee)));
+    input2_writer.write(&@as([1]u8, @splat(0xff)));
 
     // Prewrite output 2 ring buffer to saturate it, leaving no samples available
-    output2_writer.write(&[_]u8{0x11} ** (std.heap.page_size_min - 1));
+    output2_writer.write(&@as([std.heap.page_size_min - 1]u8, @splat(0x11)));
     try std.testing.expectEqual(@as(usize, 0), output2_writer.getAvailable());
 
     // Verify sample mux wait times out

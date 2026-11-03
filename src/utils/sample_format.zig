@@ -68,8 +68,8 @@ pub const SampleFormat = enum {
 // Code Generation
 ////////////////////////////////////////////////////////////////////////////
 
-pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Converter {
-    var converters: [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Converter = undefined;
+pub fn _generate() [@typeInfo(SampleFormat).@"enum".field_names.len]SampleFormat.Converter {
+    var converters: [@typeInfo(SampleFormat).@"enum".field_names.len]SampleFormat.Converter = undefined;
 
     for (0..converters.len) |e| {
         const info = SampleFormat.info(@enumFromInt(e));
@@ -78,7 +78,7 @@ pub fn _generate() [@typeInfo(SampleFormat).@"enum".fields.len]SampleFormat.Conv
             fn swapBytes(bytes: []u8) void {
                 if (comptime info.endianness == null or info.endianness.? == builtin.cpu.arch.endian()) return;
 
-                const UintType = std.meta.Int(.unsigned, 8 * @sizeOf(info.data_type));
+                const UintType = @Int(.unsigned, 8 * @sizeOf(info.data_type));
                 const buf = std.mem.bytesAsSlice(UintType, bytes);
                 for (buf) |*elem| elem.* = @byteSwap(elem.*);
             }

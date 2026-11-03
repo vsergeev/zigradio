@@ -15,7 +15,7 @@ fn discoverExamples(allocator: std.mem.Allocator, io: std.Io, dir_path: []const 
     while (try examples_it.next(io)) |entry| {
         if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".zig")) {
             const name = try std.mem.concat(allocator, u8, &[_][]const u8{ "example-", entry.name[0 .. entry.name.len - 4] });
-            const path = try std.fs.path.join(allocator, &[_][]const u8{ "examples", entry.name });
+            const path = try std.Io.Dir.path.join(allocator, &[_][]const u8{ "examples", entry.name });
             try examples.append(.{ .name = name, .path = path });
         }
     }
@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) !void {
     const radio_module = b.addModule("radio", .{ .root_source_file = b.path("src/radio.zig") });
 
     // Discover examples
-    const examples = try discoverExamples(b.allocator, b.graph.io, b.path("examples").getPath(b));
+    const examples = try discoverExamples(b.allocator, b.graph.io, try b.root.joinString(b.allocator, "examples"));
 
     // Build examples
     const examples_step = b.step("examples", "Build examples");
@@ -77,7 +77,7 @@ pub fn build(b: *std.Build) !void {
     });
     benchmark_suite.root_module.addImport("radio", radio_module);
     const run_benchmark_suite = b.addRunArtifact(benchmark_suite);
-    if (b.args) |args| run_benchmark_suite.addArgs(args);
+    run_benchmark_suite.addPassthruArgs();
     const benchmark_step = b.step("benchmark", "Run benchmark suite");
     benchmark_step.dependOn(&run_benchmark_suite.step);
 

@@ -70,8 +70,8 @@ pub fn IIRFilter(comptime T: type, comptime N: comptime_int, comptime M: comptim
     return struct {
         const Self = @This();
 
-        b_taps: [N]f32 = [_]f32{0} ** N,
-        a_taps: [M]f32 = [_]f32{0} ** M,
+        b_taps: [N]f32 = @splat(0),
+        a_taps: [M]f32 = @splat(0),
         impl: union(enum) {
             none,
             volk: _IIRFilterBlockVolkImpl(T, N, M, Self),
@@ -284,8 +284,8 @@ fn _IIRFilterBlockZigImpl(comptime T: type, comptime N: comptime_int, comptime M
         const Self = @This();
 
         parent: *const Parent,
-        input_state: [N]T = [_]T{zero(T)} ** N,
-        output_state: [M - 1]T = [_]T{zero(T)} ** (M - 1),
+        input_state: [N]T = @splat(zero(T)),
+        output_state: [M - 1]T = @splat(zero(T)),
 
         pub fn initialize(self: *Self, _: std.mem.Allocator) !void {
             for (&self.input_state) |*e| e.* = zero(T);

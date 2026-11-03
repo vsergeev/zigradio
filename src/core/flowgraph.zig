@@ -576,7 +576,7 @@ pub const Flowgraph = struct {
             }
         } else {
             // Call composite directly, passing in flowgraph for downstream block calls
-            const composite = @as(@typeInfo(@TypeOf(function)).@"fn".params[0].type.?, @alignCast(@fieldParentPtr("block", block)));
+            const composite = @as(@typeInfo(@TypeOf(function)).@"fn".param_types[0].?, @alignCast(@fieldParentPtr("block", block)));
             return @call(.auto, function, .{ composite, self } ++ args);
         }
     }
@@ -1541,12 +1541,12 @@ const TestErrorSink = struct {
 
 test "Flowgraph run to completion" {
     // Input test vector
-    var test_vector: [8192]u8 = .{0x00} ** 8192;
+    var test_vector: [8192]u8 = @splat(0x00);
     var prng = std.Random.DefaultPrng.init(123);
     prng.fill(&test_vector);
 
     // Expected output vector
-    var expected_output_vector: [8192]u8 = .{0x00} ** 8192;
+    var expected_output_vector: [8192]u8 = @splat(0x00);
     for (test_vector, 0..) |_, i| {
         expected_output_vector[i] = ~test_vector[i];
     }
@@ -1610,7 +1610,7 @@ test "Flowgraph collapses on error" {
     var top = Flowgraph.init(std.testing.allocator, std.testing.io, .{});
     defer top.deinit();
 
-    var source_block = TestBufferSource.init(&(.{0x00} ** 8192));
+    var source_block = TestBufferSource.init(&@as([8192]u8, @splat(0x00)));
     var inverter_block = TestInverterBlock.init();
     var sink_block = TestErrorSink.init();
 

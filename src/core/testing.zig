@@ -212,7 +212,7 @@ pub fn BlockFixture(comptime input_data_types: []const type, comptime output_dat
             try instance.setRate(rate);
             try instance.initialize(std.testing.allocator, std.testing.io);
 
-            return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(.{&[_]u8{}} ** input_data_types.len, .{ .num_readers = 1 }) };
+            return .{ .instance = instance, .test_sample_mux = try TestSampleMux(input_data_types, output_data_types).init(@splat(&[_]u8{}), .{ .num_readers = 1 }) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -275,11 +275,11 @@ pub const TemporaryFile = struct {
         // Generate random filename
         var random_bytes: [12]u8 = undefined;
         io.random(&random_bytes);
-        var random_name: [std.fs.base64_encoder.calcSize(random_bytes.len)]u8 = undefined;
-        _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+        var random_name: [std.base64.url_safe.Encoder.calcSize(random_bytes.len)]u8 = undefined;
+        _ = std.base64.url_safe.Encoder.encode(&random_name, &random_bytes);
 
         // Generate path
-        const random_file_path: []u8 = try std.fs.path.join(std.testing.allocator, &.{ "/tmp", &random_name });
+        const random_file_path: []u8 = try std.Io.Dir.path.join(std.testing.allocator, &.{ "/tmp", &random_name });
         defer std.testing.allocator.free(random_file_path);
 
         // Create the file

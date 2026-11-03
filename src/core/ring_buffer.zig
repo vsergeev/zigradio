@@ -138,7 +138,7 @@ fn RingBuffer(comptime MemoryImpl: type) type {
         num_readers: usize = 0,
 
         // Accounting State
-        read_index: [MAX_NUM_READERS]usize = [_]usize{0} ** MAX_NUM_READERS,
+        read_index: [MAX_NUM_READERS]usize = @splat(0),
         write_index: usize = 0,
         read_eos: bool = false,
         write_eos: bool = false,

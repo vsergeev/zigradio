@@ -55,7 +55,7 @@ Check out some more [examples](examples) of what you can build with ZigRadio.
 
 ## Quickstart
 
-ZigRadio requires Zig version 0.16.
+ZigRadio requires Zig version 0.17.
 
 ```plain
 $ git clone https://github.com/vsergeev/zigradio.git

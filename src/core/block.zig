@@ -9,8 +9,8 @@ const SampleMux = @import("sample_mux.zig").SampleMux;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub const ProcessResult = struct {
-    samples_consumed: [8]usize = [_]usize{0} ** 8,
-    samples_produced: [8]usize = [_]usize{0} ** 8,
+    samples_consumed: [8]usize = @splat(0),
+    samples_produced: [8]usize = @splat(0),
     eos: bool = false,
 
     pub fn init(consumed: []const usize, produced: []const usize) ProcessResult {
@@ -443,7 +443,7 @@ test "Block.process eos" {
 }
 
 test "Block.process SampleMux read eos" {
-    var b: [4]u8 = .{0x00} ** 4;
+    var b: [4]u8 = @splat(0x00);
 
     var input1_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer input1_ring_buffer.deinit();
@@ -500,7 +500,7 @@ test "Block.process SampleMux read eos" {
 }
 
 test "Block.process SampleMux write eos" {
-    var b: [2]u8 = .{0x00} ** 2;
+    var b: [2]u8 = @splat(0x00);
 
     var output_ring_buffer = try ThreadSafeRingBuffer.init(std.testing.allocator, std.testing.io, std.heap.pageSize());
     defer output_ring_buffer.deinit();

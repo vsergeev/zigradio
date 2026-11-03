@@ -9,7 +9,7 @@ pub const ComptimeTypeSignature = struct {
     outputs: []const type,
 
     pub fn init(comptime process_fn: anytype) ComptimeTypeSignature {
-        const process_args = @typeInfo(@TypeOf(process_fn)).@"fn".params[1..];
+        const process_args = @typeInfo(@TypeOf(process_fn)).@"fn".param_types[1..];
 
         comptime var _comptime_inputs: [process_args.len]type = undefined;
         comptime var _comptime_outputs: [process_args.len]type = undefined;
@@ -17,12 +17,12 @@ pub const ComptimeTypeSignature = struct {
         comptime var num_outputs: usize = 0;
 
         inline for (process_args) |arg| {
-            const arg_is_input = @typeInfo(arg.type orelse unreachable).pointer.is_const;
+            const arg_is_input = @typeInfo(arg orelse unreachable).pointer.attrs.@"const";
             if (arg_is_input) {
-                _comptime_inputs[num_inputs] = @typeInfo(arg.type orelse unreachable).pointer.child;
+                _comptime_inputs[num_inputs] = @typeInfo(arg orelse unreachable).pointer.child;
                 num_inputs += 1;
             } else {
-                _comptime_outputs[num_outputs] = @typeInfo(arg.type orelse unreachable).pointer.child;
+                _comptime_outputs[num_outputs] = @typeInfo(arg orelse unreachable).pointer.child;
                 num_outputs += 1;
             }
         }

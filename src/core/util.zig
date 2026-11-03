@@ -23,7 +23,7 @@ pub fn makeTupleConstSliceTypes(comptime data_types: []const type) type {
         slice_data_types[i] = []const data_type;
     }
 
-    return std.meta.Tuple(&slice_data_types);
+    return @Tuple(&slice_data_types);
 }
 
 pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
@@ -33,7 +33,7 @@ pub fn makeTupleSliceTypes(comptime data_types: []const type) type {
         slice_data_types[i] = []data_type;
     }
 
-    return std.meta.Tuple(&slice_data_types);
+    return @Tuple(&slice_data_types);
 }
 
 pub fn indexOfString(haystack: []const []const u8, needle: []const u8) ?usize {
@@ -56,15 +56,15 @@ test "dataTypeSizes" {
 }
 
 test "make tuple const slice types" {
-    try std.testing.expectEqual(makeTupleConstSliceTypes(&[0]type{}), std.meta.Tuple(&[0]type{}));
-    try std.testing.expectEqual(makeTupleConstSliceTypes(&[1]type{u32}), std.meta.Tuple(&[1]type{[]const u32}));
-    try std.testing.expectEqual(makeTupleConstSliceTypes(&[3]type{ u8, f32, bool }), std.meta.Tuple(&[3]type{ []const u8, []const f32, []const bool }));
+    try std.testing.expectEqual(makeTupleConstSliceTypes(&[0]type{}), @Tuple(&[0]type{}));
+    try std.testing.expectEqual(makeTupleConstSliceTypes(&[1]type{u32}), @Tuple(&[1]type{[]const u32}));
+    try std.testing.expectEqual(makeTupleConstSliceTypes(&[3]type{ u8, f32, bool }), @Tuple(&[3]type{ []const u8, []const f32, []const bool }));
 }
 
 test "make tuple slice types" {
-    try std.testing.expectEqual(makeTupleSliceTypes(&[0]type{}), std.meta.Tuple(&[0]type{}));
-    try std.testing.expectEqual(makeTupleSliceTypes(&[1]type{u32}), std.meta.Tuple(&[1]type{[]u32}));
-    try std.testing.expectEqual(makeTupleSliceTypes(&[3]type{ u8, f32, bool }), std.meta.Tuple(&[3]type{ []u8, []f32, []bool }));
+    try std.testing.expectEqual(makeTupleSliceTypes(&[0]type{}), @Tuple(&[0]type{}));
+    try std.testing.expectEqual(makeTupleSliceTypes(&[1]type{u32}), @Tuple(&[1]type{[]u32}));
+    try std.testing.expectEqual(makeTupleSliceTypes(&[3]type{ u8, f32, bool }), @Tuple(&[3]type{ []u8, []f32, []bool }));
 }
 
 test "indexOfString" {
