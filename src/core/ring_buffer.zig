@@ -1,5 +1,4 @@
 const std = @import("std");
-const pthread = @import("pthread.zig");
 
 ////////////////////////////////////////////////////////////////////////////////
 // RingBuffer Memory Implementations
@@ -259,20 +258,22 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
     return struct {
         const Self = @This();
 
+        io: std.Io,
+
         // Ring Buffer Implementation
         impl: RingBufferImpl,
 
         // Lock and Condition Variables
-        mutex: pthread.Mutex = .{},
-        cond_read_available: pthread.Condition = .{},
-        cond_write_available: pthread.Condition = .{},
+        mutex: std.Io.Mutex = .init,
+        cond_read_available: std.Io.Condition = .init,
+        cond_write_available: std.Io.Condition = .init,
 
         ////////////////////////////////////////////////////////////////////////
         // Constructor and Destructor
         ////////////////////////////////////////////////////////////////////////
 
-        pub fn init(allocator: std.mem.Allocator, _: std.Io, capacity: usize) !Self {
-            return .{ .impl = try RingBufferImpl.init(allocator, capacity) };
+        pub fn init(allocator: std.mem.Allocator, io: std.Io, capacity: usize) !Self {
+            return .{ .io = io, .impl = try RingBufferImpl.init(allocator, capacity) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -287,8 +288,8 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
             ring_buffer: *Self,
 
             pub fn getAvailable(self: *const @This()) error{BrokenStream}!usize {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 if (self.ring_buffer.impl.getWriteEOS()) return error.BrokenStream;
 
@@ -296,33 +297,36 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
             }
 
             pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{ BrokenStream, Timeout }!void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 while (self.ring_buffer.impl.getWriteAvailable() < min_count) {
                     if (self.ring_buffer.impl.getWriteEOS()) return error.BrokenStream;
 
                     if (timeout_ns) |timeout| {
-                        try self.ring_buffer.cond_write_available.timedWait(&self.ring_buffer.mutex, timeout);
+                        self.ring_buffer.cond_write_available.waitTimeout(self.ring_buffer.io, &self.ring_buffer.mutex, .{ .duration = .{ .raw = .fromNanoseconds(timeout), .clock = .awake } }) catch |err| switch (err) {
+                            error.Timeout => |e| return e,
+                            error.Canceled => unreachable,
+                        };
                     } else {
-                        self.ring_buffer.cond_write_available.wait(&self.ring_buffer.mutex);
+                        self.ring_buffer.cond_write_available.waitUncancelable(self.ring_buffer.io, &self.ring_buffer.mutex);
                     }
                 }
             }
 
             pub fn getBuffer(self: *@This()) []u8 {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 return self.ring_buffer.impl.getWriteBuffer(self.ring_buffer.impl.getWriteAvailable());
             }
 
             pub fn update(self: *@This(), count: usize) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 self.ring_buffer.impl.updateWriteIndex(count);
-                self.ring_buffer.cond_read_available.broadcast();
+                self.ring_buffer.cond_read_available.broadcast(self.ring_buffer.io);
             }
 
             pub fn getNumReaders(self: *@This()) usize {
@@ -330,11 +334,11 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
             }
 
             pub fn setEOS(self: *@This()) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 self.ring_buffer.impl.setReadEOS();
-                self.ring_buffer.cond_read_available.broadcast();
+                self.ring_buffer.cond_read_available.broadcast(self.ring_buffer.io);
             }
 
             // Write interface for testing
@@ -350,8 +354,8 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
             index: usize,
 
             pub fn getAvailable(self: *const @This()) error{EndOfStream}!usize {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 const available = self.ring_buffer.impl.getReadAvailable(self.index);
                 if (available == 0 and self.ring_buffer.impl.getReadEOS()) {
@@ -362,41 +366,44 @@ fn _ThreadSafeRingBuffer(comptime RingBufferImpl: type) type {
             }
 
             pub fn waitAvailable(self: *@This(), min_count: usize, timeout_ns: ?u64) error{ Timeout, EndOfStream }!void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 while (self.ring_buffer.impl.getReadAvailable(self.index) < min_count) {
                     if (self.ring_buffer.impl.getReadEOS()) return error.EndOfStream;
 
                     if (timeout_ns) |timeout| {
-                        try self.ring_buffer.cond_read_available.timedWait(&self.ring_buffer.mutex, timeout);
+                        self.ring_buffer.cond_read_available.waitTimeout(self.ring_buffer.io, &self.ring_buffer.mutex, .{ .duration = .{ .raw = .fromNanoseconds(timeout), .clock = .awake } }) catch |err| switch (err) {
+                            error.Timeout => |e| return e,
+                            error.Canceled => unreachable,
+                        };
                     } else {
-                        self.ring_buffer.cond_read_available.wait(&self.ring_buffer.mutex);
+                        self.ring_buffer.cond_read_available.waitUncancelable(self.ring_buffer.io, &self.ring_buffer.mutex);
                     }
                 }
             }
 
             pub fn getBuffer(self: *@This()) []const u8 {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 return self.ring_buffer.impl.getReadBuffer(self.index, self.ring_buffer.impl.getReadAvailable(self.index));
             }
 
             pub fn update(self: *@This(), count: usize) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 self.ring_buffer.impl.updateReadIndex(self.index, count);
-                self.ring_buffer.cond_write_available.signal();
+                self.ring_buffer.cond_write_available.signal(self.ring_buffer.io);
             }
 
             pub fn setEOS(self: *@This()) void {
-                self.ring_buffer.mutex.lock();
-                defer self.ring_buffer.mutex.unlock();
+                self.ring_buffer.mutex.lockUncancelable(self.ring_buffer.io);
+                defer self.ring_buffer.mutex.unlock(self.ring_buffer.io);
 
                 self.ring_buffer.impl.setWriteEOS();
-                self.ring_buffer.cond_write_available.signal();
+                self.ring_buffer.cond_write_available.signal(self.ring_buffer.io);
             }
 
             // Read interface for testing
