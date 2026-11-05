@@ -127,10 +127,11 @@ fn _IIRFilterBlockVolkImpl(comptime T: type, comptime N: comptime_int, comptime 
         const Alignment: std.mem.Alignment = .@"32";
 
         parent: *const Parent,
-        b_taps: std.array_list.AlignedManaged(f32, Alignment) = undefined,
-        a_taps: std.array_list.AlignedManaged(f32, Alignment) = undefined,
-        input_state: std.array_list.Managed(T) = undefined,
-        output_state: std.array_list.Managed(T) = undefined,
+        allocator: std.mem.Allocator = undefined,
+        b_taps: std.array_list.Aligned(f32, Alignment) = .empty,
+        a_taps: std.array_list.Aligned(f32, Alignment) = .empty,
+        input_state: std.ArrayList(T) = .empty,
+        output_state: std.ArrayList(T) = .empty,
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator) !void {
             if (!volk_loaded) {
@@ -139,36 +140,34 @@ fn _IIRFilterBlockVolkImpl(comptime T: type, comptime N: comptime_int, comptime 
                 volk_loaded = true;
             }
 
+            self.allocator = allocator;
+
             // Copy b taps (backwards)
-            self.b_taps = std.array_list.AlignedManaged(f32, Alignment).init(allocator);
-            try self.b_taps.resize(N);
+            try self.b_taps.resize(allocator, N);
             for (0..N) |i| self.b_taps.items[i] = self.parent.b_taps[N - 1 - i];
 
             // Copy a taps (forwards)
-            self.a_taps = std.array_list.AlignedManaged(f32, Alignment).init(allocator);
-            try self.a_taps.appendSlice(self.parent.a_taps[0..M]);
+            try self.a_taps.appendSlice(allocator, self.parent.a_taps[0..M]);
 
             // Initialize state
-            self.input_state = std.array_list.Managed(T).init(allocator);
-            self.output_state = std.array_list.Managed(T).init(allocator);
-            try self.input_state.appendNTimes(zero(T), N);
-            try self.output_state.appendNTimes(zero(T), M - 1);
+            try self.input_state.appendNTimes(allocator, zero(T), N);
+            try self.output_state.appendNTimes(allocator, zero(T), M - 1);
 
             if (platform.debug.enabled) std.debug.print("[IIRFilterBlock] Using VOLK implementation\n", .{});
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
-            self.output_state.deinit();
-            self.input_state.deinit();
-            self.a_taps.deinit();
-            self.b_taps.deinit();
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            self.output_state.deinit(allocator);
+            self.input_state.deinit(allocator);
+            self.a_taps.deinit(allocator);
+            self.b_taps.deinit(allocator);
         }
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
             // Shift last b_taps_length-1 state samples to the beginning of state
             for (self.input_state.items.len - (N - 1)..self.input_state.items.len, 0..) |src, dst| self.input_state.items[dst] = self.input_state.items[src];
             // Adjust state vector length for the input
-            try self.input_state.resize(N - 1 + x.len);
+            try self.input_state.resize(self.allocator, N - 1 + x.len);
             // Copy input into state
             @memcpy(self.input_state.items[N - 1 ..], x);
 
