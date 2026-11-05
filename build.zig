@@ -5,8 +5,8 @@ const Example = struct {
     path: []const u8,
 };
 
-fn discoverExamples(allocator: std.mem.Allocator, io: std.Io, dir_path: []const u8) !std.array_list.Managed(Example) {
-    var examples = std.array_list.Managed(Example).init(allocator);
+fn discoverExamples(allocator: std.mem.Allocator, io: std.Io, dir_path: []const u8) !std.ArrayList(Example) {
+    var examples: std.ArrayList(Example) = .empty;
 
     var examples_dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
     defer examples_dir.close(io);
@@ -16,7 +16,7 @@ fn discoverExamples(allocator: std.mem.Allocator, io: std.Io, dir_path: []const 
         if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".zig")) {
             const name = try std.mem.concat(allocator, u8, &[_][]const u8{ "example-", entry.name[0 .. entry.name.len - 4] });
             const path = try std.Io.Dir.path.join(allocator, &[_][]const u8{ "examples", entry.name });
-            try examples.append(.{ .name = name, .path = path });
+            try examples.append(allocator, .{ .name = name, .path = path });
         }
     }
 
