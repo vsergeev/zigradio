@@ -142,25 +142,27 @@ const ThreadSafeRingBuffer = @import("ring_buffer.zig").ThreadSafeRingBuffer;
 pub const ThreadSafeRingBufferSampleMux = struct {
     const Self = @This();
 
-    readers: std.array_list.Managed(ThreadSafeRingBuffer.Reader),
-    writers: std.array_list.Managed(ThreadSafeRingBuffer.Writer),
+    allocator: std.mem.Allocator,
+    readers: std.ArrayList(ThreadSafeRingBuffer.Reader),
+    writers: std.ArrayList(ThreadSafeRingBuffer.Writer),
 
     pub fn init(allocator: std.mem.Allocator, inputs: []const *ThreadSafeRingBuffer, outputs: []const *ThreadSafeRingBuffer) !Self {
-        var readers = std.array_list.Managed(ThreadSafeRingBuffer.Reader).init(allocator);
-        for (inputs) |ring_buffer| try readers.append(ring_buffer.reader());
+        var readers: std.ArrayList(ThreadSafeRingBuffer.Reader) = .empty;
+        for (inputs) |ring_buffer| try readers.append(allocator, ring_buffer.reader());
 
-        var writers = std.array_list.Managed(ThreadSafeRingBuffer.Writer).init(allocator);
-        for (outputs) |ring_buffer| try writers.append(ring_buffer.writer());
+        var writers: std.ArrayList(ThreadSafeRingBuffer.Writer) = .empty;
+        for (outputs) |ring_buffer| try writers.append(allocator, ring_buffer.writer());
 
         return .{
+            .allocator = allocator,
             .readers = readers,
             .writers = writers,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.readers.deinit();
-        self.writers.deinit();
+        self.readers.deinit(self.allocator);
+        self.writers.deinit(self.allocator);
     }
 
     ////////////////////////////////////////////////////////////////////////////
