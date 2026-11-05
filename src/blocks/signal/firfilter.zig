@@ -141,8 +141,9 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: 
         const Alignment: std.mem.Alignment = .@"32";
 
         parent: *const Parent,
-        taps: std.array_list.AlignedManaged(U, Alignment) = undefined,
-        state: std.array_list.Managed(T) = undefined,
+        allocator: std.mem.Allocator = undefined,
+        taps: std.array_list.Aligned(U, Alignment) = .empty,
+        state: std.ArrayList(T) = .empty,
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator, taps: []const U) !void {
             if (!volk_loaded) {
@@ -152,28 +153,28 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: 
                 volk_loaded = true;
             }
 
+            self.allocator = allocator;
+
             // Copy taps (backwards)
-            self.taps = std.array_list.AlignedManaged(U, Alignment).init(allocator);
-            try self.taps.resize(taps.len);
+            try self.taps.resize(allocator, taps.len);
             for (0..taps.len) |i| self.taps.items[i] = taps[taps.len - 1 - i];
 
             // Initialize state
-            self.state = std.array_list.Managed(T).init(allocator);
-            try self.state.appendNTimes(zero(T), self.taps.items.len);
+            try self.state.appendNTimes(allocator, zero(T), self.taps.items.len);
 
             if (platform.debug.enabled) std.debug.print("[FIRFilterBlock] Using VOLK implementation\n", .{});
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator) void {
-            self.state.deinit();
-            self.taps.deinit();
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator) void {
+            self.state.deinit(allocator);
+            self.taps.deinit(allocator);
         }
 
         pub fn process(self: *Self, x: []const T, y: []T) !ProcessResult {
             // Shift last taps_length-1 state samples to the beginning of state
             for (self.state.items.len - (self.taps.items.len - 1)..self.state.items.len, 0..) |src, dst| self.state.items[dst] = self.state.items[src];
             // Adjust state vector length for the input
-            try self.state.resize(self.taps.items.len - 1 + x.len);
+            try self.state.resize(self.allocator, self.taps.items.len - 1 + x.len);
             // Copy input into state
             @memcpy(self.state.items[self.taps.items.len - 1 ..], x);
 
@@ -192,7 +193,7 @@ fn _FIRFilterBlockVolkImpl(comptime T: type, comptime U: type, comptime Parent: 
         pub fn updateTaps(self: *Self, taps: []const U) !void {
             for (0..taps.len) |i| self.taps.items[i] = taps[taps.len - 1 - i];
 
-            if (self.state.items.len < taps.len) try self.state.resize(taps.len);
+            if (self.state.items.len < taps.len) try self.state.resize(self.allocator, taps.len);
         }
 
         pub fn reset(self: *Self) void {
