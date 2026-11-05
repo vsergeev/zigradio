@@ -153,10 +153,10 @@ const FlowgraphRunState = struct {
         }
 
         // Temporary storage for input and output ring buffer slices
-        var input_ring_buffers = std.array_list.Managed(*ThreadSafeRingBuffer).init(allocator);
-        defer input_ring_buffers.deinit();
-        var output_ring_buffers = std.array_list.Managed(*ThreadSafeRingBuffer).init(allocator);
-        defer output_ring_buffers.deinit();
+        var input_ring_buffers: std.ArrayList(*ThreadSafeRingBuffer) = .empty;
+        defer input_ring_buffers.deinit(allocator);
+        var output_ring_buffers: std.ArrayList(*ThreadSafeRingBuffer) = .empty;
+        defer output_ring_buffers.deinit(allocator);
 
         // For each block, collect ring buffers and create a sample mux
         block_it = block_set.keyIterator();
@@ -168,13 +168,13 @@ const FlowgraphRunState = struct {
             // Collect input ring buffers
             for (0..block.*.inputs.len) |i| {
                 const output = flattened_connections.get(BlockInputPort{ .block = block.*, .index = i }).?;
-                try input_ring_buffers.append(ring_buffers.getPtr(output).?);
+                try input_ring_buffers.append(allocator, ring_buffers.getPtr(output).?);
             }
 
             // Collect output ring buffers
             for (0..block.*.outputs.len) |i| {
                 const output = BlockOutputPort{ .block = block.*, .index = i };
-                try output_ring_buffers.append(ring_buffers.getPtr(output).?);
+                try output_ring_buffers.append(allocator, ring_buffers.getPtr(output).?);
             }
 
             // Create sample mux
@@ -229,7 +229,7 @@ pub const Flowgraph = struct {
     io: std.Io,
     options: Options,
 
-    input_aliases: std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)),
+    input_aliases: std.AutoHashMap(InputPort, std.ArrayList(InputPort)),
     output_aliases: std.AutoHashMap(OutputPort, OutputPort),
     connections: std.AutoHashMap(InputPort, OutputPort),
     flattened_connections: std.AutoHashMap(BlockInputPort, BlockOutputPort),
@@ -244,7 +244,7 @@ pub const Flowgraph = struct {
             .allocator = allocator,
             .io = io,
             .options = options,
-            .input_aliases = std.AutoHashMap(InputPort, std.array_list.Managed(InputPort)).init(allocator),
+            .input_aliases = std.AutoHashMap(InputPort, std.ArrayList(InputPort)).init(allocator),
             .output_aliases = std.AutoHashMap(OutputPort, OutputPort).init(allocator),
             .connections = std.AutoHashMap(InputPort, OutputPort).init(allocator),
             .flattened_connections = std.AutoHashMap(BlockInputPort, BlockOutputPort).init(allocator),
@@ -265,7 +265,7 @@ pub const Flowgraph = struct {
 
         self.output_aliases.deinit();
         var input_aliases_it = self.input_aliases.valueIterator();
-        while (input_aliases_it.next()) |input_aliases| input_aliases.deinit();
+        while (input_aliases_it.next()) |input_aliases| input_aliases.deinit(self.allocator);
         self.input_aliases.deinit();
     }
 
@@ -301,9 +301,9 @@ pub const Flowgraph = struct {
         }
 
         // Crawl aliases for underlying destination ports
-        var underlying_dst_ports = std.array_list.Managed(InputPort).init(self.allocator);
-        defer underlying_dst_ports.deinit();
-        try underlying_dst_ports.append(dst_port);
+        var underlying_dst_ports: std.ArrayList(InputPort) = .empty;
+        defer underlying_dst_ports.deinit(self.allocator);
+        try underlying_dst_ports.append(self.allocator, dst_port);
 
         while (underlying_dst_ports.items.len > 0) {
             const next_dst_port = underlying_dst_ports.pop() orelse break;
@@ -313,7 +313,7 @@ pub const Flowgraph = struct {
                 try self.flattened_connections.put(BlockInputPort{ .block = next_dst_port.block.block, .index = next_dst_port.index }, BlockOutputPort{ .block = underlying_src_port.block.block, .index = underlying_src_port.index });
             } else {
                 const aliased_ports = self.input_aliases.get(next_dst_port) orelse return FlowgraphError.UnderlyingPortNotFound;
-                try underlying_dst_ports.appendSlice(aliased_ports.items);
+                try underlying_dst_ports.appendSlice(self.allocator, aliased_ports.items);
             }
         }
     }
@@ -356,10 +356,10 @@ pub const Flowgraph = struct {
             const aliased_port = InputPort{ .block = BlockVariant.wrap(aliased_block), .index = util.indexOfString(aliased_block.inputs, aliased_port_name) orelse return FlowgraphError.PortNotFound };
 
             if (!self.input_aliases.contains(composite_port)) {
-                try self.input_aliases.put(composite_port, std.array_list.Managed(InputPort).init(self.allocator));
+                try self.input_aliases.put(composite_port, .empty);
             }
 
-            try self.input_aliases.getPtr(composite_port).?.append(aliased_port);
+            try self.input_aliases.getPtr(composite_port).?.append(self.allocator, aliased_port);
         } else if (util.indexOfString(composite.outputs, port_name)) |index| {
             const composite_port = OutputPort{ .block = BlockVariant.wrap(composite), .index = index };
             const aliased_port = OutputPort{ .block = BlockVariant.wrap(aliased_block), .index = util.indexOfString(aliased_block.outputs, aliased_port_name) orelse return FlowgraphError.PortNotFound };
@@ -1503,18 +1503,19 @@ const TestInverterBlock = struct {
 
 const TestBufferSink = struct {
     block: Block,
-    buf: std.array_list.Managed(u8),
+    allocator: std.mem.Allocator,
+    buf: std.ArrayList(u8) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) TestBufferSink {
-        return .{ .block = Block.init(@This()), .buf = std.array_list.Managed(u8).init(allocator) };
+        return .{ .block = Block.init(@This()), .allocator = allocator };
     }
 
     pub fn deinit(self: *TestBufferSink) void {
-        self.buf.deinit();
+        self.buf.deinit(self.allocator);
     }
 
     pub fn process(self: *TestBufferSink, x: []const u8) !ProcessResult {
-        try self.buf.appendSlice(x);
+        try self.buf.appendSlice(self.allocator, x);
 
         return ProcessResult.init(&[1]usize{x.len}, &[0]usize{});
     }
