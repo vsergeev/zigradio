@@ -76,8 +76,9 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
         };
 
         block: Block,
+        allocator: std.mem.Allocator = undefined,
         pa_conn: ?*pa_simple = null,
-        interleaved: std.array_list.Managed(f32) = undefined,
+        interleaved: std.ArrayList(f32) = .empty,
 
         pub fn init() Self {
             return .{
@@ -86,6 +87,8 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
         }
 
         pub fn initialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) !void {
+            self.allocator = allocator;
+
             // Open PulseAudio library
             if (!pa_simple_loaded) {
                 var lib = try std.DynLib.open("libpulse-simple.so");
@@ -110,14 +113,11 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
                 std.debug.print("pa_simple_new(): {s}\n", .{pa_strerror(error_code)});
                 return PulseAudioError.InitializationError;
             }
-
-            // Allocate interleaved array
-            if (N > 1) self.interleaved = std.array_list.Managed(f32).init(allocator);
         }
 
-        pub fn deinitialize(self: *Self, _: std.mem.Allocator, _: std.Io) void {
+        pub fn deinitialize(self: *Self, allocator: std.mem.Allocator, _: std.Io) void {
             // Free interleaved array
-            if (N > 1) self.interleaved.deinit();
+            self.interleaved.deinit(allocator);
 
             // Close and free our PulseAudio connection
             if (self.pa_conn) |pa_conn| pa_simple_free(pa_conn);
@@ -137,7 +137,7 @@ pub fn PulseAudioSink(comptime N: comptime_int) type {
 
         pub fn _process_stereo(self: *Self, x: []const f32, y: []const f32) !ProcessResult {
             // Interleave samples
-            try self.interleaved.resize(x.len * 2);
+            try self.interleaved.resize(self.allocator, x.len * 2);
             for (x, y, 0..) |_, _, i| {
                 self.interleaved.items[2 * i] = x[i];
                 self.interleaved.items[2 * i + 1] = y[i];
