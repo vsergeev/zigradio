@@ -80,7 +80,8 @@ var volk_loaded: bool = false;
 
 pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
     parent: *const FrequencyDiscriminatorBlock,
-    tmp: std.array_list.Managed(std.math.Complex(f32)) = undefined,
+    allocator: std.mem.Allocator = undefined,
+    tmp: std.ArrayList(std.math.Complex(f32)) = .empty,
     prev_sample: std.math.Complex(f32) = .{ .re = 0, .im = 0 },
     normalization: f32 = 0,
 
@@ -91,21 +92,21 @@ pub const _FrequencyDiscriminatorBlockVolkImpl = struct {
             volk_loaded = true;
         }
 
-        self.tmp = std.array_list.Managed(std.math.Complex(f32)).init(allocator);
-        try self.tmp.append(.{ .re = 0, .im = 0 });
+        self.allocator = allocator;
+        try self.tmp.append(allocator, .{ .re = 0, .im = 0 });
         self.prev_sample = .{ .re = 0, .im = 0 };
         self.normalization = (2 * std.math.pi * self.parent.deviation) / self.parent.block.getRate(f32);
 
         if (platform.debug.enabled) std.debug.print("[FrequencyDiscriminatorBlock] Using VOLK implementation\n", .{});
     }
 
-    pub fn deinitialize(self: *_FrequencyDiscriminatorBlockVolkImpl, _: std.mem.Allocator) void {
-        self.tmp.deinit();
+    pub fn deinitialize(self: *_FrequencyDiscriminatorBlockVolkImpl, allocator: std.mem.Allocator) void {
+        self.tmp.deinit(allocator);
     }
 
     pub fn process(self: *_FrequencyDiscriminatorBlockVolkImpl, x: []const std.math.Complex(f32), z: []f32) !ProcessResult {
         // Resize temporary vector
-        try self.tmp.resize(x.len);
+        try self.tmp.resize(self.allocator, x.len);
 
         // Multiply element-wise of samples by conjugate of previous samples
         //      [a b c d e f g h] * ~[p a b c d e f g]
