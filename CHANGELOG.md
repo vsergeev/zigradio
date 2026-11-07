@@ -1,3 +1,12 @@
+* v0.12.0 - 11/07/2026
+    * Migrate to Zig 0.17.
+    * Use `ftruncate64()` for compatibility with 32-bit libc in RingBuffer.
+    * Fix non-power-of-two item counts in output buffers of SampleMux.
+    * Fix non-power-of-two item counts with `get()` API in ApplicationSink.
+    * Fix non-power-of-two item counts with `get()` API in ApplicationSource.
+    * Contributors
+        * Aliaksei Chapyzhenka (@drom) - 3a97647, 6d80c7e, 548ea90, 36b5fa2
+
 * v0.11.0 - 07/21/2026
     * Migrate to Zig 0.16.
     * Zero-initialize state in DelayBlock.
